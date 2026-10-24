@@ -348,9 +348,20 @@ class Card(object):
 
 
 def from_str(string):
-    """Decodes a Card object from a string"""
-    if string not in SPECIALS:
-        color, value = string.split('_')
+    """Decodes a Card object from a string, preserving color for special cards if present"""
+    if not string:
+        return None
+    if ':' in string:
+        special_or_color, extra = string.split(':', 1)
+        if special_or_color in SPECIALS:
+            return Card(extra, None, special=special_or_color)
+        if extra in SPECIALS:
+            return Card(special_or_color, None, special=extra)
+        return Card(special_or_color, extra)
+    elif string in SPECIALS:
+        return Card(None, None, string)
+    elif '_' in string:
+        color, value = string.split('_', 1)
         return Card(color, value)
     else:
         return Card(None, None, string)

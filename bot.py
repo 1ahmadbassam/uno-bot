@@ -799,15 +799,24 @@ def process_result(update: Update, context: CallbackContext):
                    .format(name=display_name(player.user)))
         return
     elif result_id == 'call_bluff':
-        reset_waiting_time(context.bot, player)
-        do_call_bluff(context.bot, player)
+        if (player == game.current_player and
+                game.last_card and
+                game.last_card.special == c.DRAW_FOUR and
+                game.draw_counter > 0):
+            reset_waiting_time(context.bot, player)
+            do_call_bluff(context.bot, player)
+        else:
+            return
     elif result_id == 'draw':
         reset_waiting_time(context.bot, player)
         do_draw(context.bot, player)
     elif result_id == 'pass':
         game.turn()
     elif result_id in c.COLORS:
-        game.choose_color(result_id)
+        if game.choosing_color and player == game.current_player:
+            game.choose_color(result_id)
+        else:
+            return
     else:
         reset_waiting_time(context.bot, player)
         do_play_card(context.bot, player, result_id)

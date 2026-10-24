@@ -19,11 +19,13 @@
 
 
 import logging
+import secrets
 from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS
 from datetime import datetime
 
 from deck import Deck
 import card as c
+from errors import DeckEmptyError
 
 class Game(object):
     """ This class represents a game of UNO """
@@ -59,9 +61,13 @@ class Game(object):
             return players
 
         current_player = self.current_player
-        itplayer = current_player.next
         players.append(current_player)
+        visited = {id(current_player)}
+        itplayer = current_player.next
         while itplayer and itplayer != current_player:
+            if id(itplayer) in visited:
+                break
+            visited.add(id(itplayer))
             players.append(itplayer)
             itplayer = itplayer.next
         return players
@@ -89,6 +95,9 @@ class Game(object):
         """Marks the turn as over and change the current player"""
         self.touch()
         self.logger.debug("Next Player")
+        # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
+        if self.last_card and not self.last_card.color:
+            self.last_card.color = secrets.choice(c.COLORS)
         self.current_player = self.current_player.next
         self.current_player.drew = False
         self.current_player.turn_started = datetime.now()
@@ -99,14 +108,39 @@ class Game(object):
         if not self.deck.cards:
             self.set_mode(DEFAULT_GAMEMODE)
 
-        # The first card should not be a special card
-        while not self.last_card or self.last_card.special:
-            self.last_card = self.deck.draw()
-            # If the card drawn was special, return it to the deck and loop again
-            if self.last_card.special:
-                self.deck.dismiss(self.last_card)
+        # The first card should not be a special card (Wild or Wild Draw Four).
+        # Any drawn specials are held temporarily, then returned to the deck and shuffled.
+        temp_specials = []
+        card = None
+        while True:
+            card = self.deck.draw()
+            if card.special:
+                temp_specials.append(card)
+            else:
+                break
 
-        self.play_card(self.last_card)
+        if temp_specials:
+            self.deck.cards.extend(temp_specials)
+            self.deck.shuffle()
+
+        self.last_card = card
+
+        # Resolve first-card action rules according to official UNO rules
+        # without dismissing the starting card or skipping the first player on number cards
+        if card.value == c.SKIP:
+            self.turn()
+        elif card.value == c.DRAW_TWO:
+            self.draw_counter = 2
+            try:
+                self.current_player.draw()
+            except DeckEmptyError:
+                pass
+            self.turn()
+        elif card.value == c.REVERSE:
+            if self.current_player == self.current_player.next.next:
+                self.turn()
+            else:
+                self.reverse()
 
     def play_card(self, card):
         """

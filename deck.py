@@ -18,12 +18,28 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-from random import shuffle
+import secrets
 import logging
 
 import card as c
 from card import Card
 from errors import DeckEmptyError
+
+
+def secure_shuffle(cards):
+    """
+    Cryptographically secure, unbiased Fisher-Yates shuffle.
+    Uses OS-level CSPRNG entropy via secrets.SystemRandom() with rejection sampling
+    (randbelow) to eliminate modulo bias.
+    Executes multiple independent Fisher-Yates passes to guarantee uniform card
+    distribution such that every permutation has equal probability (1 / N!).
+    """
+    if len(cards) <= 1:
+        return
+    rng = secrets.SystemRandom()
+    # Perform 3 independent Fisher-Yates passes using OS CSPRNG entropy
+    for _ in range(3):
+        rng.shuffle(cards)
 
 
 class Deck(object):
@@ -37,9 +53,9 @@ class Deck(object):
         self.logger.debug(self.cards)
 
     def shuffle(self):
-        """Shuffles the deck"""
-        self.logger.debug("Shuffling Deck")
-        shuffle(self.cards)
+        """Shuffles the deck using cryptographically secure randomness"""
+        self.logger.debug("Shuffling Deck with cryptographic CSPRNG")
+        secure_shuffle(self.cards)
 
     def draw(self):
         """Draws a card from this deck"""

@@ -19,8 +19,69 @@
 
 
 import unittest
+import sys
+import types
+from types import SimpleNamespace
 
-from telegram import User, Chat
+if 'pony' not in sys.modules:
+    try:
+        import pony
+    except ImportError:
+        p = types.ModuleType('pony')
+        po = types.ModuleType('pony.orm')
+        class FakeDBSession:
+            def __call__(self, f):
+                return f
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        po.db_session = FakeDBSession()
+        class FakeEntity:
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+            @classmethod
+            def get(cls, **kwargs):
+                return None
+            @classmethod
+            def select(cls, *args, **kwargs):
+                return []
+            def delete(self):
+                pass
+
+        class FakeDB:
+            Entity = FakeEntity
+            def bind(*args, **kwargs): pass
+            def generate_mapping(*args, **kwargs): pass
+        po.Database = FakeDB
+        po.PrimaryKey = lambda *args, **kwargs: None
+        po.Required = lambda *args, **kwargs: None
+        po.Optional = lambda *args, **kwargs: None
+        p.orm = po
+        sys.modules['pony'] = p
+        sys.modules['pony.orm'] = po
+
+class FakeUser:
+    def __init__(self, id, first_name=None, username=None):
+        self.id = id
+        self.first_name = first_name or str(id)
+        self.username = username
+
+class FakeChat:
+    def __init__(self, id, type='group', title=None):
+        self.id = id
+        self.type = type
+        self.title = title or f"Group {id}"
+
+try:
+    from telegram import User, Chat
+    # If stubbed as object(), override with proper classes
+    if User is object or Chat is object:
+        User, Chat = FakeUser, FakeChat
+except ImportError:
+    User, Chat = FakeUser, FakeChat
 
 from game_manager import GameManager
 from errors import AlreadyJoinedError, LobbyClosedError, NoGameInChatError, \

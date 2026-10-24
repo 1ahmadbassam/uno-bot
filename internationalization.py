@@ -34,16 +34,15 @@ GETTEXT_DIR = 'locales'
 class _Underscore(object):
     """Class to emulate flufl.i18n behaviour, but with plural support"""
     def __init__(self):
-        self.translators = {
-            locale: gettext.GNUTranslations(
-                open(gettext.find(
-                    GETTEXT_DOMAIN, GETTEXT_DIR, languages=[locale]
-                ), 'rb')
-            )
-            for locale
-            in available_locales.keys()
-            if locale != 'en_US'  # No translation file for en_US
-        }
+        self.translators = dict()
+        for locale in available_locales.keys():
+            if locale == 'en_US':
+                continue
+            mo_path = gettext.find(GETTEXT_DOMAIN, GETTEXT_DIR, languages=[locale])
+            if mo_path:
+                self.translators[locale] = gettext.GNUTranslations(open(mo_path, 'rb'))
+            else:
+                self.translators[locale] = gettext.NullTranslations()
         self._local = threading.local()
 
     @property

@@ -19,6 +19,7 @@
 
 
 import logging
+import secrets
 from datetime import datetime
 
 import card as c
@@ -69,13 +70,24 @@ class Player(object):
 
     def leave(self):
         """Removes player from the game and closes the gap in the list"""
-        if self.next == self:
+        if self._next is None or self._prev is None:
             return
 
-        self.next.prev = self.prev
-        self.prev.next = self.next
-        self.next = None
-        self.prev = None
+        if self._next == self:
+            if self.game.current_player == self:
+                self.game.current_player = None
+            self._next = None
+            self._prev = None
+        else:
+            if self.game.current_player == self:
+                self.game.current_player = self.next
+
+            nxt = self.next
+            prv = self.prev
+            nxt.prev = prv
+            prv.next = nxt
+            self._next = None
+            self._prev = None
 
         for card in self.cards:
             self.game.deck.dismiss(card)
@@ -127,6 +139,14 @@ class Player(object):
 
     def play(self, card):
         """Plays a card and removes it from hand"""
+        # Determine bluffing status at the exact moment a Wild Draw 4 is played
+        # by checking the player's full hand against the active color.
+        if card.special == c.DRAW_FOUR:
+            active_color = self.game.last_card.color if self.game.last_card else None
+            self.bluffing = any(c.color == active_color for c in self.cards if c.color)
+        else:
+            self.bluffing = False
+
         self.cards.remove(card)
         self.game.play_card(card)
 
@@ -142,19 +162,19 @@ class Player(object):
         if self.drew:
             cards = self.cards[-1:]
 
-        # You may only play a +4 if you have no cards of the correct color
-        self.bluffing = False
+        # Preview bluffing against the entire hand (not just the drawn card)
+        if last and last.color:
+            self.bluffing = any(card.color == last.color for card in self.cards if card.color)
+        else:
+            self.bluffing = False
+
         for card in cards:
             if self._card_playable(card):
                 self.logger.debug("Matching!")
                 playable.append(card)
 
-                self.bluffing = (self.bluffing or card.color == last.color)
-
-        # You may not play a chooser or +4 as your last card
-        if len(self.cards) == 1 and self.cards[0].special:
-            return list()
-
+        # In standard UNO, players are permitted to play any card (including Wild cards)
+        # as their final card to win.
         return playable
 
     def _card_playable(self, card):
@@ -175,12 +195,9 @@ class Player(object):
         elif last.special == c.DRAW_FOUR and self.game.draw_counter:
             self.logger.debug("Player has to draw and can't counter")
             is_playable = False
-        elif (last.special == c.CHOOSE or last.special == c.DRAW_FOUR) and \
-                (card.special == c.CHOOSE or card.special == c.DRAW_FOUR):
-            self.logger.debug("Can't play colorchooser on another one")
-            is_playable = False
         elif not last.color:
-            self.logger.debug("Last card has no color")
-            is_playable = False
+            # Self-healing safeguard: if color was lost or missing, auto-select a valid color
+            self.logger.warning("Last card had no color; auto-selecting color to prevent deadlock")
+            last.color = secrets.choice(c.COLORS)
 
         return is_playable

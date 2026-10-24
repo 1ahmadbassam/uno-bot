@@ -1,4 +1,4 @@
-import random
+import secrets
 
 import logging
 
@@ -15,7 +15,7 @@ from game_threads import game_thread_runner
 from internationalization import __, _
 from shared_vars import gm
 from user_setting import UserSetting
-from utils import send_async, display_name, game_is_running
+from utils import send_async, display_name, display_color_group, game_is_running
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,15 @@ def do_skip(bot, player, job_queue=None):
         except DeckEmptyError:
             pass
 
+        # Prevent soft-lock if skipping a player who was supposed to choose a color
+        if game.choosing_color or (game.last_card and not game.last_card.color):
+            auto_color = secrets.choice(c.COLORS)
+            game.last_card.color = auto_color
+            game.choosing_color = False
+            send_async(bot, chat.id,
+                       text=__("Time ran out to choose a color! Color automatically set to {color}.",
+                               multi=game.translate).format(color=display_color_group(auto_color, game)))
+
         n = skipped_player.waiting_time
         send_async(bot, chat.id,
                    text=__("Waiting time to skip this player has "
@@ -62,6 +71,14 @@ def do_skip(bot, player, job_queue=None):
             start_player_countdown(bot, game, job_queue)
 
     else:
+        # Prevent soft-lock if removing a player who was supposed to choose a color
+        if game.choosing_color or (game.last_card and not game.last_card.color):
+            auto_color = secrets.choice(c.COLORS)
+            game.last_card.color = auto_color
+            game.choosing_color = False
+            send_async(bot, chat.id,
+                       text=__("Time ran out to choose a color! Color automatically set to {color}.",
+                               multi=game.translate).format(color=display_color_group(auto_color, game)))
         try:
             gm.leave_game(skipped_player.user, chat)
             send_async(bot, chat.id,
@@ -109,6 +126,16 @@ def do_play_card(bot, player, result_id):
         send_async(bot, chat.id, text="UNO!")
 
     if len(player.cards) == 0:
+        # If the winning card was a Wild card, automatically assign a color
+        # so remaining players can continue without deadlock
+        if game.choosing_color:
+            auto_color = secrets.choice(c.COLORS)
+            game.choose_color(auto_color)
+            send_async(bot, chat.id,
+                       text=__("Winning card was Wild! Color set to {color}.",
+                               multi=game.translate)
+                       .format(color=display_color_group(auto_color, game)))
+
         send_async(bot, chat.id,
                    text=__("{name} won!", multi=game.translate)
                    .format(name=user.first_name))
@@ -160,15 +187,19 @@ def do_call_bluff(bot, player):
     """Handles the bluff calling"""
     game = player.game
     chat = game.chat
+    bluffer = player.prev
+    was_bluffing = bluffer.bluffing
+    # Reset bluffing state so it never persists across subsequent turns
+    bluffer.bluffing = False
 
-    if player.prev.bluffing:
+    if was_bluffing:
         send_async(bot, chat.id,
                    text=__("Bluff called! Giving 4 cards to {name}",
                            multi=game.translate)
-                   .format(name=player.prev.user.first_name))
+                   .format(name=bluffer.user.first_name))
 
         try:
-            player.prev.draw()
+            bluffer.draw()
         except DeckEmptyError:
             send_async(bot, player.game.chat.id,
                        text=__("There are no more cards in the deck.",
@@ -179,7 +210,7 @@ def do_call_bluff(bot, player):
         send_async(bot, chat.id,
                    text=__("{name1} didn't bluff! Giving 6 cards to {name2}",
                            multi=game.translate)
-                   .format(name1=player.prev.user.first_name,
+                   .format(name1=bluffer.user.first_name,
                            name2=player.user.first_name))
         try:
             player.draw()

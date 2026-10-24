@@ -51,7 +51,11 @@ class GameManager(object):
         return SimpleNamespace(id=user_id, first_name=first_name or str(user_id), username=username)
 
     def _serialize_card(self, card):
-        return str(card) if card else None
+        if not card:
+            return None
+        if card.special and card.color:
+            return f"{card.special}:{card.color}"
+        return str(card)
 
     def _deserialize_card(self, value):
         return c.from_str(value) if value else None
