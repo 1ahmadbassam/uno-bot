@@ -34,16 +34,15 @@ def help_handler(update: Update, context: CallbackContext):
       " running game with /join\n"
       "3. After at least two players have joined, start the game with"
       " /start\n"
-      "4. Type <code>@play_unobot</code> into your chat box and hit "
-      "<b>space</b>, or click the <code>via @play_unobot</code> text "
+      "4. Type the bot's username into your chat box and hit "
+      "<b>space</b>, or click the <code>via @the bot's username</code> text "
       "next to messages. You will see your cards (some greyed out), "
       "any extra options like drawing, and a <b>?</b> to see the "
       "current game state. The <b>greyed out cards</b> are those you "
       "<b>can not play</b> at the moment. Tap an option to execute "
       "the selected action.\n"
       "Players can join the game at any time. To leave a game, "
-      "use /leave. If a player takes more than 90 seconds to play, "
-      "you can use /skip to skip that player. Use /notify_me to "
+      "use /leave. Use /notify_me to "
       "receive a private message when a new game is started.\n\n"
       "<b>Language</b> and other settings: /settings\n"
       "Other commands (only game creator):\n"
@@ -54,10 +53,7 @@ def help_handler(update: Update, context: CallbackContext):
       "by replying to him or her\n"
       "/enable_translations - Translate relevant texts into all "
       "languages spoken in a game\n"
-      "/disable_translations - Use English for those texts\n\n"
-      "<b>Experimental:</b> Play in multiple groups at the same time. "
-      "Press the <code>Current game: ...</code> button and select the "
-      "group you want to play a card in.")
+      "/disable_translations - Use English for those texts\n\n")
 
     def _send():
       update.message.chat.send_message(
@@ -85,8 +81,8 @@ def modes(update: Update, context: CallbackContext):
 def source(update: Update, context: CallbackContext):
     """Handler for the /help command"""
     source_text = (
-        "Source code: https://github.com/Tackyou/mau_mau_bot\n\n"
-        "A performance optimized version of the original "
+        "Source code: https://github.com/1ahmadbassam/uno-bot\n\n"
+        "Fork of "
         "https://github.com/jh0ker/mau_mau_bot\n\n"
         "Attributions:\n"
         "Draw icon by Faithtoken (http://www.faithtoken.com/)\n"

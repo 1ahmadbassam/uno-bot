@@ -14,4 +14,3 @@ help - How to use this bot?
 modes - Explanation of game modes
 settings - Language and other settings 
 stats - Show statistics 
-source - See source information 
