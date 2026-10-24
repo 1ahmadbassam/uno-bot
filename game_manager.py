@@ -168,14 +168,14 @@ class GameManager(object):
         if games is None:
             row = PersistedChatState.get(chat_id=chat_id)
             if not row:
-                for link in PersistedUserChat.select(lambda uc: uc.chat_id == chat_id):
+                for link in PersistedUserChat.select(chat_id=chat_id):
                     link.delete()
                 return
             try:
                 games_data = json.loads(row.payload)
             except json.JSONDecodeError:
                 self.logger.warning("Skipping corrupted persisted payload for chat_id=%s", chat_id)
-                for link in PersistedUserChat.select(lambda uc: uc.chat_id == chat_id):
+                for link in PersistedUserChat.select(chat_id=chat_id):
                     link.delete()
                 return
 
@@ -192,7 +192,7 @@ class GameManager(object):
                 for player in game.players:
                     user_ids.add(player.user.id)
 
-        existing_links = list(PersistedUserChat.select(lambda uc: uc.chat_id == chat_id))
+        existing_links = list(PersistedUserChat.select(chat_id=chat_id))
         existing_user_ids = {link.user_id for link in existing_links}
 
         # Delete only stale links to avoid delete+recreate identity-map conflicts.
@@ -267,7 +267,7 @@ class GameManager(object):
             return
 
         with db_session:
-            chat_ids = [uc.chat_id for uc in PersistedUserChat.select(lambda uc: uc.user_id == user_id)]
+            chat_ids = [uc.chat_id for uc in PersistedUserChat.select(user_id=user_id)]
 
         for chat_id in chat_ids:
             if chat_id in self.chatid_games:
