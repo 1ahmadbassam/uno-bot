@@ -44,7 +44,7 @@ from simple_commands import help_handler
 from start_bot import start_bot
 from game_threads import game_thread_runner
 from utils import display_name
-from utils import send_async, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running
+from utils import send_async, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group
 
 
 logging.basicConfig(
@@ -244,6 +244,7 @@ def leave_game(update: Update, context: CallbackContext):
 
     game = player.game
     user = update.message.from_user
+    was_choosing = (player is game.current_player) and (game.choosing_color or (game.last_card and not game.last_card.color))
 
     try:
         gm.leave_game(user, chat)
@@ -258,6 +259,11 @@ def leave_game(update: Update, context: CallbackContext):
         send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
 
     else:
+        if was_choosing and game.last_card and game.last_card.color:
+            send_async(context.bot, chat.id,
+                       text=__("Player left while choosing a color! Color automatically set to {color}.",
+                               multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
+
         if game.started:
             send_async(context.bot, chat.id,
                        text=__("Okay. Next Player: {name}",
@@ -305,6 +311,8 @@ def kick_player(update: Update, context: CallbackContext):
 
         if update.message.reply_to_message:
             kicked = update.message.reply_to_message.from_user
+            kicked_player = gm.player_for_user_in_chat(kicked, chat)
+            was_choosing = (kicked_player is not None) and (kicked_player is game.current_player) and (game.choosing_color or (game.last_card and not game.last_card.color))
 
             try:
                 gm.leave_game(kicked, chat)
@@ -323,6 +331,11 @@ def kick_player(update: Update, context: CallbackContext):
 
             send_async(context.bot, chat.id,
                             text=_("{0} was kicked by {1}".format(display_name(kicked), display_name(user))))
+
+            if was_choosing and game.last_card and game.last_card.color:
+                send_async(context.bot, chat.id,
+                           text=__("Player left while choosing a color! Color automatically set to {color}.",
+                                   multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
 
         else:
             send_async(context.bot, chat.id,
@@ -425,6 +438,7 @@ def status_update(update: Update, context: CallbackContext):
         if not player:
             return
         game = player.game
+        was_choosing = (player is game.current_player) and (game.choosing_color or (game.last_card and not game.last_card.color))
 
         try:
             gm.leave_game(user, chat)
@@ -439,6 +453,10 @@ def status_update(update: Update, context: CallbackContext):
             send_async(context.bot, chat.id, text=__("Removing {name} from the game",
                                              multi=game.translate)
                        .format(name=display_name(user)))
+            if was_choosing and game.last_card and game.last_card.color:
+                send_async(context.bot, chat.id,
+                           text=__("Player left while choosing a color! Color automatically set to {color}.",
+                                   multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
 
 
 @game_locales

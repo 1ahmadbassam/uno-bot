@@ -29,7 +29,7 @@ from game import Game
 from player import Player
 from config import STALE_GAME_UNLOAD_SECONDS, STALE_GAME_SCAN_EVERY_SECONDS
 from errors import (AlreadyJoinedError, LobbyClosedError, NoGameInChatError,
-                    NotEnoughPlayersError)
+                    NotEnoughPlayersError, DeckEmptyError)
 from persisted_state import PersistedChatState, PersistedUserChat
 
 class GameManager(object):
@@ -104,7 +104,8 @@ class GameManager(object):
                     'drew': player.drew,
                     'anti_cheat': player.anti_cheat,
                     'turn_started': player.turn_started.isoformat(),
-                    'waiting_time': player.waiting_time
+                    'waiting_time': player.waiting_time,
+                    'pending_win': getattr(player, 'pending_win', False)
                 }
                 for player in players
             ],
@@ -139,6 +140,9 @@ class GameManager(object):
             player.anti_cheat = player_data.get('anti_cheat', 0)
             player.turn_started = datetime.fromisoformat(player_data.get('turn_started', datetime.now().isoformat()))
             player.waiting_time = player_data.get('waiting_time', player.waiting_time)
+            player.pending_win = player_data.get('pending_win', False)
+            if player.pending_win:
+                game.last_bluffer = player
 
         if game.players:
             idx = data.get('current_player_idx', 0)
@@ -437,7 +441,13 @@ class GameManager(object):
 
         player = Player(game, user)
         if game.started:
-            player.draw_first_hand()
+            try:
+                player.draw_first_hand()
+            except DeckEmptyError:
+                player.leave()
+                if not players:
+                    self.userid_players.pop(user.id, None)
+                raise
 
         players.append(player)
         self.userid_current[user.id] = player

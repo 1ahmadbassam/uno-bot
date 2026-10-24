@@ -115,7 +115,7 @@ from player import Player
 from deck import Deck, secure_shuffle
 import card as c
 from game_manager import GameManager
-from actions import do_skip, do_call_bluff, do_play_card
+from actions import do_skip, do_call_bluff, do_play_card, do_draw
 from errors import DeckEmptyError
 
 
@@ -126,6 +126,14 @@ class TestFairnessFixes(unittest.TestCase):
         self.p0 = Player(self.game, SimpleNamespace(id=100, first_name="Alice", username="alice"))
         self.p1 = Player(self.game, SimpleNamespace(id=101, first_name="Bob", username="bob"))
         self.p2 = Player(self.game, SimpleNamespace(id=102, first_name="Charlie", username="charlie"))
+
+        import shared_vars
+        def fake_leave(user, chat):
+            for p in list(self.game.players):
+                if p.user.id == user.id:
+                    p.leave()
+                    break
+        shared_vars.gm.leave_game = fake_leave
 
     def test_1_2_true_randomness_csprng(self):
         """1.2: Guarantee true randomness (CSPRNG, no seed predictability, uniform distribution)"""
@@ -297,6 +305,163 @@ class TestFairnessFixes(unittest.TestCase):
         self.p0.leave()
         self.assertEqual(self.game.current_player, self.p2)
         self.assertEqual(self.game.players, [self.p2])
+
+    def test_f03_successful_bluff_challenge_retains_challenger_turn(self):
+        """F-03: Challenger retains their turn on successful bluff challenge instead of being skipped"""
+        self.game.start()
+        self.game.last_card = c.Card(c.RED, '5')
+        self.game.current_player = self.p1
+        self.game.draw_counter = 4
+        self.game.last_bluffer = self.p0
+        self.p0.bluffing = True
+        self.p0.cards = [c.Card(c.BLUE, '1')]
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        do_call_bluff(dummy_bot, self.p1)
+
+        # Alice bluffed: she draws 4 cards and her bluffing state resets
+        self.assertFalse(self.p0.bluffing)
+        self.assertEqual(len(self.p0.cards), 5)
+        # Bob successfully challenged: draw_counter is reset to 0 and Bob retains his turn!
+        self.assertEqual(self.game.draw_counter, 0)
+        self.assertEqual(self.game.current_player, self.p1, "Successful challenger was unfairly skipped!")
+
+    def test_f04_win_with_draw_four_bluff_resolution(self):
+        """F-04: Playing Wild Draw 4 as last card defers win; bluffer penalized on challenge without punishing bystanders"""
+        self.game.start()
+        self.game.last_card = c.Card(c.BLUE, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.last_bluffer = self.p0
+        self.game.current_player = self.p1
+
+        # Case 1: Alice played +4 as last card while bluffing
+        self.p0.cards = []
+        self.p0.pending_win = True
+        self.p0.bluffing = True
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        do_call_bluff(dummy_bot, self.p1)
+
+        # Bluff called: Alice draws 4 cards, pending_win is cancelled, Alice has NOT won
+        self.assertFalse(self.p0.pending_win)
+        self.assertEqual(len(self.p0.cards), 4)
+        self.assertIn(self.p0, self.game.players)
+        self.assertEqual(self.game.current_player, self.p1)
+
+        # Case 2: Alice played +4 honestly with no matching colors
+        self.p0.cards = []
+        self.p0.pending_win = True
+        self.p0.bluffing = False
+        self.game.last_bluffer = self.p0
+        self.game.draw_counter = 4
+        self.game.current_player = self.p1
+
+        do_call_bluff(dummy_bot, self.p1)
+
+        # Bob falsely challenged: Bob draws 6 cards and is skipped
+        self.assertEqual(self.game.current_player, self.p2)
+        # Alice's win is confirmed and she leaves the game cleanly
+        self.assertNotIn(self.p0, self.game.players)
+
+    def test_f04_win_with_draw_four_when_challenger_draws(self):
+        """F-04: Winner with Wild Draw 4 is awarded win when challenger draws cards"""
+        self.game.start()
+        self.game.last_card = c.Card(c.YELLOW, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.last_bluffer = self.p0
+        self.p0.cards = []
+        self.p0.pending_win = True
+        self.game.current_player = self.p1
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        # Bob accepts penalty and draws
+        do_draw(dummy_bot, self.p1)
+
+        # Alice's win is confirmed and she leaves cleanly
+        self.assertNotIn(self.p0, self.game.players)
+        self.assertEqual(self.game.current_player, self.p2)
+
+    def test_f05_join_game_deck_exhaustion_leaves_no_phantom_player(self):
+        """F-05: When DeckEmptyError occurs during mid-game join, no zombie player remains in the ring"""
+        chat = SimpleNamespace(id=99, title="Exhaustion Chat", type="group")
+        gm = GameManager()
+        game = gm.new_game(chat)
+
+        u1 = SimpleNamespace(id=901, first_name="U1", username="u1")
+        u2 = SimpleNamespace(id=902, first_name="U2", username="u2")
+        gm.join_game(u1, chat)
+        gm.join_game(u2, chat)
+
+        # Start game properly with full deck
+        game.start()
+        for p in game.players:
+            p.draw_first_hand()
+
+        initial_players = list(game.players)
+        self.assertEqual(len(initial_players), 2)
+
+        # Exhaust deck completely
+        game.deck.cards.clear()
+        game.deck.graveyard.clear()
+
+        # New user attempts to join but deck is empty
+        u3 = SimpleNamespace(id=903, first_name="U3", username="u3")
+        with self.assertRaises(DeckEmptyError):
+            gm.join_game(u3, chat)
+
+        # Verify no phantom player remains in game.players
+        remaining_players = list(game.players)
+        self.assertEqual(len(remaining_players), 2)
+        self.assertNotIn(u3.id, [p.user.id for p in remaining_players])
+        self.assertNotIn(u3.id, gm.userid_players)
+
+        # Circular integrity intact
+        p_first = remaining_players[0]
+        p_second = remaining_players[1]
+        self.assertEqual(p_first.next, p_second)
+        self.assertEqual(p_second.next, p_first)
+        self.assertEqual(p_first.prev, p_second)
+        self.assertEqual(p_second.prev, p_first)
+
+    def test_f07_stale_countdown_timer_does_not_skip_innocent_player(self):
+        """F-07: Stale automated countdown skip does not skip the next player when current player moved on"""
+        self.game.start()
+        # Suppose turn has advanced to Bob (p1)
+        self.game.current_player = self.p1
+        p1_waiting = self.p1.waiting_time
+
+        # A stale countdown timer fires for Alice (p0)
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        dummy_job_queue = object()
+
+        do_skip(dummy_bot, self.p0, job_queue=dummy_job_queue)
+
+        # Bob should NOT be skipped!
+        self.assertEqual(self.game.current_player, self.p1)
+        self.assertEqual(self.p1.waiting_time, p1_waiting)
+
+    def test_f08_color_announcement_when_player_leaves_while_choosing(self):
+        """F-08: Color is auto-selected and choosing state cleared when active player leaves"""
+        self.game.start()
+        self.game.last_card = c.Card(None, None, special=c.CHOOSE)
+        self.game.choosing_color = True
+
+        chat = self.game.chat
+        gm = GameManager()
+        gm.chatid_games[chat.id] = [self.game]
+        for p in self.game.players:
+            gm.userid_players[p.user.id] = [p]
+            gm.userid_current[p.user.id] = p
+
+        # Current player leaves while choosing color
+        current_leaving = self.game.current_player
+        self.assertTrue(self.game.choosing_color)
+
+        gm.leave_game(current_leaving.user, chat)
+
+        # Game must auto-select color and clear choosing_color
+        self.assertIn(self.game.last_card.color, c.COLORS)
+        self.assertFalse(self.game.choosing_color)
 
 
 if __name__ == '__main__':

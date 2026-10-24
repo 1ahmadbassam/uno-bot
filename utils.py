@@ -20,7 +20,11 @@
 
 import logging
 from telegram import Update
-from telegram.error import BadRequest, TimedOut, ChatMigrated, Unauthorized
+try:
+    from telegram.error import Unauthorized
+except ImportError:
+    from telegram.error import Forbidden as Unauthorized
+from telegram.error import BadRequest, TimedOut, ChatMigrated
 from telegram.ext import CallbackContext
 
 from internationalization import _, __

@@ -47,6 +47,7 @@ class Game(object):
         self.open = OPEN_LOBBY
         self.translate = ENABLE_TRANSLATIONS
         self.last_activity = datetime.now()
+        self.last_bluffer = None
 
         self.logger = logging.getLogger(__name__)
 

@@ -35,6 +35,20 @@ def do_skip(bot, player, job_queue=None):
     skipped_player = game.current_player
     next_player = game.current_player.next
 
+    # F-07: Guard against race condition: if an automated countdown timer fired for a
+    # player who has already completed their turn, ignore the stale skip.
+    if job_queue is not None and player != skipped_player:
+        logger.info("Ignoring stale automated countdown skip for %s (current player is %s)",
+                    display_name(player.user), display_name(skipped_player.user))
+        return
+
+    # F-04: If there was a pending win on Wild Draw Four and challenger timed out, award win
+    bluffer = getattr(game, 'last_bluffer', None)
+    if bluffer and getattr(bluffer, 'pending_win', False):
+        bluffer.pending_win = False
+        game.last_bluffer = None
+        player_won(bot, bluffer)
+
     if skipped_player.waiting_time > 0:
         skipped_player.anti_cheat += 1
         skipped_player.waiting_time -= TIME_REMOVAL_AFTER_SKIP
@@ -64,7 +78,7 @@ def do_skip(bot, player, job_queue=None):
                            name=display_name(next_player.user))
         )
         logger.info("{player} was skipped! "
-                    .format(player=display_name(player.user)))
+                    .format(player=display_name(skipped_player.user)))
         game.turn()
         gm.persist_game(game)
         if job_queue:
@@ -88,7 +102,7 @@ def do_skip(bot, player, job_queue=None):
                        .format(name1=display_name(skipped_player.user),
                                name2=display_name(next_player.user)))
             logger.info("{player} was skipped! "
-                    .format(player=display_name(player.user)))
+                    .format(player=display_name(skipped_player.user)))
             gm.persist_game(game)
             if job_queue:
                 start_player_countdown(bot, game, job_queue)
@@ -103,6 +117,40 @@ def do_skip(bot, player, job_queue=None):
             gm.end_game(chat, skipped_player.user)
 
 
+def player_won(bot, player):
+    """Handles player winning and leaves or ends the game cleanly"""
+    game = player.game
+    chat = game.chat
+    user = player.user
+
+    us = UserSetting.get(id=user.id)
+    if not us:
+        us = UserSetting(id=user.id)
+
+    send_async(bot, chat.id,
+               text=__("{name} won!", multi=game.translate)
+               .format(name=user.first_name))
+
+    if us.stats:
+        us.games_played += 1
+
+        if game.players_won == 0:
+            us.first_places += 1
+
+    game.players_won += 1
+
+    try:
+        gm.leave_game(user, chat)
+    except NotEnoughPlayersError:
+        send_async(bot, chat.id,
+                   text=__("Game ended!", multi=game.translate))
+
+        us2 = UserSetting.get(id=game.current_player.user.id)
+        if us2 and us2.stats:
+            us2.games_played += 1
+
+        gm.end_game(chat, user)
+
 
 def do_play_card(bot, player, result_id):
     """Plays the selected card and sends an update to the group if needed"""
@@ -112,15 +160,15 @@ def do_play_card(bot, player, result_id):
     chat = game.chat
     user = player.user
 
+    if card.special == c.DRAW_FOUR:
+        game.last_bluffer = player
+
     us = UserSetting.get(id=user.id)
     if not us:
         us = UserSetting(id=user.id)
 
     if us.stats:
         us.cards_played += 1
-
-    if game.choosing_color:
-        send_async(bot, chat.id, text=__("Please choose a color", multi=game.translate))
 
     if len(player.cards) == 1:
         send_async(bot, chat.id, text="UNO!")
@@ -136,29 +184,15 @@ def do_play_card(bot, player, result_id):
                                multi=game.translate)
                        .format(color=display_color_group(auto_color, game)))
 
-        send_async(bot, chat.id,
-                   text=__("{name} won!", multi=game.translate)
-                   .format(name=user.first_name))
-
-        if us.stats:
-            us.games_played += 1
-
-            if game.players_won == 0:
-                us.first_places += 1
-
-        game.players_won += 1
-
-        try:
-            gm.leave_game(user, chat)
-        except NotEnoughPlayersError:
-            send_async(bot, chat.id,
-                       text=__("Game ended!", multi=game.translate))
-
-            us2 = UserSetting.get(id=game.current_player.user.id)
-            if us2 and us2.stats:
-                us2.games_played += 1
-
-            gm.end_game(chat, user)
+        if card.special == c.DRAW_FOUR and game.draw_counter > 0:
+            # F-04: Win is deferred until challenge resolution or draw/skip by next player
+            player.pending_win = True
+            game.last_bluffer = player
+        else:
+            player_won(bot, player)
+    else:
+        if game.choosing_color:
+            send_async(bot, chat.id, text=__("Please choose a color", multi=game.translate))
 
     if game in gm.chatid_games.get(chat.id, []):
         gm.persist_game(game)
@@ -180,6 +214,14 @@ def do_draw(bot, player):
         game.last_card.special == c.DRAW_FOUR) and \
             draw_counter_before > 0:
         game.turn()
+
+    # F-04: If there was a pending win on Wild Draw Four and challenger drew cards, award win
+    bluffer = getattr(game, 'last_bluffer', None)
+    if bluffer and getattr(bluffer, 'pending_win', False):
+        bluffer.pending_win = False
+        game.last_bluffer = None
+        player_won(bot, bluffer)
+
     gm.persist_game(game)
 
 
@@ -187,12 +229,16 @@ def do_call_bluff(bot, player):
     """Handles the bluff calling"""
     game = player.game
     chat = game.chat
-    bluffer = player.prev
+    bluffer = getattr(game, 'last_bluffer', None) or player.prev
+    game.last_bluffer = None
     was_bluffing = bluffer.bluffing
     # Reset bluffing state so it never persists across subsequent turns
     bluffer.bluffing = False
 
     if was_bluffing:
+        if getattr(bluffer, 'pending_win', False):
+            bluffer.pending_win = False
+
         send_async(bot, chat.id,
                    text=__("Bluff called! Giving 4 cards to {name}",
                            multi=game.translate)
@@ -204,6 +250,8 @@ def do_call_bluff(bot, player):
             send_async(bot, player.game.chat.id,
                        text=__("There are no more cards in the deck.",
                                multi=game.translate))
+        # F-03: Challenger retains their turn on successful challenge!
+        game.draw_counter = 0
 
     else:
         game.draw_counter += 2
@@ -219,7 +267,12 @@ def do_call_bluff(bot, player):
                        text=__("There are no more cards in the deck.",
                                multi=game.translate))
 
-    game.turn()
+        game.turn()
+        # F-04: If bluffer was innocent and had pending win, award the win now!
+        if getattr(bluffer, 'pending_win', False):
+            bluffer.pending_win = False
+            player_won(bot, bluffer)
+
     gm.persist_game(game)
 
 
@@ -253,6 +306,10 @@ def skip_job(context: CallbackContext):
     player = context.job.context.player
     game = player.game
     if game_is_running(game):
+        if player != game.current_player:
+            logger.info("Skipping stale timer job before submit: %s is no longer current player (%s)",
+                        display_name(player.user), display_name(game.current_player.user))
+            return
         job_queue = context.job.context.job_queue
         game_thread_runner.submit(
             f"chat:{game.chat.id}",

@@ -57,6 +57,7 @@ class Player(object):
         self.anti_cheat = 0
         self.turn_started = datetime.now()
         self.waiting_time = WAITING_TIME
+        self.pending_win = False
 
     def draw_first_hand(self):
         try:
