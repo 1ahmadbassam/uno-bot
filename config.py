@@ -34,6 +34,20 @@ ADMIN_LIST = os.getenv("ADMIN_LIST", config.get("admin_list", None))
 if isinstance(ADMIN_LIST, str):
     ADMIN_LIST = set(int(x) for x in ADMIN_LIST.split())
 
+ALLOWED_GROUP_ID = os.getenv("ALLOWED_GROUP_ID", config.get("allowed_group_id", None))
+if ALLOWED_GROUP_ID is not None and str(ALLOWED_GROUP_ID).strip() != "":
+    ALLOWED_GROUP_ID = int(ALLOWED_GROUP_ID)
+else:
+    ALLOWED_GROUP_ID = None
+
+ALLOWED_USER_IDS = os.getenv("ALLOWED_USER_IDS", config.get("allowed_user_ids", None))
+if isinstance(ALLOWED_USER_IDS, str):
+    ALLOWED_USER_IDS = set(int(x) for x in ALLOWED_USER_IDS.replace(',', ' ').split())
+elif isinstance(ALLOWED_USER_IDS, (list, set, tuple)):
+    ALLOWED_USER_IDS = set(int(x) for x in ALLOWED_USER_IDS)
+else:
+    ALLOWED_USER_IDS = None
+
 OPEN_LOBBY = os.getenv("OPEN_LOBBY", config.get("open_lobby", True))
 ENABLE_TRANSLATIONS = os.getenv("ENABLE_TRANSLATIONS", config.get("enable_translations", False))
 

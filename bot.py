@@ -25,11 +25,12 @@ from telegram import ParseMode, InlineKeyboardMarkup, \
     InlineKeyboardButton, Update
 from telegram.error import BadRequest
 from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
-    CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
+    CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext, TypeHandler
 
 import card as c
 import settings
 import simple_commands
+from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
@@ -863,6 +864,9 @@ threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
 threaded_notify_me = _threaded_by(_chat_key, require_message=True)(notify_me)
 
+# Enforce access restrictions before all other handlers
+dispatcher.add_handler(TypeHandler(Update, access_control), group=-1)
+
 dispatcher.add_handler(InlineQueryHandler(threaded_reply_to_query))
 dispatcher.add_handler(ChosenInlineResultHandler(threaded_process_result, pass_job_queue=True))
 dispatcher.add_handler(CallbackQueryHandler(select_game))
@@ -885,5 +889,6 @@ settings.register()
 dispatcher.add_handler(MessageHandler(Filters.status_update, threaded_status_update))
 dispatcher.add_error_handler(error)
 
-start_bot(updater)
-updater.idle()
+if __name__ == '__main__':
+    start_bot(updater)
+    updater.idle()

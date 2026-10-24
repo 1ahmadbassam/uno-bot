@@ -1,6 +1,8 @@
 {
     "token": "token_here",
     "admin_list": [0],
+    "allowed_group_id": null,
+    "allowed_user_ids": [],
     "open_lobby": true,
     "enable_translations": false,
     "default_cardset": "classic",
