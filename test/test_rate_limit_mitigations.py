@@ -245,6 +245,8 @@ class TestRateLimitMitigations(unittest.TestCase):
         self.assertFalse(game.choosing_color)
         self.assertEqual(game.current_player, p2)
         mock_send.assert_called_once()
+        query.edit_message_text.assert_called_once()
+        self.assertIn("chose", query.edit_message_text.call_args[1]['text'])
 
     @patch('bot.gm')
     @patch('bot.send_async')
@@ -274,6 +276,8 @@ class TestRateLimitMitigations(unittest.TestCase):
 
         self.assertTrue(p1.drew)
         self.assertEqual(game.current_player, p1)
+        query_draw.edit_message_text.assert_called_once()
+        self.assertIn("drew", query_draw.edit_message_text.call_args[1]['text'])
 
         # Pass action
         query_pass = MagicMock(from_user=user1, message=MagicMock())
@@ -281,6 +285,8 @@ class TestRateLimitMitigations(unittest.TestCase):
             _handle_action_callback(bot, query_pass, chat.id, "pass", context)
 
         self.assertEqual(game.current_player, p2)
+        query_pass.edit_message_text.assert_called_once()
+        self.assertIn("passed", query_pass.edit_message_text.call_args[1]['text'])
 
     @patch('time.sleep')
     def test_send_message_handles_retry_after(self, mock_sleep):

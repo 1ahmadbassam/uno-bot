@@ -519,14 +519,20 @@ def _handle_color_callback(bot, query, chat_id, color, context):
     except BadRequest:
         pass
 
-    if query.message:
-        try:
-            query.edit_message_reply_markup(reply_markup=None)
-        except BadRequest:
-            pass
-
     color_display = display_color_group(color, game)
     is_opening = getattr(game, 'opening_color_choice', False)
+    chooser_name = display_name(game.current_player.user)
+
+    if query.message:
+        try:
+            chosen_text = __("🎨 {name} chose {color}.", multi=game.translate).format(
+                name=chooser_name,
+                color=color_display
+            )
+            query.edit_message_text(text=chosen_text, reply_markup=None)
+        except (BadRequest, Exception):
+            pass
+
     game.choose_color(color)
     reset_waiting_time(bot, game.current_player)
 
@@ -583,50 +589,85 @@ def _handle_action_callback(bot, query, chat_id, action, context):
     except BadRequest:
         pass
 
-    if query.message:
-        try:
-            query.edit_message_reply_markup(reply_markup=None)
-        except BadRequest:
-            pass
-
     if action == "draw":
         if player.drew:
             return
+        draw_counter_before = getattr(game, 'draw_counter', 0)
         reset_waiting_time(bot, player)
         do_draw(bot, player)
         gm.persist_game(game)
 
         if game_is_running(game):
-            if TURN_PACING_DELAY > 0:
-                time.sleep(TURN_PACING_DELAY)
-
-            if game.current_player == player:
-                draw_msg = __("{name} drew a card.\nNext player: {name}", multi=game.translate).format(
-                    name=display_name(player.user)
+            player_name = display_name(player.user)
+            cards_drawn = draw_counter_before or 1
+            if cards_drawn > 1:
+                draw_action_text = __("📥 {name} drew {number} cards.", multi=game.translate).format(
+                    name=player_name, number=cards_drawn
                 )
             else:
-                draw_msg = __("Next player: {name}", multi=game.translate).format(
-                    name=display_name(game.current_player.user)
+                draw_action_text = __("📥 {name} drew a card.", multi=game.translate).format(
+                    name=player_name
                 )
 
-            reply_markup = make_turn_keyboard(game, chat_id)
-            send_async(bot, chat_id, text=draw_msg, reply_markup=reply_markup, disable_notification=True)
-            start_player_countdown(bot, game, context.job_queue)
+            if game.current_player == player:
+                # Normal draw: still player's turn!
+                prompt_text = draw_action_text + "\n" + (
+                    __("Next player: {name}", multi=game.translate).format(name=player_name)
+                )
+                reply_markup = make_turn_keyboard(game, chat_id)
+                if query.message:
+                    try:
+                        query.edit_message_text(text=prompt_text, reply_markup=reply_markup)
+                    except (BadRequest, Exception):
+                        send_async(bot, chat_id, text=prompt_text, reply_markup=reply_markup, disable_notification=True)
+                else:
+                    send_async(bot, chat_id, text=prompt_text, reply_markup=reply_markup, disable_notification=True)
+
+                start_player_countdown(bot, game, context.job_queue)
+
+            else:
+                # Penalty draw (+2 or +4): turn advanced to next player
+                if query.message:
+                    try:
+                        query.edit_message_text(text=draw_action_text, reply_markup=None)
+                    except (BadRequest, Exception):
+                        pass
+
+                if TURN_PACING_DELAY > 0:
+                    time.sleep(TURN_PACING_DELAY)
+
+                nextplayer_message = (
+                    __("Next player: {name}", multi=game.translate)
+                    .format(name=display_name(game.current_player.user)))
+
+                reply_markup = make_turn_keyboard(game, chat_id)
+                send_async(bot, chat_id, text=nextplayer_message, reply_markup=reply_markup, disable_notification=True)
+                start_player_countdown(bot, game, context.job_queue)
 
     elif action == "pass":
         if not player.drew:
             return
+        player_name = display_name(player.user)
         reset_waiting_time(bot, player)
         game.turn()
         gm.persist_game(game)
+
+        if query.message:
+            try:
+                pass_action_text = __("⏭️ {name} passed.", multi=game.translate).format(
+                    name=player_name
+                )
+                query.edit_message_text(text=pass_action_text, reply_markup=None)
+            except (BadRequest, Exception):
+                pass
 
         if game_is_running(game):
             if TURN_PACING_DELAY > 0:
                 time.sleep(TURN_PACING_DELAY)
 
-            pass_msg = __("{name} passed.\nNext player: {next_player}", multi=game.translate).format(
-                name=display_name(player.user),
-                next_player=display_name(game.current_player.user)
+            pass_msg = (
+                __("Next player: {next_player}", multi=game.translate)
+                .format(next_player=display_name(game.current_player.user))
             )
             reply_markup = make_turn_keyboard(game, chat_id)
             send_async(bot, chat_id, text=pass_msg, reply_markup=reply_markup, disable_notification=True)

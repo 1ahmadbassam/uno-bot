@@ -94,12 +94,14 @@ def __(singular, plural=None, n=1, multi=False):
     if not multi and len(set(_.locale_stack)) >= 1:
         translations.append(_(singular, plural, n, 'en_US'))
 
-    else:
+    elif _.locale_stack:
         for locale in _.locale_stack:
             translation = _(singular, plural, n, locale)
 
             if translation not in translations:
                 translations.append(translation)
+    else:
+        translations.append(_(singular, plural, n, 'en_US'))
 
     return '\n'.join(translations)
 
