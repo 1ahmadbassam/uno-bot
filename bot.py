@@ -18,11 +18,16 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import time
 from datetime import datetime
 from functools import wraps
 
-from telegram import ParseMode, InlineKeyboardMarkup, \
+from telegram import InlineKeyboardMarkup, \
     InlineKeyboardButton, Update
+try:
+    from telegram import ParseMode
+except ImportError:
+    from telegram.constants import ParseMode
 from telegram.error import BadRequest
 from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
     CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext, TypeHandler
@@ -32,7 +37,7 @@ import settings
 import simple_commands
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown
-from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS
+from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError)
 from internationalization import _, __, user_locale, game_locales
@@ -44,7 +49,7 @@ from simple_commands import help_handler
 from start_bot import start_bot
 from game_threads import game_thread_runner
 from utils import display_name
-from utils import send_async, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group
+from utils import send_async, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group, make_color_keyboard, make_turn_keyboard
 
 
 logging.basicConfig(
@@ -64,11 +69,21 @@ def _chat_key(update: Update):
 
 def _callback_game_key(update: Update):
     query = update.callback_query
-    if query:
-        try:
-            return f"chat:{int(query.data)}"
-        except (TypeError, ValueError):
-            return "callback:fallback"
+    if query and query.data:
+        data = query.data
+        if data.startswith("color:") or data.startswith("action:"):
+            parts = data.split(":")
+            if len(parts) >= 2:
+                try:
+                    return f"chat:{int(parts[1])}"
+                except ValueError:
+                    pass
+        else:
+            try:
+                return f"chat:{int(data)}"
+            except (TypeError, ValueError):
+                pass
+        return "callback:fallback"
     return "callback:unknown"
 
 
@@ -424,6 +439,198 @@ def _select_game_after_ack(bot, query, chat_id):
                         timeout=TIMEOUT)
 
 
+def callback_router(update: Update, context: CallbackContext):
+    """Router for all callback queries (select_game, color selection, quick draw/pass)"""
+    query = update.callback_query
+    if query is None or not query.data:
+        return
+
+    data = query.data
+    if data.startswith("color:"):
+        parts = data.split(":", 2)
+        if len(parts) == 3:
+            try:
+                chat_id = int(parts[1])
+                color = parts[2]
+            except ValueError:
+                return
+            game_thread_runner.submit(
+                f"chat:{chat_id}",
+                _handle_color_callback,
+                context.bot,
+                query,
+                chat_id,
+                color,
+                context
+            )
+            return
+
+    elif data.startswith("action:"):
+        parts = data.split(":", 2)
+        if len(parts) == 3:
+            try:
+                chat_id = int(parts[1])
+                action = parts[2]
+            except ValueError:
+                return
+            game_thread_runner.submit(
+                f"chat:{chat_id}",
+                _handle_action_callback,
+                context.bot,
+                query,
+                chat_id,
+                action,
+                context
+            )
+            return
+
+    select_game(update, context)
+
+
+def _handle_color_callback(bot, query, chat_id, color, context):
+    user_id = query.from_user.id
+    gm.ensure_chat_loaded(chat_id)
+    games = gm.chatid_games.get(chat_id)
+    if not games:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("There is no running game in this chat."), show_alert=True)
+        except BadRequest:
+            pass
+        return
+
+    game = games[-1]
+    if not game.started or not game.choosing_color:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("This button is no longer valid."), show_alert=False)
+        except BadRequest:
+            pass
+        return
+
+    if user_id != game.current_player.user.id:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("It's not your turn!"), show_alert=True)
+        except BadRequest:
+            pass
+        return
+
+    try:
+        bot.answerCallbackQuery(query.id)
+    except BadRequest:
+        pass
+
+    if query.message:
+        try:
+            query.edit_message_reply_markup(reply_markup=None)
+        except BadRequest:
+            pass
+
+    color_display = display_color_group(color, game)
+    is_opening = getattr(game, 'opening_color_choice', False)
+    game.choose_color(color)
+    reset_waiting_time(bot, game.current_player)
+
+    if game_is_running(game):
+        gm.persist_game(game)
+        if TURN_PACING_DELAY > 0:
+            time.sleep(TURN_PACING_DELAY)
+
+        if is_opening:
+            announcement = __("Starting color set to {color}!\n", multi=game.translate).format(color=color_display)
+        else:
+            announcement = __("Color set to {color}!\n", multi=game.translate).format(color=color_display)
+
+        nextplayer_message = announcement + (
+            __("Next player: {name}", multi=game.translate)
+            .format(name=display_name(game.current_player.user)))
+
+        reply_markup = make_turn_keyboard(game, chat_id)
+        send_async(bot, chat_id, text=nextplayer_message, reply_markup=reply_markup, disable_notification=True)
+        start_player_countdown(bot, game, context.job_queue)
+
+
+def _handle_action_callback(bot, query, chat_id, action, context):
+    user_id = query.from_user.id
+    gm.ensure_chat_loaded(chat_id)
+    games = gm.chatid_games.get(chat_id)
+    if not games:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("There is no running game in this chat."), show_alert=True)
+        except BadRequest:
+            pass
+        return
+
+    game = games[-1]
+    if not game.started or game.choosing_color:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("This button is no longer valid."), show_alert=False)
+        except BadRequest:
+            pass
+        return
+
+    if user_id != game.current_player.user.id:
+        try:
+            bot.answerCallbackQuery(query.id, text=_("It's not your turn!"), show_alert=True)
+        except BadRequest:
+            pass
+        return
+
+    player = game.current_player
+
+    try:
+        bot.answerCallbackQuery(query.id)
+    except BadRequest:
+        pass
+
+    if query.message:
+        try:
+            query.edit_message_reply_markup(reply_markup=None)
+        except BadRequest:
+            pass
+
+    if action == "draw":
+        if player.drew:
+            return
+        reset_waiting_time(bot, player)
+        do_draw(bot, player)
+        gm.persist_game(game)
+
+        if game_is_running(game):
+            if TURN_PACING_DELAY > 0:
+                time.sleep(TURN_PACING_DELAY)
+
+            if game.current_player == player:
+                draw_msg = __("{name} drew a card.\nNext player: {name}", multi=game.translate).format(
+                    name=display_name(player.user)
+                )
+            else:
+                draw_msg = __("Next player: {name}", multi=game.translate).format(
+                    name=display_name(game.current_player.user)
+                )
+
+            reply_markup = make_turn_keyboard(game, chat_id)
+            send_async(bot, chat_id, text=draw_msg, reply_markup=reply_markup, disable_notification=True)
+            start_player_countdown(bot, game, context.job_queue)
+
+    elif action == "pass":
+        if not player.drew:
+            return
+        reset_waiting_time(bot, player)
+        game.turn()
+        gm.persist_game(game)
+
+        if game_is_running(game):
+            if TURN_PACING_DELAY > 0:
+                time.sleep(TURN_PACING_DELAY)
+
+            pass_msg = __("{name} passed.\nNext player: {next_player}", multi=game.translate).format(
+                name=display_name(player.user),
+                next_player=display_name(game.current_player.user)
+            )
+            reply_markup = make_turn_keyboard(game, chat_id)
+            send_async(bot, chat_id, text=pass_msg, reply_markup=reply_markup, disable_notification=True)
+            start_player_countdown(bot, game, context.job_queue)
+
+
 @game_locales
 def status_update(update: Update, context: CallbackContext):
     """Remove player from game if user leaves the group"""
@@ -491,7 +698,6 @@ def start_game(update: Update, context: CallbackContext):
             for player in game.players:
                 player.draw_first_hand()
             gm.persist_game(game)
-            choice = [[InlineKeyboardButton(text=_("Make your choice!"), switch_inline_query_current_chat='')]]
             if game.choosing_color:
                 first_message = (
                     __("First card is Wild!\n"
@@ -501,6 +707,7 @@ def start_game(update: Update, context: CallbackContext):
                        "Enable multi-translations with /enable_translations",
                        multi=game.translate)
                     .format(name=display_name(game.current_player.user)))
+                markup = make_color_keyboard(chat.id, game)
             else:
                 first_message = (
                     __("First player: {name}\n"
@@ -508,18 +715,21 @@ def start_game(update: Update, context: CallbackContext):
                        "Enable multi-translations with /enable_translations",
                        multi=game.translate)
                     .format(name=display_name(game.current_player.user)))
+                markup = make_turn_keyboard(game, chat.id)
 
             def send_first():
                 """Send the first card and player"""
 
                 context.bot.sendSticker(chat.id,
                                 sticker=c.STICKERS[str(game.last_card)],
-                                timeout=TIMEOUT)
+                                timeout=TIMEOUT,
+                                disable_notification=True)
 
                 context.bot.sendMessage(chat.id,
                                 text=first_message,
-                                reply_markup=InlineKeyboardMarkup(choice),
-                                timeout=TIMEOUT)
+                                reply_markup=markup,
+                                timeout=TIMEOUT,
+                                disable_notification=True)
 
             dispatcher.run_async(send_first)
             start_player_countdown(context.bot, game, context.job_queue)
@@ -846,25 +1056,49 @@ def process_result(update: Update, context: CallbackContext):
             is_opening = getattr(game, 'opening_color_choice', False)
             game.choose_color(result_id)
             if is_opening:
-                send_async(context.bot, chat.id,
-                           text=__("Starting color set to {color}!", multi=game.translate)
-                           .format(color=display_color_group(result_id, game)))
+                color_chosen_announcement = __("Starting color set to {color}!\n", multi=game.translate).format(
+                    color=display_color_group(result_id, game)
+                )
+            else:
+                color_chosen_announcement = __("Color set to {color}!\n", multi=game.translate).format(
+                    color=display_color_group(result_id, game)
+                )
         else:
             return
     else:
         reset_waiting_time(context.bot, player)
-        do_play_card(context.bot, player, result_id)
+        do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
 
     if game_is_running(game):
         gm.persist_game(game)
-        nextplayer_message = (
-            __("Next player: {name}", multi=game.translate)
-            .format(name=display_name(game.current_player.user)))
-        choice = [[InlineKeyboardButton(text=_("Make your choice!"), switch_inline_query_current_chat='')]]
-        send_async(context.bot, chat.id,
-                        text=nextplayer_message,
-                        reply_markup=InlineKeyboardMarkup(choice))
-        start_player_countdown(context.bot, game, context.job_queue)
+        if game.choosing_color:
+            uno_prefix = "🔥 UNO!\n" if len(player.cards) == 1 else ""
+            color_prompt = uno_prefix + __("{name}, please choose a color:", multi=game.translate).format(
+                name=display_name(game.current_player.user)
+            )
+            markup = make_color_keyboard(chat.id, game)
+            send_async(context.bot, chat.id,
+                       text=color_prompt,
+                       reply_markup=markup,
+                       disable_notification=True)
+            start_player_countdown(context.bot, game, context.job_queue)
+        else:
+            if TURN_PACING_DELAY > 0:
+                time.sleep(TURN_PACING_DELAY)
+
+            prefix = "🔥 UNO!\n" if len(player.cards) == 1 else ""
+            if 'color_chosen_announcement' in locals():
+                prefix = color_chosen_announcement + prefix
+
+            nextplayer_message = prefix + (
+                __("Next player: {name}", multi=game.translate)
+                .format(name=display_name(game.current_player.user)))
+            markup = make_turn_keyboard(game, chat.id)
+            send_async(context.bot, chat.id,
+                       text=nextplayer_message,
+                       reply_markup=markup,
+                       disable_notification=True)
+            start_player_countdown(context.bot, game, context.job_queue)
 
 
 def reset_waiting_time(bot, player):
@@ -901,9 +1135,17 @@ threaded_notify_me = _threaded_by(_chat_key, require_message=True)(notify_me)
 dispatcher.add_handler(TypeHandler(Update, access_control), group=-1)
 
 dispatcher.add_handler(InlineQueryHandler(threaded_reply_to_query))
-dispatcher.add_handler(ChosenInlineResultHandler(threaded_process_result, pass_job_queue=True))
-dispatcher.add_handler(CallbackQueryHandler(select_game))
-dispatcher.add_handler(CommandHandler('start', threaded_start_game, pass_args=True, pass_job_queue=True))
+try:
+    dispatcher.add_handler(ChosenInlineResultHandler(threaded_process_result, pass_job_queue=True))
+except TypeError:
+    dispatcher.add_handler(ChosenInlineResultHandler(threaded_process_result))
+
+dispatcher.add_handler(CallbackQueryHandler(callback_router))
+
+try:
+    dispatcher.add_handler(CommandHandler('start', threaded_start_game, pass_args=True, pass_job_queue=True))
+except TypeError:
+    dispatcher.add_handler(CommandHandler('start', threaded_start_game))
 dispatcher.add_handler(CommandHandler('new', threaded_new_game))
 dispatcher.add_handler(CommandHandler('kill', threaded_kill_game))
 dispatcher.add_handler(CommandHandler('join', threaded_join_game))

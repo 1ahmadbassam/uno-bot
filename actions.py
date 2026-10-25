@@ -14,7 +14,7 @@ from game_threads import game_thread_runner
 from internationalization import __, _
 from shared_vars import gm
 from user_setting import UserSetting
-from utils import send_async, display_name, display_color_group, game_is_running
+from utils import send_async, display_name, display_color_group, game_is_running, make_turn_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -70,17 +70,19 @@ def do_skip(bot, player, job_queue=None):
                                multi=game.translate).format(color=display_color_group(auto_color, game)))
 
         n = skipped_player.waiting_time
+        game.turn()
+        gm.persist_game(game)
         send_async(bot, chat.id,
                    text=__("Waiting time to skip this player has "
                         "been reduced to {time} seconds.\n"
                         "Next player: {name}", multi=game.translate)
                    .format(time=n,
-                           name=display_name(next_player.user))
+                           name=display_name(next_player.user)),
+                   reply_markup=make_turn_keyboard(game, chat.id),
+                   disable_notification=True
         )
         logger.info("{player} was skipped! "
                     .format(player=display_name(skipped_player.user)))
-        game.turn()
-        gm.persist_game(game)
         if job_queue:
             start_player_countdown(bot, game, job_queue)
 
@@ -101,7 +103,9 @@ def do_skip(bot, player, job_queue=None):
                             "and has been removed from the game!\n"
                             "Next player: {name2}", multi=game.translate)
                        .format(name1=display_name(skipped_player.user),
-                               name2=display_name(next_player.user)))
+                               name2=display_name(next_player.user)),
+                       reply_markup=make_turn_keyboard(game, chat.id),
+                       disable_notification=True)
             logger.info("{player} was skipped! "
                     .format(player=display_name(skipped_player.user)))
             gm.persist_game(game)
@@ -153,7 +157,7 @@ def player_won(bot, player):
         gm.end_game(chat, user)
 
 
-def do_play_card(bot, player, result_id):
+def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     """Plays the selected card and sends an update to the group if needed"""
     card = c.from_str(result_id)
     player.play(card)
@@ -171,8 +175,8 @@ def do_play_card(bot, player, result_id):
     if us.stats:
         us.cards_played += 1
 
-    if len(player.cards) == 1:
-        send_async(bot, chat.id, text="UNO!")
+    if len(player.cards) == 1 and notify_uno:
+        send_async(bot, chat.id, text="UNO!", disable_notification=True)
 
     if len(player.cards) == 0:
         # If the winning card was a Wild card, automatically assign a color
@@ -183,7 +187,8 @@ def do_play_card(bot, player, result_id):
             send_async(bot, chat.id,
                        text=__("Winning card was Wild! Color set to {color}.",
                                multi=game.translate)
-                       .format(color=display_color_group(auto_color, game)))
+                       .format(color=display_color_group(auto_color, game)),
+                       disable_notification=True)
 
         if card.special == c.DRAW_FOUR and game.draw_counter > 0:
             # F-04: Win is deferred until challenge resolution or draw/skip by next player
@@ -192,8 +197,8 @@ def do_play_card(bot, player, result_id):
         else:
             player_won(bot, player)
     else:
-        if game.choosing_color:
-            send_async(bot, chat.id, text=__("Please choose a color", multi=game.translate))
+        if game.choosing_color and notify_color:
+            send_async(bot, chat.id, text=__("Please choose a color", multi=game.translate), disable_notification=True)
 
     if game in gm.chatid_games.get(chat.id, []):
         gm.persist_game(game)

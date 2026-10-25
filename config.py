@@ -66,6 +66,7 @@ STALE_GAME_UNLOAD_SECONDS = int(os.getenv("STALE_GAME_UNLOAD_SECONDS", config.ge
 STALE_GAME_SCAN_EVERY_SECONDS = int(os.getenv("STALE_GAME_SCAN_EVERY_SECONDS", config.get("stale_game_scan_every_seconds", 60)))
 DEFAULT_CARDSET = os.getenv("DEFAULT_CARDSET", config.get("default_cardset", "classic")).lower()
 SHUFFLE_PLAYERS = os.getenv("SHUFFLE_PLAYERS", config.get("shuffle_players", True))
+TURN_PACING_DELAY = float(os.getenv("TURN_PACING_DELAY", config.get("turn_pacing_delay", 1.5)))
 
 if isinstance(SHUFFLE_PLAYERS, str):
     SHUFFLE_PLAYERS = SHUFFLE_PLAYERS.lower() in ("yes", "true", "t", "1")

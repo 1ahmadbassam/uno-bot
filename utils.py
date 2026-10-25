@@ -19,12 +19,31 @@
 
 
 import logging
+import time
 from telegram import Update
+try:
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+except ImportError:
+    class InlineKeyboardMarkup(object):
+        def __init__(self, inline_keyboard=None):
+            self.inline_keyboard = inline_keyboard or []
+    class InlineKeyboardButton(object):
+        def __init__(self, text="", callback_data=None, switch_inline_query_current_chat=None, **kwargs):
+            self.text = text
+            self.callback_data = callback_data
+            self.switch_inline_query_current_chat = switch_inline_query_current_chat
+
 try:
     from telegram.error import Unauthorized
 except ImportError:
     from telegram.error import Forbidden as Unauthorized
 from telegram.error import BadRequest, TimedOut, ChatMigrated
+try:
+    from telegram.error import RetryAfter
+except ImportError:
+    class RetryAfter(Exception):
+        def __init__(self, retry_after=1):
+            self.retry_after = retry_after
 from telegram.ext import CallbackContext
 
 from internationalization import _, __
@@ -120,9 +139,23 @@ def answer_async(bot, *args, **kwargs):
         kwargs['timeout'] = TIMEOUT
 
     try:
-        dispatcher.run_async(bot.answerInlineQuery, *args, **kwargs)
+        dispatcher.run_async(_answer_inline_query_with_retry, bot, *args, **kwargs)
     except Exception:
         logger.exception("Failed to schedule async answerInlineQuery")
+
+
+def _answer_inline_query_with_retry(bot, *args, **kwargs):
+    try:
+        bot.answerInlineQuery(*args, **kwargs)
+    except RetryAfter as err:
+        logger.warning("Bot rate limited on answerInlineQuery (RetryAfter: %s). Sleeping...", err.retry_after)
+        time.sleep(err.retry_after + 0.5)
+        try:
+            bot.answerInlineQuery(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed answerInlineQuery retry after RetryAfter")
+    except Exception as err:
+        logger.debug("Failed answerInlineQuery: %s", err)
 
 
 def _extract_chat_id(args, kwargs):
@@ -148,6 +181,14 @@ def _replace_chat_id(args, kwargs, new_chat_id):
 def _send_message_with_migration_handling(bot, *args, **kwargs):
     try:
         bot.sendMessage(*args, **kwargs)
+    except RetryAfter as err:
+        logger.warning("Bot rate limited on sendMessage (RetryAfter: %s). Sleeping...", err.retry_after)
+        time.sleep(err.retry_after + 0.5)
+        try:
+            bot.sendMessage(*args, **kwargs)
+        except Exception:
+            logger.exception("Failed sendMessage retry after RetryAfter")
+        return
     except Unauthorized as err:
         logger.info("Dropping sendMessage: unauthorized (%s) (chat_id=%s)",
                     err, _extract_chat_id(args, kwargs))
@@ -164,6 +205,14 @@ def _send_message_with_migration_handling(bot, *args, **kwargs):
         retry_args, retry_kwargs = _replace_chat_id(args, kwargs, new_chat_id)
         try:
             bot.sendMessage(*retry_args, **retry_kwargs)
+        except RetryAfter as send_err:
+            logger.warning("Bot rate limited on migrated sendMessage (RetryAfter: %s). Sleeping...", send_err.retry_after)
+            time.sleep(send_err.retry_after + 0.5)
+            try:
+                bot.sendMessage(*retry_args, **retry_kwargs)
+            except Exception:
+                logger.exception("Failed migrated sendMessage retry after RetryAfter")
+            return
         except Unauthorized as send_err:
             logger.info("Dropping sendMessage after migration: unauthorized (%s) (chat_id=%s)",
                         send_err, _extract_chat_id(retry_args, retry_kwargs))
@@ -214,3 +263,52 @@ def user_is_creator_or_admin(user, game, bot, chat):
 def get_admin_ids(bot, chat_id):
     """Returns a list of admin IDs for a given chat. Results are cached for 1 hour."""
     return [admin.user.id for admin in bot.get_chat_administrators(chat_id)]
+
+
+def make_color_keyboard(chat_id, game=None):
+    """Create inline keyboard for choosing a color"""
+    if game and getattr(game, 'translate', False):
+        r_text = display_color_group('r', game)
+        b_text = display_color_group('b', game)
+        g_text = display_color_group('g', game)
+        y_text = display_color_group('y', game)
+    else:
+        r_text = _("{emoji} Red").format(emoji='❤️')
+        b_text = _("{emoji} Blue").format(emoji='💙')
+        g_text = _("{emoji} Green").format(emoji='💚')
+        y_text = _("{emoji} Yellow").format(emoji='💛')
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(text=r_text, callback_data=f"color:{chat_id}:r"),
+            InlineKeyboardButton(text=b_text, callback_data=f"color:{chat_id}:b"),
+        ],
+        [
+            InlineKeyboardButton(text=g_text, callback_data=f"color:{chat_id}:g"),
+            InlineKeyboardButton(text=y_text, callback_data=f"color:{chat_id}:y"),
+        ],
+    ])
+
+
+def make_turn_keyboard(game, chat_id):
+    """Create inline keyboard for player turn, including play choice and quick draw/pass actions"""
+    choice_btn = InlineKeyboardButton(text=_("Make your choice!"), switch_inline_query_current_chat='')
+    keyboard = [[choice_btn]]
+
+    current_player = getattr(game, 'current_player', None)
+    if current_player is not None:
+        action_row = []
+        if not getattr(current_player, 'drew', False):
+            draw_count = getattr(game, 'draw_counter', 0) or 1
+            if draw_count > 1:
+                draw_text = __("📥 Draw {number} cards", multi=game.translate).format(number=draw_count)
+            else:
+                draw_text = __("📥 Draw card", multi=game.translate)
+            action_row.append(InlineKeyboardButton(text=draw_text, callback_data=f"action:{chat_id}:draw"))
+        else:
+            action_row.append(InlineKeyboardButton(text=__("⏭️ Pass", multi=game.translate), callback_data=f"action:{chat_id}:pass"))
+
+        if action_row:
+            keyboard.append(action_row)
+
+    return InlineKeyboardMarkup(keyboard)
