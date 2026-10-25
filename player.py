@@ -53,6 +53,8 @@ class Player(object):
 
         self.bluffing = False
         self.drew = False
+        # Whether the last draw actually produced a card (False if the deck was exhausted)
+        self.drew_card = False
         self.anti_cheat = 0
         self.turn_started = datetime.now()
         self.waiting_time = WAITING_TIME
@@ -65,6 +67,8 @@ class Player(object):
         except DeckEmptyError:
             for card in self.cards:
                 self.game.deck.dismiss(card)
+            # Empty the hand so a later leave() can't dismiss the same cards again
+            self.cards = list()
 
             raise
 
@@ -125,17 +129,22 @@ class Player(object):
     def draw(self):
         """Draws 1+ cards from the deck, depending on the draw counter"""
         _amount = self.game.draw_counter or 1
+        drawn = 0
 
         try:
             for _ in range(_amount):
                 self.cards.append(self.game.deck.draw())
+                drawn += 1
 
         except DeckEmptyError:
             raise
 
         finally:
             self.game.draw_counter = 0
+            # The turn still counts as drawn (so the player can pass), but only
+            # a card that was actually drawn limits what may be played next
             self.drew = True
+            self.drew_card = drawn > 0
 
     def play(self, card):
         """Plays a card and removes it from hand"""
@@ -159,14 +168,9 @@ class Player(object):
         self.logger.debug("Last card was " + str(last))
 
         cards = self.cards
-        if self.drew:
+        if self.drew and self.drew_card:
+            # After drawing, only the drawn card (appended last) may be played
             cards = self.cards[-1:]
-
-        # Preview bluffing against the entire hand (not just the drawn card)
-        if last and last.color:
-            self.bluffing = any(card.color == last.color for card in self.cards if card.color)
-        else:
-            self.bluffing = False
 
         for card in cards:
             if self._card_playable(card):

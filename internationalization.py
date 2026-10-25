@@ -150,16 +150,18 @@ def _push_game_locales(game):
 
 @contextmanager
 def locales_for_game(game):
-    """Use the game's player locales for code that runs outside a handler,
-    e.g. callback handlers and timer jobs on the game worker threads"""
+    """Use the game's player locales (and a db_session) for code that runs outside
+    a handler, e.g. callback handlers and timer jobs on the game worker threads"""
     initial_depth = len(_.locale_stack)
+    # Keep a db_session open for the whole block: the wrapped code may read or
+    # update user stats (e.g. a win awarded from a button or timer)
     with db_session:
         _push_game_locales(game)
-    try:
-        yield
-    finally:
-        while len(_.locale_stack) > initial_depth:
-            _.pop()
+        try:
+            yield
+        finally:
+            while len(_.locale_stack) > initial_depth:
+                _.pop()
 
 
 def game_locales(func):

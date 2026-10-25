@@ -121,6 +121,7 @@ def do_skip(bot, player, job_queue=None):
                                "The game ended.", multi=game.translate)
                        .format(name=display_name(skipped_player.user)))
 
+            forfeit_win(bot, game, skipped_player.user)
             gm.end_game(chat, skipped_player.user)
 
 
@@ -159,22 +160,62 @@ def player_won(bot, player):
         gm.end_game(chat, user)
 
 
-def resolve_pending_win_after_leave(bot, game, left_player, was_current):
+def forfeit_win(bot, game, leaving_user):
     """
-    Settle a final Wild Draw Four that is still pending when a player leaves.
-    If the challenger (the current player) left, the challenge can no longer
-    happen, so the win is awarded. Returns True if the game ended.
+    Credit the win in a 2-player game when the other player leaves, is kicked
+    or runs out of time, so quitting can't deny the opponent their win.
+    Call it before the game is ended (the leaving player is still in the game).
+    """
+    if not game.started:
+        return
+    survivor = next((p for p in game.players if p.user.id != leaving_user.id), None)
+    if survivor is None:
+        return
+
+    send_async(bot, game.chat.id,
+               text=__("{name} won!", multi=game.translate)
+               .format(name=survivor.user.first_name))
+
+    us = UserSetting.get(id=survivor.user.id)
+    if us and us.stats:
+        us.games_played += 1
+        if game.players_won == 0:
+            us.first_places += 1
+    game.players_won += 1
+
+    # The game still counts as played (and lost) for the player who left
+    us_left = UserSetting.get(id=leaving_user.id)
+    if us_left and us_left.stats:
+        us_left.games_played += 1
+
+
+def settle_draw_four_after_leave(bot, game, left_player, was_current):
+    """
+    Settle a Wild Draw Four that is still unanswered when a player leaves.
+    - If the player who played it left, it can no longer be challenged, so its
+      penalty is cancelled instead of judging (or penalizing) anyone else.
+    - If it was their final card and the challenger (the current player) left,
+      the win is awarded.
+    Returns True if the game ended.
     """
     bluffer = getattr(game, 'last_bluffer', None)
-    if not bluffer or not getattr(bluffer, 'pending_win', False):
+    if not bluffer:
         return False
 
     if left_player is bluffer:
+        unanswered = (game.last_card and game.last_card.special == c.DRAW_FOUR
+                      and game.draw_counter > 0)
         bluffer.pending_win = False
         game.last_bluffer = None
+        if unanswered:
+            game.draw_counter = 0
+            send_async(bot, game.chat.id,
+                       text=__("The player who played the +4 left the game, so its penalty is cancelled.",
+                               multi=game.translate))
+        gm.persist_game(game)
         return False
 
-    if not was_current:
+    if not was_current or not getattr(bluffer, 'pending_win', False):
         return False
 
     bluffer.pending_win = False
@@ -266,8 +307,19 @@ def do_call_bluff(bot, player):
     """Handles the bluff calling"""
     game = player.game
     chat = game.chat
-    bluffer = getattr(game, 'last_bluffer', None) or player.prev
+    bluffer = getattr(game, 'last_bluffer', None)
     game.last_bluffer = None
+
+    if bluffer is None or bluffer not in game.players:
+        # Only the player who played the +4 can be judged; never fall back to
+        # whoever sits before the challenger now
+        game.draw_counter = 0
+        send_async(bot, chat.id,
+                   text=__("The player who played the +4 left the game, so its penalty is cancelled.",
+                           multi=game.translate))
+        gm.persist_game(game)
+        return
+
     was_bluffing = bluffer.bluffing
     # Reset bluffing state so it never persists across subsequent turns
     bluffer.bluffing = False

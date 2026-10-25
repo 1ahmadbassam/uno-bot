@@ -551,3 +551,7 @@ msgstr ""
 #: utils.py:332
 msgid "⏭️ Pass"
 msgstr ""
+
+#: actions.py:213
+msgid "The player who played the +4 left the game, so its penalty is cancelled."
+msgstr ""

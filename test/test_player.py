@@ -76,14 +76,16 @@ class Test(unittest.TestCase):
         p = Player(self.game, "Player 0")
         self.game.start()
 
+        # A random opening +2 would make this a 2-card penalty draw
+        self.game.draw_counter = 0
         deck_before = len(self.game.deck.cards)
         pile_before = sorted(self.game.deck.cards)
 
         p.draw()
 
         # The drawn card is a random pick from the pile, so check it came from there
-        pile_after = sorted(self.game.deck.cards + [p.cards[-1]])
-        self.assertEqual(pile_before, pile_after)
+        self.assertEqual(len(p.cards), 1)
+        self.assertEqual(pile_before, sorted(self.game.deck.cards + p.cards))
         self.assertEqual(deck_before, len(self.game.deck.cards) + 1)
 
     def test_draw_two(self):
@@ -152,9 +154,13 @@ class Test(unittest.TestCase):
                    c.Card(None, None, c.DRAW_FOUR),
                    c.Card(None, None, c.CHOOSE)]
 
-        p.playable_cards()
+        # Bluffing is decided when the +4 is played (holding a red card on a red 1)
+        p.play(c.Card(None, None, c.DRAW_FOUR))
         self.assertTrue(p.bluffing)
 
+        self.game.last_card = c.Card(c.RED, '1')
+        self.game.choosing_color = False
+        self.game.draw_counter = 0
         p.cards = [c.Card(c.BLUE, '1'), c.Card(c.GREEN, '1'),
                    c.Card(c.GREEN, c.DRAW_TWO),
                    c.Card(None, None, c.DRAW_FOUR),

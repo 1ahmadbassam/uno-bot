@@ -116,7 +116,7 @@ from player import Player
 from deck import Deck
 import card as c
 from game_manager import GameManager
-from actions import do_skip, do_call_bluff, do_play_card, do_draw, resolve_pending_win_after_leave
+from actions import do_skip, do_call_bluff, do_play_card, do_draw, settle_draw_four_after_leave
 from errors import DeckEmptyError
 from internationalization import __
 
@@ -260,6 +260,8 @@ class TestFairnessFixes(unittest.TestCase):
         # Playing +4 must recognize that she held Red 5 (bluffing = True)
         self.p0.play(c.Card(None, None, special=c.DRAW_FOUR))
         self.assertTrue(self.p0.bluffing)
+        # do_play_card records who played the +4; the challenge judges that player
+        self.game.last_bluffer = self.p0
 
         # Now Bob challenges Alice's bluff
         dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
@@ -483,7 +485,7 @@ class TestFairnessFixes(unittest.TestCase):
         self.p1.leave()
         dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
         with patch('actions.player_won') as won, patch('actions.game_is_running', return_value=True):
-            ended = resolve_pending_win_after_leave(dummy_bot, self.game, self.p1, was_current=True)
+            ended = settle_draw_four_after_leave(dummy_bot, self.game, self.p1, was_current=True)
 
         self.assertFalse(ended)
         won.assert_called_once_with(dummy_bot, self.p0)
@@ -500,7 +502,7 @@ class TestFairnessFixes(unittest.TestCase):
 
         dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
         with patch('actions.player_won') as won:
-            resolve_pending_win_after_leave(dummy_bot, self.game, self.p0, was_current=False)
+            settle_draw_four_after_leave(dummy_bot, self.game, self.p0, was_current=False)
 
         won.assert_not_called()
         self.assertFalse(self.p0.pending_win)

@@ -36,7 +36,7 @@ import settings
 import simple_commands
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
-    resolve_pending_win_after_leave
+    settle_draw_four_after_leave, forfeit_win
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError)
@@ -274,6 +274,7 @@ def leave_game(update: Update, context: CallbackContext):
                    reply_to_message_id=update.message.message_id)
 
     except NotEnoughPlayersError:
+        forfeit_win(context.bot, game, user)
         gm.end_game(chat, user)
         send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
 
@@ -283,7 +284,7 @@ def leave_game(update: Update, context: CallbackContext):
                        text=__("Player left while choosing a color! Color automatically set to {color}.",
                                multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
 
-        if resolve_pending_win_after_leave(context.bot, game, player, was_current):
+        if settle_draw_four_after_leave(context.bot, game, player, was_current):
             return
 
         if game.started:
@@ -346,9 +347,11 @@ def kick_player(update: Update, context: CallbackContext):
                 return
 
             except NotEnoughPlayersError:
-                gm.end_game(chat, user)
                 send_async(context.bot, chat.id,
                                 text=_("{0} was kicked by {1}".format(display_name(kicked), display_name(user))))
+                forfeit_win(context.bot, game, kicked)
+                # End it via the kicked player: the kicking admin may not be playing
+                gm.end_game(chat, kicked)
                 send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
                 return
 
@@ -360,7 +363,7 @@ def kick_player(update: Update, context: CallbackContext):
                            text=__("Player left while choosing a color! Color automatically set to {color}.",
                                    multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
 
-            if resolve_pending_win_after_leave(context.bot, game, kicked_player, was_current):
+            if settle_draw_four_after_leave(context.bot, game, kicked_player, was_current):
                 return
 
         else:
@@ -695,6 +698,7 @@ def status_update(update: Update, context: CallbackContext):
         except NoGameInChatError:
             pass
         except NotEnoughPlayersError:
+            forfeit_win(context.bot, game, user)
             gm.end_game(chat, user)
             send_async(context.bot, chat.id, text=__("Game ended!",
                                              multi=game.translate))
@@ -706,7 +710,7 @@ def status_update(update: Update, context: CallbackContext):
                 send_async(context.bot, chat.id,
                            text=__("Player left while choosing a color! Color automatically set to {color}.",
                                    multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
-            resolve_pending_win_after_leave(context.bot, game, player, was_current)
+            settle_draw_four_after_leave(context.bot, game, player, was_current)
 
 
 @game_locales
@@ -1027,7 +1031,7 @@ def reply_to_query(update: Update, context: CallbackContext):
             switch = _('Current game: {game}').format(game=game.chat.title)
 
     answer_async(context.bot, update.inline_query.id, results, cache_time=0,
-                 switch_pm_text=switch, switch_pm_parameter='select')
+                 is_personal=True, switch_pm_text=switch, switch_pm_parameter='select')
 
 
 @game_locales
@@ -1081,9 +1085,10 @@ def process_result(update: Update, context: CallbackContext):
     elif len(result_id) == 36:  # UUID result
         return
     elif int(anti_cheat) != last_anti_cheat:
-        send_async(context.bot, chat.id,
-                   text=__("Cheat attempt by {name}", multi=game.translate)
-                   .format(name=display_name(player.user)))
+        # A menu opened before the last action/timeout; usually lag, not cheating,
+        # so don't accuse anyone in the group
+        logger.info("Ignoring stale inline token %s (current %s) from %s",
+                    anti_cheat, last_anti_cheat, display_name(player.user))
         return
     elif not _inline_action_allowed(player, game, result_id):
         # Results from a menu opened earlier stay tappable after the state changed

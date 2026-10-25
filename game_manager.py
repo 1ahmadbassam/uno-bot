@@ -105,6 +105,7 @@ class GameManager(object):
                     'cards': [self._serialize_card(card) for card in player.cards],
                     'bluffing': player.bluffing,
                     'drew': player.drew,
+                    'drew_card': player.drew_card,
                     'anti_cheat': player.anti_cheat,
                     'turn_started': player.turn_started.isoformat(),
                     'waiting_time': player.waiting_time,
@@ -113,6 +114,8 @@ class GameManager(object):
                 for player in players
             ],
             'current_player_idx': current_player_idx,
+            # Who played the last Wild Draw Four, so a challenge after a restart judges the right player
+            'last_bluffer_id': game.last_bluffer.user.id if getattr(game, 'last_bluffer', None) else None,
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
 
@@ -141,11 +144,13 @@ class GameManager(object):
             player.cards = [self._deserialize_card(card) for card in player_data.get('cards', [])]
             player.bluffing = player_data.get('bluffing', False)
             player.drew = player_data.get('drew', False)
+            # Saves from before 'drew_card' existed: a draw always produced a card
+            player.drew_card = player_data.get('drew_card', player.drew)
             player.anti_cheat = player_data.get('anti_cheat', 0)
             player.turn_started = datetime.fromisoformat(player_data.get('turn_started', datetime.now().isoformat()))
             player.waiting_time = player_data.get('waiting_time', player.waiting_time)
             player.pending_win = player_data.get('pending_win', False)
-            if player.pending_win:
+            if player.pending_win or player.user.id == data.get('last_bluffer_id'):
                 game.last_bluffer = player
 
         if game.players:
