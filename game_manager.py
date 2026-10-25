@@ -258,15 +258,17 @@ class GameManager(object):
                     self._index_loaded_game(game)
 
     def ensure_chat_loaded(self, chat):
-        if chat.id in self.chatid_games:
+        chat_id = chat if isinstance(chat, int) else getattr(chat, 'id', chat)
+        if chat_id in self.chatid_games:
             return
-        games = self._load_chat_from_storage(chat.id)
+        games = self._load_chat_from_storage(chat_id)
         if not games:
             return
         for game in games:
-            game.chat = chat if game.chat.id == chat.id else game.chat
+            if hasattr(chat, 'id') and game.chat.id == chat_id:
+                game.chat = chat
             self._index_loaded_game(game)
-        self.chatid_games[chat.id] = games
+        self.chatid_games[chat_id] = games
 
     def ensure_user_loaded(self, user_id):
         if user_id in self.userid_players:

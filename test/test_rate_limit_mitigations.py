@@ -304,6 +304,20 @@ class TestRateLimitMitigations(unittest.TestCase):
         self.assertEqual(bot.answerInlineQuery.call_count, 2)
         mock_sleep.assert_called_once_with(3.5)
 
+    def test_ensure_chat_loaded_handles_int_and_chat_object(self):
+        from game_manager import GameManager
+        gm = GameManager()
+        chat_id = -1003582555037
+        chat_obj = MockChat(chat_id)
+
+        # Should handle int chat ID without raising AttributeError
+        with patch.object(gm, '_load_chat_from_storage', return_value=[]):
+            gm.ensure_chat_loaded(chat_id)
+
+        # Should handle Chat object without raising AttributeError
+        with patch.object(gm, '_load_chat_from_storage', return_value=[]):
+            gm.ensure_chat_loaded(chat_obj)
+
 
 if __name__ == '__main__':
     unittest.main()

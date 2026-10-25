@@ -489,7 +489,8 @@ def callback_router(update: Update, context: CallbackContext):
 
 def _handle_color_callback(bot, query, chat_id, color, context):
     user_id = query.from_user.id
-    gm.ensure_chat_loaded(chat_id)
+    chat = query.message.chat if query.message else chat_id
+    gm.ensure_chat_loaded(chat)
     games = gm.chatid_games.get(chat_id)
     if not games:
         try:
@@ -550,7 +551,8 @@ def _handle_color_callback(bot, query, chat_id, color, context):
 
 def _handle_action_callback(bot, query, chat_id, action, context):
     user_id = query.from_user.id
-    gm.ensure_chat_loaded(chat_id)
+    chat = query.message.chat if query.message else chat_id
+    gm.ensure_chat_loaded(chat)
     games = gm.chatid_games.get(chat_id)
     if not games:
         try:
