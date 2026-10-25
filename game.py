@@ -20,10 +20,10 @@
 
 import logging
 import secrets
-from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS
+from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS
 from datetime import datetime
 
-from deck import Deck
+from deck import Deck, csprng
 import card as c
 from errors import DeckEmptyError
 
@@ -37,6 +37,7 @@ class Game(object):
         self.current_player = None
         self.reversed = False
         self.choosing_color = False
+        self.opening_color_choice = False
         self.started = False
         self.draw_counter = 0
         self.players_won = 0
@@ -73,8 +74,25 @@ class Game(object):
             itplayer = itplayer.next
         return players
 
+    def shuffle_players(self):
+        """Randomly shuffles the seating ring and starting player using CSPRNG"""
+        players = self.players
+        if len(players) <= 1:
+            return
+
+        self.reversed = False
+        csprng.shuffle(players)
+        n = len(players)
+        for i in range(n):
+            players[i]._next = players[(i + 1) % n]
+            players[i]._prev = players[(i - 1) % n]
+        self.current_player = players[0]
+
     def start(self):
         self.touch()
+        if SHUFFLE_PLAYERS:
+            self.shuffle_players()
+
         if self.mode == None or self.mode != "wild":
             self.deck._fill_classic_()
         else:
@@ -98,37 +116,43 @@ class Game(object):
         self.logger.debug("Next Player")
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
-            self.last_card.color = secrets.choice(c.COLORS)
+            self.last_card.color = csprng.choice(c.COLORS)
         self.current_player = self.current_player.next
         self.current_player.drew = False
         self.current_player.turn_started = datetime.now()
         self.choosing_color = False
+        self.opening_color_choice = False
 
     def _first_card_(self):
         # In case that the player did not select a game mode
         if not self.deck.cards:
             self.set_mode(DEFAULT_GAMEMODE)
 
-        # The first card should not be a special card (Wild or Wild Draw Four).
-        # Any drawn specials are held temporarily, then returned to the deck and shuffled.
-        temp_specials = []
+        # Official Mattel UNO rules:
+        # Wild Draw 4 (+4) cannot be the opening card. If drawn, it is held temporarily,
+        # returned to the deck, and reshuffled.
+        # Regular Wild card (c.CHOOSE) is permitted: the first player chooses the starting
+        # color and takes their opening turn on that color.
+        temp_draw_fours = []
         card = None
         while True:
             card = self.deck.draw()
-            if card.special:
-                temp_specials.append(card)
+            if card.special == c.DRAW_FOUR:
+                temp_draw_fours.append(card)
             else:
                 break
 
-        if temp_specials:
-            self.deck.cards.extend(temp_specials)
+        if temp_draw_fours:
+            self.deck.cards.extend(temp_draw_fours)
             self.deck.shuffle()
 
         self.last_card = card
 
         # Resolve first-card action rules according to official UNO rules
-        # without dismissing the starting card or skipping the first player on number cards
-        if card.value == c.SKIP:
+        if card.special == c.CHOOSE:
+            self.choosing_color = True
+            self.opening_color_choice = True
+        elif card.value == c.SKIP:
             self.turn()
         elif card.value == c.DRAW_TWO:
             # Set draw counter so the first player can counter by playing another +2,
@@ -177,4 +201,8 @@ class Game(object):
         """Carries out the color choosing and turns the game"""
         self.touch()
         self.last_card.color = color
-        self.turn()
+        self.choosing_color = False
+        if getattr(self, 'opening_color_choice', False):
+            self.opening_color_choice = False
+        else:
+            self.turn()

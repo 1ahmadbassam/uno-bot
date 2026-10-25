@@ -65,3 +65,7 @@ MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", config.get("min_players", 2)))
 STALE_GAME_UNLOAD_SECONDS = int(os.getenv("STALE_GAME_UNLOAD_SECONDS", config.get("stale_game_unload_seconds", 1800)))
 STALE_GAME_SCAN_EVERY_SECONDS = int(os.getenv("STALE_GAME_SCAN_EVERY_SECONDS", config.get("stale_game_scan_every_seconds", 60)))
 DEFAULT_CARDSET = os.getenv("DEFAULT_CARDSET", config.get("default_cardset", "classic")).lower()
+SHUFFLE_PLAYERS = os.getenv("SHUFFLE_PLAYERS", config.get("shuffle_players", True))
+
+if isinstance(SHUFFLE_PLAYERS, str):
+    SHUFFLE_PLAYERS = SHUFFLE_PLAYERS.lower() in ("yes", "true", "t", "1")

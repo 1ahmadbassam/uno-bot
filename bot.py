@@ -492,12 +492,22 @@ def start_game(update: Update, context: CallbackContext):
                 player.draw_first_hand()
             gm.persist_game(game)
             choice = [[InlineKeyboardButton(text=_("Make your choice!"), switch_inline_query_current_chat='')]]
-            first_message = (
-                __("First player: {name}\n"
-                   "Use /close to stop people from joining the game.\n"
-                   "Enable multi-translations with /enable_translations",
-                   multi=game.translate)
-                .format(name=display_name(game.current_player.user)))
+            if game.choosing_color:
+                first_message = (
+                    __("First card is Wild!\n"
+                       "First player: {name}\n"
+                       "Please choose the starting color.\n"
+                       "Use /close to stop people from joining the game.\n"
+                       "Enable multi-translations with /enable_translations",
+                       multi=game.translate)
+                    .format(name=display_name(game.current_player.user)))
+            else:
+                first_message = (
+                    __("First player: {name}\n"
+                       "Use /close to stop people from joining the game.\n"
+                       "Enable multi-translations with /enable_translations",
+                       multi=game.translate)
+                    .format(name=display_name(game.current_player.user)))
 
             def send_first():
                 """Send the first card and player"""
@@ -833,7 +843,12 @@ def process_result(update: Update, context: CallbackContext):
         game.turn()
     elif result_id in c.COLORS:
         if game.choosing_color and player == game.current_player:
+            is_opening = getattr(game, 'opening_color_choice', False)
             game.choose_color(result_id)
+            if is_opening:
+                send_async(context.bot, chat.id,
+                           text=__("Starting color set to {color}!", multi=game.translate)
+                           .format(color=display_color_group(result_id, game)))
         else:
             return
     else:

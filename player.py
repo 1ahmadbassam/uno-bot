@@ -19,10 +19,10 @@
 
 
 import logging
-import secrets
 from datetime import datetime
 
 import card as c
+from deck import csprng
 from errors import DeckEmptyError
 from config import WAITING_TIME
 
@@ -199,6 +199,6 @@ class Player(object):
         elif not last.color:
             # Self-healing safeguard: if color was lost or missing, auto-select a valid color
             self.logger.warning("Last card had no color; auto-selecting color to prevent deadlock")
-            last.color = secrets.choice(c.COLORS)
+            last.color = csprng.choice(c.COLORS)
 
         return is_playable

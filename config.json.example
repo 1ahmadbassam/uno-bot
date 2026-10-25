@@ -12,6 +12,7 @@
     "time_removal_after_skip": 20,
     "min_fast_turn_time": 15,
     "min_players": 2,
+    "shuffle_players": true,
     "stale_game_unload_seconds": 1800,
     "stale_game_scan_every_seconds": 60
 }

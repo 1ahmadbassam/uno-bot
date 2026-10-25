@@ -1,9 +1,8 @@
-import secrets
-
 import logging
 
 import card as c
 from datetime import datetime
+from deck import csprng
 
 from telegram import Message, Chat
 from telegram.ext import CallbackContext
@@ -62,9 +61,10 @@ def do_skip(bot, player, job_queue=None):
 
         # Prevent soft-lock if skipping a player who was supposed to choose a color
         if game.choosing_color or (game.last_card and not game.last_card.color):
-            auto_color = secrets.choice(c.COLORS)
+            auto_color = csprng.choice(c.COLORS)
             game.last_card.color = auto_color
             game.choosing_color = False
+            game.opening_color_choice = False
             send_async(bot, chat.id,
                        text=__("Time ran out to choose a color! Color automatically set to {color}.",
                                multi=game.translate).format(color=display_color_group(auto_color, game)))
@@ -87,9 +87,10 @@ def do_skip(bot, player, job_queue=None):
     else:
         # Prevent soft-lock if removing a player who was supposed to choose a color
         if game.choosing_color or (game.last_card and not game.last_card.color):
-            auto_color = secrets.choice(c.COLORS)
+            auto_color = csprng.choice(c.COLORS)
             game.last_card.color = auto_color
             game.choosing_color = False
+            game.opening_color_choice = False
             send_async(bot, chat.id,
                        text=__("Time ran out to choose a color! Color automatically set to {color}.",
                                multi=game.translate).format(color=display_color_group(auto_color, game)))
@@ -177,7 +178,7 @@ def do_play_card(bot, player, result_id):
         # If the winning card was a Wild card, automatically assign a color
         # so remaining players can continue without deadlock
         if game.choosing_color:
-            auto_color = secrets.choice(c.COLORS)
+            auto_color = csprng.choice(c.COLORS)
             game.choose_color(auto_color)
             send_async(bot, chat.id,
                        text=__("Winning card was Wild! Color set to {color}.",

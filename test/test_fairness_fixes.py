@@ -490,6 +490,143 @@ class TestFairnessFixes(unittest.TestCase):
         self.assertIn(self.game.last_card.color, c.COLORS)
         self.assertFalse(self.game.choosing_color)
 
+    def test_shuffle_players_ring_integrity(self):
+        """Verify shuffle_players preserves doubly-linked circular ring integrity"""
+        p3 = Player(self.game, SimpleNamespace(id=103, first_name="Dave", username="dave"))
+        self.assertEqual(len(self.game.players), 4)
+
+        for _ in range(50):
+            self.game.shuffle_players()
+            players = self.game.players
+            self.assertEqual(len(players), 4)
+            self.assertEqual(players[0], self.game.current_player)
+
+            # Check every node's circular connections
+            for i in range(4):
+                curr = players[i]
+                nxt = players[(i + 1) % 4]
+                prv = players[(i - 1) % 4]
+                self.assertEqual(curr.next, nxt)
+                self.assertEqual(curr.prev, prv)
+                self.assertEqual(curr.next.prev, curr)
+                self.assertEqual(curr.prev.next, curr)
+
+    def test_shuffle_players_statistical_uniformity(self):
+        """Verify starting player selection is uniformly distributed across all players"""
+        start_counts = {self.p0.user.id: 0, self.p1.user.id: 0, self.p2.user.id: 0}
+        total_trials = 3000
+
+        for _ in range(total_trials):
+            self.game.shuffle_players()
+            start_counts[self.game.current_player.user.id] += 1
+
+        # Each of the 3 players should be starter ~1000 times (expect within [800, 1200])
+        for uid, count in start_counts.items():
+            self.assertTrue(800 <= count <= 1200, f"User {uid} starter count {count} deviates significantly from 1000")
+
+    def test_shuffle_players_config_disabled(self):
+        """When SHUFFLE_PLAYERS is disabled, join order and first player are preserved"""
+        import game as game_module
+        original_flag = game_module.SHUFFLE_PLAYERS
+        try:
+            game_module.SHUFFLE_PLAYERS = False
+            test_game = Game(SimpleNamespace(id=55, title="No Shuffle", type="group"))
+            pa = Player(test_game, SimpleNamespace(id=501, first_name="A"))
+            pb = Player(test_game, SimpleNamespace(id=502, first_name="B"))
+            pc = Player(test_game, SimpleNamespace(id=503, first_name="C"))
+
+            # Start game with a number card
+            test_game.deck.cards = [c.Card(c.RED, '3')]
+            test_game.start()
+
+            # Starting player must remain Player A (first joined)
+            self.assertEqual(test_game.current_player, pa)
+            self.assertEqual(test_game.players, [pa, pb, pc])
+        finally:
+            game_module.SHUFFLE_PLAYERS = original_flag
+
+    def test_official_opening_wild_card_allows_starter_color_choice_and_turn(self):
+        """Official UNO: Opening regular Wild card prompts first player for color, then lets them take their turn"""
+        game = Game(SimpleNamespace(id=77, title="Wild Open", type="group"))
+        p0 = Player(game, SimpleNamespace(id=701, first_name="A"))
+        p1 = Player(game, SimpleNamespace(id=702, first_name="B"))
+
+        # Setup deck where opening card is a regular Wild card
+        wild = c.Card(None, None, special=c.CHOOSE)
+        game.deck.cards = [wild]
+        game._first_card_()
+
+        # Regular Wild is accepted as opening card
+        self.assertEqual(game.last_card.special, c.CHOOSE)
+        self.assertTrue(game.choosing_color)
+        self.assertTrue(game.opening_color_choice)
+        self.assertEqual(game.current_player, p0)
+
+        # Player 0 chooses Green
+        game.choose_color(c.GREEN)
+
+        # After choosing, last_card color is GREEN, choosing_color is cleared,
+        # and Player 0 RETAINS their turn to play on Green!
+        self.assertEqual(game.last_card.color, c.GREEN)
+        self.assertFalse(game.choosing_color)
+        self.assertFalse(game.opening_color_choice)
+        self.assertEqual(game.current_player, p0, "Starting player must retain turn after choosing opening color")
+
+        # Player 0 can now play a Green card
+        green_card = c.Card(c.GREEN, '4')
+        p0.cards = [green_card]
+        self.assertIn(green_card, p0.playable_cards())
+        p0.play(green_card)
+
+        # After playing, turn advances to Player 1
+        self.assertEqual(game.current_player, p1)
+
+    def test_official_opening_wild_draw_four_is_reshuffled(self):
+        """Official UNO: Opening Wild Draw 4 cannot start play; returned to deck and reshuffled"""
+        game = Game(SimpleNamespace(id=78, title="DF Open", type="group"))
+        Player(game, SimpleNamespace(id=711, first_name="A"))
+        Player(game, SimpleNamespace(id=712, first_name="B"))
+
+        # Deck with Draw 4 followed by a Red 5
+        df = c.Card(None, None, special=c.DRAW_FOUR)
+        num = c.Card(c.RED, '5')
+        game.deck.cards = [df, num]
+        game._first_card_()
+
+        # Draw 4 was drawn first, put back in deck, and Red 5 became last card
+        self.assertEqual(game.last_card, num)
+        self.assertIn(df, game.deck.cards)
+        self.assertFalse(game.choosing_color)
+
+    def test_opening_color_choice_serialization(self):
+        """Opening color choice state is preserved across serialization"""
+        gm = GameManager()
+        game = Game(SimpleNamespace(id=79, title="Persist Open", type="group"))
+        p0 = Player(game, SimpleNamespace(id=721, first_name="A"))
+        game.last_card = c.Card(None, None, special=c.CHOOSE)
+        game.choosing_color = True
+        game.opening_color_choice = True
+
+        serialized = gm._serialize_game(game)
+        self.assertTrue(serialized['opening_color_choice'])
+        self.assertTrue(serialized['choosing_color'])
+
+        deserialized = gm._deserialize_game(serialized)
+        self.assertTrue(deserialized.opening_color_choice)
+        self.assertTrue(deserialized.choosing_color)
+
+    def test_no_deck_array_leaked_in_logs(self):
+        """Verify Deck.__init__ does not log the entire cards array to logger"""
+        import logging
+        deck_logger = logging.getLogger('deck')
+        with self.assertLogs(deck_logger, level='DEBUG') as log:
+            d = Deck()
+            d._fill_classic_()
+            for msg in log.output:
+                # Ensure the string representation of the full list of cards is never logged
+                self.assertNotIn("Card(None, None", msg)
+                self.assertNotIn("Card('r'", msg)
+
 
 if __name__ == '__main__':
     unittest.main()

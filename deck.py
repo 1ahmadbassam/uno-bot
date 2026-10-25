@@ -25,6 +25,9 @@ import card as c
 from card import Card
 from errors import DeckEmptyError
 
+# Cryptographically secure PRNG singleton backed by OS-level entropy
+csprng = secrets.SystemRandom()
+
 
 def secure_shuffle(cards):
     """
@@ -36,10 +39,8 @@ def secure_shuffle(cards):
     """
     if len(cards) <= 1:
         return
-    rng = secrets.SystemRandom()
-    # Perform 3 independent Fisher-Yates passes using OS CSPRNG entropy
     for _ in range(3):
-        rng.shuffle(cards)
+        csprng.shuffle(cards)
 
 
 class Deck(object):
@@ -50,7 +51,7 @@ class Deck(object):
         self.graveyard = list()
         self.logger = logging.getLogger(__name__)
 
-        self.logger.debug(self.cards)
+        self.logger.debug("Initialized empty Deck")
 
     def shuffle(self):
         """Shuffles the deck using cryptographically secure randomness"""
@@ -61,12 +62,12 @@ class Deck(object):
         """Draws a card from this deck"""
         try:
             card = self.cards.pop()
-            self.logger.debug("Drawing card " + str(card))
+            self.logger.debug("Drawing card %s", str(card))
             return card
         except IndexError:
             if len(self.graveyard):
-                while len(self.graveyard):
-                    self.cards.append(self.graveyard.pop())
+                self.cards.extend(self.graveyard)
+                self.graveyard.clear()
                 self.shuffle()
                 return self.draw()
             else:

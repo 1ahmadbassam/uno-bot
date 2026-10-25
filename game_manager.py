@@ -86,6 +86,7 @@ class GameManager(object):
             'started': game.started,
             'reversed': game.reversed,
             'choosing_color': game.choosing_color,
+            'opening_color_choice': getattr(game, 'opening_color_choice', False),
             'draw_counter': game.draw_counter,
             'players_won': game.players_won,
             'mode': game.mode,
@@ -119,6 +120,7 @@ class GameManager(object):
         game.started = data.get('started', False)
         game.reversed = data.get('reversed', False)
         game.choosing_color = data.get('choosing_color', False)
+        game.opening_color_choice = data.get('opening_color_choice', False)
         game.draw_counter = data.get('draw_counter', 0)
         game.players_won = data.get('players_won', 0)
         game.mode = data.get('mode')
