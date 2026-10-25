@@ -25,24 +25,20 @@ import card as c
 from card import Card
 from errors import DeckEmptyError
 
-# Cryptographically secure PRNG singleton backed by OS-level entropy
+# Cryptographically secure RNG backed by the OS entropy pool (getrandom /
+# BCryptGenRandom). randrange() uses rejection sampling, so picks have no modulo bias.
 csprng = secrets.SystemRandom()
 
 
-def secure_shuffle(cards):
-    """
-    Cryptographically secure, unbiased Fisher-Yates shuffle.
-    Uses OS-level CSPRNG entropy via secrets.SystemRandom(), whose index sampling
-    avoids modulo bias. A single pass already gives every permutation equal
-    probability (1 / N!).
-    """
-    if len(cards) <= 1:
-        return
-    csprng.shuffle(cards)
-
-
 class Deck(object):
-    """ This class represents a deck of cards """
+    """
+    This class represents a deck of cards.
+
+    The draw pile is an unordered pool: every draw picks a card uniformly at
+    random from the cards that are left, at the moment of drawing. The odds are
+    the same as for a shuffled deck, but the order of future draws is never
+    decided in advance, so it can't leak from memory or persisted state.
+    """
 
     def __init__(self):
         self.cards = list()
@@ -51,25 +47,21 @@ class Deck(object):
 
         self.logger.debug("Initialized empty Deck")
 
-    def shuffle(self):
-        """Shuffles the deck using cryptographically secure randomness"""
-        self.logger.debug("Shuffling Deck with cryptographic CSPRNG")
-        secure_shuffle(self.cards)
-
     def draw(self):
-        """Draws a card from this deck"""
-        try:
-            card = self.cards.pop()
-            self.logger.debug("Drawing card %s", str(card))
-            return card
-        except IndexError:
-            if len(self.graveyard):
-                self.cards.extend(self.graveyard)
-                self.graveyard.clear()
-                self.shuffle()
-                return self.draw()
-            else:
+        """Draws a uniformly random card from the remaining draw pile"""
+        if not self.cards:
+            if not self.graveyard:
                 raise DeckEmptyError()
+            # Recycle the discard pile; no shuffle needed since draws are random picks
+            self.cards.extend(self.graveyard)
+            self.graveyard.clear()
+
+        index = csprng.randrange(len(self.cards))
+        # Swap with the last card so removal is O(1); pile order carries no meaning
+        self.cards[index], self.cards[-1] = self.cards[-1], self.cards[index]
+        card = self.cards.pop()
+        self.logger.debug("Drawing card %s", str(card))
+        return card
 
     def dismiss(self, card):
         """Returns a card to the deck"""
@@ -88,7 +80,6 @@ class Deck(object):
         for special in c.SPECIALS:
             for _ in range(4):
                 self.cards.append(Card(None, None, special=special))
-        self.shuffle()
 
     def _fill_wild_(self):
         # Fill deck with a wild card set
@@ -100,4 +91,3 @@ class Deck(object):
         for special in c.SPECIALS:
             for _ in range(6):
                 self.cards.append(Card(None, None, special=special))
-        self.shuffle()

@@ -129,8 +129,8 @@ class Game(object):
             self.set_mode(DEFAULT_GAMEMODE)
 
         # Official Mattel UNO rules:
-        # Wild Draw 4 (+4) cannot be the opening card. If drawn, it is held temporarily,
-        # returned to the deck, and reshuffled.
+        # Wild Draw 4 (+4) cannot be the opening card. If drawn, it is held temporarily
+        # and returned to the draw pile (draws are random picks, so no reshuffle is needed).
         # Regular Wild card (c.CHOOSE) is permitted: the first player chooses the starting
         # color and takes their opening turn on that color.
         temp_draw_fours = []
@@ -142,9 +142,7 @@ class Game(object):
             else:
                 break
 
-        if temp_draw_fours:
-            self.deck.cards.extend(temp_draw_fours)
-            self.deck.shuffle()
+        self.deck.cards.extend(temp_draw_fours)
 
         self.last_card = card
 

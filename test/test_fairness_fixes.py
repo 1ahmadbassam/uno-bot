@@ -113,7 +113,7 @@ if 'user_setting' not in sys.modules:
 
 from game import Game
 from player import Player
-from deck import Deck, secure_shuffle
+from deck import Deck
 import card as c
 from game_manager import GameManager
 from actions import do_skip, do_call_bluff, do_play_card, do_draw, resolve_pending_win_after_leave
@@ -137,32 +137,56 @@ class TestFairnessFixes(unittest.TestCase):
                     break
         shared_vars.gm.leave_game = fake_leave
 
-    def test_1_2_true_randomness_csprng(self):
-        """1.2: Guarantee true randomness (CSPRNG, no seed predictability, uniform distribution)"""
+    def test_1_2_draws_are_random_picks_from_csprng(self):
+        """1.2: Each draw is a CSPRNG pick from the remaining pile, not the next card of a fixed order"""
         deck = Deck()
-        deck._fill_classic_()
-        original_cards = [str(x) for x in deck.cards]
+        deck.cards = [c.Card(c.RED, '1'), c.Card(c.BLUE, '1'), c.Card(c.GREEN, '1')]
+        with patch('deck.csprng.randrange', return_value=1) as randrange:
+            card = deck.draw()
+        randrange.assert_called_once_with(3)
+        self.assertEqual(card, c.Card(c.BLUE, '1'))
+        self.assertEqual(sorted(deck.cards), sorted([c.Card(c.RED, '1'), c.Card(c.GREEN, '1')]))
 
-        # Test secure shuffle
-        deck.shuffle()
-        shuffled_cards = [str(x) for x in deck.cards]
-        self.assertEqual(len(original_cards), len(shuffled_cards))
-        # It should not remain identical in order
-        self.assertNotEqual(original_cards, shuffled_cards)
-
-        # Statistical uniformity check: over 4000 shuffles, card at index 0 is well distributed
+    def test_1_2_draw_order_is_uniform(self):
+        """1.2: Every card is equally likely at every draw position (no positional bias)"""
         sample_size = 4000
-        first_card_colors = {c.RED: 0, c.BLUE: 0, c.GREEN: 0, c.YELLOW: 0, None: 0}
-        test_deck = [c.Card(c.RED, '1'), c.Card(c.BLUE, '1'), c.Card(c.GREEN, '1'), c.Card(c.YELLOW, '1')]
+        colors = [c.RED, c.BLUE, c.GREEN, c.YELLOW]
+        counts = [{color: 0 for color in colors} for _ in range(4)]
 
         for _ in range(sample_size):
-            secure_shuffle(test_deck)
-            first_card_colors[test_deck[0].color] += 1
+            deck = Deck()
+            # Always the same pile layout: any bias towards list order would show up
+            deck.cards = [c.Card(color, '1') for color in colors]
+            for position in range(4):
+                counts[position][deck.draw().color] += 1
 
-        # Each color should appear ~25% of the time (1000 times). Expect within [800, 1200]
-        for color in [c.RED, c.BLUE, c.GREEN, c.YELLOW]:
-            count = first_card_colors[color]
-            self.assertTrue(800 <= count <= 1200, f"Color {color} count {count} deviates significantly from expected")
+        # Each color should be drawn ~25% of the time (1000) at each position; ±200 is > 7 sigma
+        for position in range(4):
+            for color in colors:
+                count = counts[position][color]
+                self.assertTrue(800 <= count <= 1200,
+                                f"Color {color} at draw {position} came up {count} times")
+
+    def test_1_2_empty_pile_recycles_discards(self):
+        """1.2: An empty draw pile is refilled from the discards"""
+        deck = Deck()
+        deck.graveyard = [c.Card(c.RED, '1'), c.Card(c.BLUE, '2')]
+        drawn = deck.draw()
+        self.assertIn(drawn, [c.Card(c.RED, '1'), c.Card(c.BLUE, '2')])
+        self.assertEqual(len(deck.cards), 1)
+        self.assertEqual(deck.graveyard, [])
+
+        deck.cards.clear()
+        with self.assertRaises(DeckEmptyError):
+            deck.draw()
+
+    def test_1_2_persisted_piles_carry_no_order(self):
+        """1.2: Saved draw and discard piles are sorted, so they reveal nothing about future draws"""
+        self.game.start()
+        data = GameManager()._serialize_game(self.game)
+        self.assertEqual(data['deck_cards'], sorted(data['deck_cards']))
+        self.assertEqual(data['deck_graveyard'], sorted(data['deck_graveyard']))
+        self.assertEqual(len(data['deck_cards']), len(self.game.deck.cards))
 
     def test_1_3_timeout_color_selection_softlock_prevented(self):
         """1.3: Game does not soft-lock when a player times out while choosing a color"""

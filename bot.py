@@ -59,6 +59,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
+# Game modes offered by the mode_* inline results
+GAME_MODES = ('classic', 'fast', 'wild', 'text')
+
 
 def _chat_key(update: Update):
     chat = update.effective_chat
@@ -1067,6 +1070,9 @@ def process_result(update: Update, context: CallbackContext):
     elif result_id.startswith('mode_'):
         # First 5 characters are 'mode_', the rest is the gamemode.
         mode = result_id[5:]
+        if game.started or mode not in GAME_MODES or not user_is_creator(user, game):
+            logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
+            return
         game.set_mode(mode)
         gm.persist_game(game)
         logger.info("Gamemode changed to {mode}".format(mode = mode))
@@ -1078,6 +1084,12 @@ def process_result(update: Update, context: CallbackContext):
         send_async(context.bot, chat.id,
                    text=__("Cheat attempt by {name}", multi=game.translate)
                    .format(name=display_name(player.user)))
+        return
+    elif not _inline_action_allowed(player, game, result_id):
+        # Results from a menu opened earlier stay tappable after the state changed
+        # (button draw/pass, timeout, ...), so every action is checked against the game.
+        logger.info("Ignoring stale or invalid inline result %s from %s",
+                    result_id, display_name(player.user))
         return
     elif result_id == 'call_bluff':
         if (player == game.current_player and
@@ -1137,6 +1149,26 @@ def process_result(update: Update, context: CallbackContext):
                        reply_markup=markup,
                        disable_notification=True)
             start_player_countdown(context.bot, game, context.job_queue)
+
+
+def _inline_action_allowed(player, game, result_id):
+    """Check a chosen inline result against the current game state"""
+    if not game.started or player is not game.current_player:
+        return False
+
+    if result_id == 'call_bluff':
+        return bool(game.last_card and game.last_card.special == c.DRAW_FOUR and game.draw_counter > 0)
+    if result_id == 'draw':
+        return not game.choosing_color and not player.drew
+    if result_id == 'pass':
+        return not game.choosing_color and player.drew
+    if result_id in c.COLORS:
+        return game.choosing_color
+
+    if game.choosing_color:
+        return False
+    card = c.from_str(result_id)
+    return card is not None and card in player.playable_cards()
 
 
 def reset_waiting_time(bot, player):

@@ -95,8 +95,10 @@ class GameManager(object):
             'owner': list(game.owner or []),
             'starter': self._serialize_user(game.starter),
             'last_card': self._serialize_card(game.last_card),
-            'deck_cards': [self._serialize_card(card) for card in game.deck.cards],
-            'deck_graveyard': [self._serialize_card(card) for card in game.deck.graveyard],
+            # Piles are stored sorted: draws are random picks, so pile order has no
+            # meaning and storing it sorted keeps no trace of the in-memory layout.
+            'deck_cards': sorted(self._serialize_card(card) for card in game.deck.cards),
+            'deck_graveyard': sorted(self._serialize_card(card) for card in game.deck.graveyard),
             'players': [
                 {
                     'user': self._serialize_user(player.user),

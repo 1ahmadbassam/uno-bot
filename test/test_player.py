@@ -77,11 +77,13 @@ class Test(unittest.TestCase):
         self.game.start()
 
         deck_before = len(self.game.deck.cards)
-        top_card = self.game.deck.cards[-1]
+        pile_before = sorted(self.game.deck.cards)
 
         p.draw()
 
-        self.assertEqual(top_card, p.cards[-1])
+        # The drawn card is a random pick from the pile, so check it came from there
+        pile_after = sorted(self.game.deck.cards + [p.cards[-1]])
+        self.assertEqual(pile_before, pile_after)
         self.assertEqual(deck_before, len(self.game.deck.cards) + 1)
 
     def test_draw_two(self):
