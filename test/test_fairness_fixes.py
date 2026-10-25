@@ -3,6 +3,7 @@ import sys
 import types
 import secrets
 from types import SimpleNamespace
+from unittest.mock import patch
 
 # Provide lightweight stubs for optional runtime modules when running isolated unit tests
 if 'telegram' not in sys.modules:
@@ -115,8 +116,9 @@ from player import Player
 from deck import Deck, secure_shuffle
 import card as c
 from game_manager import GameManager
-from actions import do_skip, do_call_bluff, do_play_card, do_draw
+from actions import do_skip, do_call_bluff, do_play_card, do_draw, resolve_pending_win_after_leave
 from errors import DeckEmptyError
+from internationalization import __
 
 
 class TestFairnessFixes(unittest.TestCase):
@@ -408,6 +410,94 @@ class TestFairnessFixes(unittest.TestCase):
         self.assertNotIn(self.p0, self.game.players)
         self.assertEqual(self.game.current_player, self.p2)
 
+    def test_skip_while_choosing_after_draw_four_keeps_penalty_for_next_player(self):
+        """A +4 player who times out before choosing a color draws one card; the next player keeps the +4"""
+        self.game.start()
+        chooser = self.game.current_player
+        self.game.last_card = c.Card(None, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.choosing_color = True
+        hand_before = len(chooser.cards)
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        do_skip(dummy_bot, chooser)
+
+        self.assertEqual(len(chooser.cards), hand_before + 1)
+        self.assertEqual(self.game.draw_counter, 4)
+        self.assertIsNot(self.game.current_player, chooser)
+        self.assertIn(self.game.last_card.color, c.COLORS)
+
+    def test_skip_stops_when_pending_win_ends_the_game(self):
+        """If awarding a pending +4 win ends the game, the skip does not keep playing the dead game"""
+        self.game.start()
+        self.game.last_card = c.Card(c.BLUE, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.last_bluffer = self.p0
+        self.p0.cards = []
+        self.p0.pending_win = True
+        self.game.current_player = self.p1
+        hand_before = len(self.p1.cards)
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        with patch('actions.player_won') as won, patch('actions.game_is_running', return_value=False):
+            do_skip(dummy_bot, self.p1)
+
+        won.assert_called_once_with(dummy_bot, self.p0)
+        self.assertEqual(len(self.p1.cards), hand_before)
+        self.assertIs(self.game.current_player, self.p1)
+
+    def test_pending_win_awarded_when_challenger_leaves(self):
+        """If the challenger of a final +4 leaves, the winner gets the win and nobody inherits the +4"""
+        self.game.start()
+        self.game.last_card = c.Card(c.BLUE, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.last_bluffer = self.p0
+        self.p0.cards = []
+        self.p0.pending_win = True
+        self.game.current_player = self.p1
+
+        self.p1.leave()
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        with patch('actions.player_won') as won, patch('actions.game_is_running', return_value=True):
+            ended = resolve_pending_win_after_leave(dummy_bot, self.game, self.p1, was_current=True)
+
+        self.assertFalse(ended)
+        won.assert_called_once_with(dummy_bot, self.p0)
+        self.assertFalse(self.p0.pending_win)
+        self.assertIsNone(self.game.last_bluffer)
+        self.assertEqual(self.game.draw_counter, 0)
+
+    def test_pending_win_cleared_when_winner_leaves(self):
+        """If the pending winner leaves, the pending state is dropped without awarding a win"""
+        self.game.start()
+        self.game.last_bluffer = self.p0
+        self.p0.pending_win = True
+        self.game.current_player = self.p1
+
+        dummy_bot = SimpleNamespace(sendMessage=lambda *args, **kwargs: None)
+        with patch('actions.player_won') as won:
+            resolve_pending_win_after_leave(dummy_bot, self.game, self.p0, was_current=False)
+
+        won.assert_not_called()
+        self.assertFalse(self.p0.pending_win)
+        self.assertIsNone(self.game.last_bluffer)
+
+    def test_playable_check_does_not_change_missing_color(self):
+        """Checking playable cards never changes game state, even if the last card has no color"""
+        self.game.start()
+        self.game.last_card = c.Card(None, None, special=c.CHOOSE)
+        self.game.choosing_color = False
+        player = self.game.current_player
+        player.cards = [c.Card(c.RED, '3')]
+
+        self.assertIn(player.cards[0], player.playable_cards())
+        self.assertIsNone(self.game.last_card.color)
+
+    def test_translation_keeps_trailing_newline(self):
+        """__() must not strip intentional newlines (announcement + next player line)"""
+        self.assertEqual(__("Color set to {color}!\n", multi=True), "Color set to {color}!\n")
+        self.assertEqual(__("Color set to {color}!\n"), "Color set to {color}!\n")
+
     def test_f05_join_game_deck_exhaustion_leaves_no_phantom_player(self):
         """F-05: When DeckEmptyError occurs during mid-game join, no zombie player remains in the ring"""
         chat = SimpleNamespace(id=99, title="Exhaustion Chat", type="group")
@@ -535,9 +625,11 @@ class TestFairnessFixes(unittest.TestCase):
             pb = Player(test_game, SimpleNamespace(id=502, first_name="B"))
             pc = Player(test_game, SimpleNamespace(id=503, first_name="C"))
 
-            # Start game with a number card
+            # Start game with a number card. start() refills and shuffles the deck,
+            # so keep the fixed deck; a random Skip/Reverse opener would change the order.
             test_game.deck.cards = [c.Card(c.RED, '3')]
-            test_game.start()
+            with patch.object(test_game.deck, '_fill_classic_', lambda: None):
+                test_game.start()
 
             # Starting player must remain Player A (first joined)
             self.assertEqual(test_game.current_player, pa)

@@ -22,7 +22,6 @@ import logging
 from datetime import datetime
 
 import card as c
-from deck import csprng
 from errors import DeckEmptyError
 from config import WAITING_TIME
 
@@ -185,7 +184,13 @@ class Player(object):
         last = self.game.last_card
         self.logger.debug("Checking card " + str(card))
 
-        if (card.color != last.color and card.value != last.value and
+        if not last.color:
+            # Defensive: game.turn() always assigns a color, so this should not happen.
+            # Accept any color rather than locking the game, but don't change game
+            # state from what is only a playability check.
+            self.logger.warning("Last card has no color")
+
+        if (last.color and card.color != last.color and card.value != last.value and
                 not card.special):
             self.logger.debug("Card's color or value doesn't match")
             is_playable = False
@@ -196,9 +201,5 @@ class Player(object):
         elif last.special == c.DRAW_FOUR and self.game.draw_counter:
             self.logger.debug("Player has to draw and can't counter")
             is_playable = False
-        elif not last.color:
-            # Self-healing safeguard: if color was lost or missing, auto-select a valid color
-            self.logger.warning("Last card had no color; auto-selecting color to prevent deadlock")
-            last.color = csprng.choice(c.COLORS)
 
         return is_playable

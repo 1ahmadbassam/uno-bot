@@ -11,10 +11,10 @@ from apscheduler.jobstores.base import JobLookupError
 from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME
 from errors import DeckEmptyError, NotEnoughPlayersError
 from game_threads import game_thread_runner
-from internationalization import __, _
+from internationalization import __, _, locales_for_game
 from shared_vars import gm
 from user_setting import UserSetting
-from utils import send_async, display_name, display_color_group, game_is_running, make_turn_keyboard
+from utils import send_async, send_paced, display_name, display_color_group, game_is_running, make_turn_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,10 @@ class Countdown(object):
         self.job_queue = job_queue
 
 
-# TODO do_skip() could get executed in another thread (it can be a job), so it looks like it can't use game.translate?
 def do_skip(bot, player, job_queue=None):
     game = player.game
     chat = game.chat
     skipped_player = game.current_player
-    next_player = game.current_player.next
 
     # F-07: Guard against race condition: if an automated countdown timer fired for a
     # player who has already completed their turn, ignore the stale skip.
@@ -41,12 +39,30 @@ def do_skip(bot, player, job_queue=None):
                     display_name(player.user), display_name(skipped_player.user))
         return
 
+    # A player who timed out while choosing a color already played their card;
+    # any draw counter is the next player's penalty, not theirs.
+    was_choosing = game.choosing_color or (game.last_card and not game.last_card.color)
+    if was_choosing:
+        auto_color = csprng.choice(c.COLORS)
+        game.last_card.color = auto_color
+        game.choosing_color = False
+        game.opening_color_choice = False
+        send_async(bot, chat.id,
+                   text=__("Time ran out to choose a color! Color automatically set to {color}.",
+                           multi=game.translate).format(color=display_color_group(auto_color, game)))
+
     # F-04: If there was a pending win on Wild Draw Four and challenger timed out, award win
     bluffer = getattr(game, 'last_bluffer', None)
     if bluffer and getattr(bluffer, 'pending_win', False):
         bluffer.pending_win = False
         game.last_bluffer = None
         player_won(bot, bluffer)
+        if not game_is_running(game):
+            return
+        if skipped_player.waiting_time <= 0:
+            # The challenger is removed below without drawing; the winner has left,
+            # so nobody else can be challenged for that +4
+            game.draw_counter = 0
 
     if skipped_player.waiting_time > 0:
         skipped_player.anti_cheat += 1
@@ -54,30 +70,25 @@ def do_skip(bot, player, job_queue=None):
         if (skipped_player.waiting_time < 0):
             skipped_player.waiting_time = 0
 
+        draw_counter = game.draw_counter
+        if was_choosing:
+            game.draw_counter = 0
         try:
             skipped_player.draw()
         except DeckEmptyError:
             pass
-
-        # Prevent soft-lock if skipping a player who was supposed to choose a color
-        if game.choosing_color or (game.last_card and not game.last_card.color):
-            auto_color = csprng.choice(c.COLORS)
-            game.last_card.color = auto_color
-            game.choosing_color = False
-            game.opening_color_choice = False
-            send_async(bot, chat.id,
-                       text=__("Time ran out to choose a color! Color automatically set to {color}.",
-                               multi=game.translate).format(color=display_color_group(auto_color, game)))
+        if was_choosing:
+            game.draw_counter = draw_counter
 
         n = skipped_player.waiting_time
         game.turn()
         gm.persist_game(game)
-        send_async(bot, chat.id,
+        send_paced(bot, chat.id,
                    text=__("Waiting time to skip this player has "
                         "been reduced to {time} seconds.\n"
                         "Next player: {name}", multi=game.translate)
                    .format(time=n,
-                           name=display_name(next_player.user)),
+                           name=display_name(game.current_player.user)),
                    reply_markup=make_turn_keyboard(game, chat.id),
                    disable_notification=True
         )
@@ -87,23 +98,14 @@ def do_skip(bot, player, job_queue=None):
             start_player_countdown(bot, game, job_queue)
 
     else:
-        # Prevent soft-lock if removing a player who was supposed to choose a color
-        if game.choosing_color or (game.last_card and not game.last_card.color):
-            auto_color = csprng.choice(c.COLORS)
-            game.last_card.color = auto_color
-            game.choosing_color = False
-            game.opening_color_choice = False
-            send_async(bot, chat.id,
-                       text=__("Time ran out to choose a color! Color automatically set to {color}.",
-                               multi=game.translate).format(color=display_color_group(auto_color, game)))
         try:
             gm.leave_game(skipped_player.user, chat)
-            send_async(bot, chat.id,
+            send_paced(bot, chat.id,
                        text=__("{name1} ran out of time "
                             "and has been removed from the game!\n"
                             "Next player: {name2}", multi=game.translate)
                        .format(name1=display_name(skipped_player.user),
-                               name2=display_name(next_player.user)),
+                               name2=display_name(game.current_player.user)),
                        reply_markup=make_turn_keyboard(game, chat.id),
                        disable_notification=True)
             logger.info("{player} was skipped! "
@@ -155,6 +157,35 @@ def player_won(bot, player):
             us2.games_played += 1
 
         gm.end_game(chat, user)
+
+
+def resolve_pending_win_after_leave(bot, game, left_player, was_current):
+    """
+    Settle a final Wild Draw Four that is still pending when a player leaves.
+    If the challenger (the current player) left, the challenge can no longer
+    happen, so the win is awarded. Returns True if the game ended.
+    """
+    bluffer = getattr(game, 'last_bluffer', None)
+    if not bluffer or not getattr(bluffer, 'pending_win', False):
+        return False
+
+    if left_player is bluffer:
+        bluffer.pending_win = False
+        game.last_bluffer = None
+        return False
+
+    if not was_current:
+        return False
+
+    bluffer.pending_win = False
+    game.last_bluffer = None
+    # The penalty belonged to the player who left; nobody else can challenge it
+    game.draw_counter = 0
+    player_won(bot, bluffer)
+    if not game_is_running(game):
+        return True
+    gm.persist_game(game)
+    return False
 
 
 def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
@@ -319,8 +350,14 @@ def skip_job(context: CallbackContext):
         job_queue = context.job.context.job_queue
         game_thread_runner.submit(
             f"chat:{game.chat.id}",
-            do_skip,
+            _timed_skip,
             context.bot,
             player,
             job_queue
         )
+
+
+def _timed_skip(bot, player, job_queue):
+    """Run a countdown skip on the game worker with the game's locales active"""
+    with locales_for_game(player.game):
+        do_skip(bot, player, job_queue)

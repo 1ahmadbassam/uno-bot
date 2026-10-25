@@ -383,18 +383,10 @@ msgid ""
 "Follow these steps:\n"
 "\n"
 "1. Add this bot to a group\n"
-"2. In the group, start a new game with /new or join an already running game "
-"with /join\n"
+"2. In the group, start a new game with /new or join an already running game with /join\n"
 "3. After at least two players have joined, start the game with /start\n"
-"4. Type <code>@the bot's username</code> into your chat box and hit <b>space</b>, or "
-"click the <code>via @the bot's username</code> text next to messages. You will see your "
-"cards (some greyed out), any extra options like drawing, and a <b>?</b> to "
-"see the current game state. The <b>greyed out cards</b> are those you <b>can "
-"not play</b> at the moment. Tap an option to execute the selected action.\n"
-"Players can join the game at any time. To leave a game, use /leave. If a "
-"player takes more than 90 seconds to play, you can use /skip to skip that "
-"player. Use /notify_me to receive a private message when a new game is "
-"started.\n"
+"4. Type the bot's username into your chat box and hit <b>space</b>, or click the <code>via @the bot's username</code> text next to messages. You will see your cards (some greyed out), any extra options like drawing, and a <b>?</b> to see the current game state. The <b>greyed out cards</b> are those you <b>can not play</b> at the moment. Tap an option to execute the selected action.\n"
+"Players can join the game at any time. To leave a game, use /leave. Use /notify_me to receive a private message when a new game is started.\n"
 "\n"
 "<b>Language</b> and other settings: /settings\n"
 "Other commands (only game creator):\n"
@@ -402,13 +394,9 @@ msgid ""
 "/open - Open lobby\n"
 "/kill - Terminate the game\n"
 "/kick - Select a player to kick by replying to him or her\n"
-"/enable_translations - Translate relevant texts into all languages spoken in "
-"a game\n"
+"/enable_translations - Translate relevant texts into all languages spoken in a game\n"
 "/disable_translations - Use English for those texts\n"
 "\n"
-"<b>Experimental:</b> Play in multiple groups at the same time. Press the "
-"<code>Current game: ...</code> button and select the group you want to play "
-"a card in."
 msgstr ""
 
 #: simple_commands.py:73
@@ -487,4 +475,79 @@ msgstr ""
 #: utils.py:61 utils.py:76
 #, python-brace-format
 msgid "{emoji} Yellow"
+msgstr ""
+
+#: actions.py:51
+msgid "Time ran out to choose a color! Color automatically set to {color}."
+msgstr ""
+
+#: actions.py:219
+msgid "Winning card was Wild! Color set to {color}."
+msgstr ""
+
+#: bot.py:530
+msgid "This button is no longer valid."
+msgstr ""
+
+#: bot.py:535
+msgid "It's not your turn!"
+msgstr ""
+
+#: bot.py:545
+msgid "🎨 {name} chose {color}."
+msgstr ""
+
+#: bot.py:560
+msgid ""
+"Starting color set to {color}!\n"
+msgstr ""
+
+#: bot.py:562
+msgid ""
+"Color set to {color}!\n"
+msgstr ""
+
+#: bot.py:606
+msgid "📥 {name} drew {number} cards."
+msgstr ""
+
+#: bot.py:610
+msgid "📥 {name} drew a card."
+msgstr ""
+
+#: bot.py:663
+msgid "Next player: {next_player}"
+msgstr ""
+
+#: bot.py:1120
+msgid "{name}, please choose a color:"
+msgstr ""
+
+#: bot.py:280
+msgid "Player left while choosing a color! Color automatically set to {color}."
+msgstr ""
+
+#: bot.py:655
+msgid "⏭️ {name} passed."
+msgstr ""
+
+#: bot.py:743
+msgid ""
+"First card is Wild!\n"
+"First player: {name}\n"
+"Please choose the starting color.\n"
+"Use /close to stop people from joining the game.\n"
+"Enable multi-translations with /enable_translations"
+msgstr ""
+
+#: utils.py:329
+msgid "📥 Draw card"
+msgstr ""
+
+#: utils.py:327
+msgid "📥 Draw {number} cards"
+msgstr ""
+
+#: utils.py:332
+msgid "⏭️ Pass"
 msgstr ""

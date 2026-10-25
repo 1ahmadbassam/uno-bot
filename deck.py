@@ -32,15 +32,13 @@ csprng = secrets.SystemRandom()
 def secure_shuffle(cards):
     """
     Cryptographically secure, unbiased Fisher-Yates shuffle.
-    Uses OS-level CSPRNG entropy via secrets.SystemRandom() with rejection sampling
-    (randbelow) to eliminate modulo bias.
-    Executes multiple independent Fisher-Yates passes to guarantee uniform card
-    distribution such that every permutation has equal probability (1 / N!).
+    Uses OS-level CSPRNG entropy via secrets.SystemRandom(), whose index sampling
+    avoids modulo bias. A single pass already gives every permutation equal
+    probability (1 / N!).
     """
     if len(cards) <= 1:
         return
-    for _ in range(3):
-        csprng.shuffle(cards)
+    csprng.shuffle(cards)
 
 
 class Deck(object):

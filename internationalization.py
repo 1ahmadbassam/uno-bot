@@ -20,6 +20,7 @@
 
 import gettext
 import threading
+from contextlib import contextmanager
 from functools import wraps
 
 from locales import available_locales
@@ -103,8 +104,9 @@ def __(singular, plural=None, n=1, multi=False):
     else:
         translations.append(_(singular, plural, n, 'en_US'))
 
-    res = '\n'.join(translations).strip()
-    return res if res else (singular if n == 1 else plural or singular)
+    res = '\n'.join(translations)
+    # Only fall back when the result is blank; keep intentional leading/trailing newlines.
+    return res if res.strip() else (singular if n == 1 else plural or singular)
 
 
 def user_locale(func):
@@ -128,29 +130,48 @@ def user_locale(func):
     return wrapped
 
 
+def _push_game_locales(game):
+    """Push the locale of every player in the game onto the stack (once each)"""
+    locales = list()
+    for player in game.players:
+        us = UserSetting.get(id=player.user.id)
+
+        if us and us.lang != 'en':
+            loc = us.lang
+        else:
+            loc = 'en_US'
+
+        if loc in locales:
+            continue
+
+        _.push(loc)
+        locales.append(loc)
+
+
+@contextmanager
+def locales_for_game(game):
+    """Use the game's player locales for code that runs outside a handler,
+    e.g. callback handlers and timer jobs on the game worker threads"""
+    initial_depth = len(_.locale_stack)
+    with db_session:
+        _push_game_locales(game)
+    try:
+        yield
+    finally:
+        while len(_.locale_stack) > initial_depth:
+            _.pop()
+
+
 def game_locales(func):
     @wraps(func)
     @db_session
     def wrapped(update, context, *pargs, **kwargs):
         user, chat = _user_chat_from_update(update)
         player = gm.player_for_user_in_chat(user, chat)
-        locales = list()
         initial_depth = len(_.locale_stack)
 
         if player:
-            for player in player.game.players:
-                us = UserSetting.get(id=player.user.id)
-
-                if us and us.lang != 'en':
-                    loc = us.lang
-                else:
-                    loc = 'en_US'
-
-                if loc in locales:
-                    continue
-
-                _.push(loc)
-                locales.append(loc)
+            _push_game_locales(player.game)
 
         try:
             return func(update, context, *pargs, **kwargs)

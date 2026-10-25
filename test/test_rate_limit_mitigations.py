@@ -106,7 +106,7 @@ from bot import (
     _handle_color_callback,
     _handle_action_callback,
 )
-from config import TURN_PACING_DELAY
+from config import TURN_PACING_DELAY, WAITING_TIME
 from game import Game
 from player import Player
 import card as c
@@ -219,9 +219,10 @@ class TestRateLimitMitigations(unittest.TestCase):
 
     @patch('bot.gm')
     @patch('bot.send_async')
+    @patch('bot.send_paced')
     @patch('bot.start_player_countdown')
     @patch('bot.game_is_running', return_value=True)
-    def test_handle_color_callback_accepts_current_player(self, mock_is_running, mock_countdown, mock_send, mock_gm):
+    def test_handle_color_callback_accepts_current_player(self, mock_is_running, mock_countdown, mock_paced, mock_send, mock_gm):
         bot = MagicMock()
         query = MagicMock(from_user=MockUser(111), message=MagicMock())
         context = MagicMock()
@@ -238,21 +239,54 @@ class TestRateLimitMitigations(unittest.TestCase):
         game.choosing_color = True
         mock_gm.chatid_games.get.return_value = [game]
 
+        p1.waiting_time = 10
+        p2.waiting_time = 10
+
         with patch('bot.TURN_PACING_DELAY', 0):
             _handle_color_callback(bot, query, chat.id, "r", context)
 
         self.assertEqual(game.last_card.color, "r")
         self.assertFalse(game.choosing_color)
         self.assertEqual(game.current_player, p2)
-        mock_send.assert_called_once()
+        mock_paced.assert_called_once()
+        # Announcement and next player stay on separate lines
+        self.assertIn("!\nNext player: Bob", mock_paced.call_args[1]['text'])
         query.edit_message_text.assert_called_once()
         self.assertIn("chose", query.edit_message_text.call_args[1]['text'])
+        # The chooser's waiting time is reset, not the next player's
+        self.assertEqual(p1.waiting_time, WAITING_TIME)
+        self.assertEqual(p2.waiting_time, 10)
+
+    @patch('bot.gm')
+    @patch('bot.send_paced')
+    def test_handle_color_callback_rejects_unknown_color(self, mock_paced, mock_gm):
+        bot = MagicMock()
+        query = MagicMock(from_user=MockUser(111), message=MagicMock())
+        context = MagicMock()
+
+        chat = MockChat(-100123)
+        game = Game(chat)
+        p1 = Player(game, MockUser(111, "Alice"))
+        Player(game, MockUser(222, "Bob"))
+        game.current_player = p1
+        game.started = True
+        game.last_card = c.Card(None, None, special=c.CHOOSE)
+        game.choosing_color = True
+        mock_gm.chatid_games.get.return_value = [game]
+
+        _handle_color_callback(bot, query, chat.id, "x", context)
+
+        self.assertIsNone(game.last_card.color)
+        self.assertTrue(game.choosing_color)
+        self.assertIs(game.current_player, p1)
+        mock_paced.assert_not_called()
 
     @patch('bot.gm')
     @patch('bot.send_async')
+    @patch('bot.send_paced')
     @patch('bot.start_player_countdown')
     @patch('bot.game_is_running', return_value=True)
-    def test_handle_action_callback_draw_and_pass(self, mock_is_running, mock_countdown, mock_send, mock_gm):
+    def test_handle_action_callback_draw_and_pass(self, mock_is_running, mock_countdown, mock_paced, mock_send, mock_gm):
         bot = MagicMock()
         context = MagicMock()
 
@@ -287,6 +321,17 @@ class TestRateLimitMitigations(unittest.TestCase):
         self.assertEqual(game.current_player, p2)
         query_pass.edit_message_text.assert_called_once()
         self.assertIn("passed", query_pass.edit_message_text.call_args[1]['text'])
+        mock_paced.assert_called_once()
+        self.assertIn("Bob", mock_paced.call_args[1]['text'])
+
+    @patch('utils.send_async')
+    @patch('time.sleep')
+    def test_paced_send_waits_then_sends(self, mock_sleep, mock_send):
+        from utils import _send_after_delay
+        bot = MagicMock()
+        _send_after_delay(bot, -100123, 1.5, {'text': 'Next player: Bob'})
+        mock_sleep.assert_called_once_with(1.5)
+        mock_send.assert_called_once_with(bot, -100123, text='Next player: Bob')
 
     @patch('time.sleep')
     def test_send_message_handles_retry_after(self, mock_sleep):

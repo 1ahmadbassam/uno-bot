@@ -46,6 +46,7 @@ except ImportError:
             self.retry_after = retry_after
 from telegram.ext import CallbackContext
 
+from game_threads import game_thread_runner
 from internationalization import _, __
 from mwt import MWT
 from shared_vars import gm, dispatcher
@@ -131,6 +132,21 @@ def send_async(bot, *args, **kwargs):
         dispatcher.run_async(_send_message_with_migration_handling, bot, *args, **kwargs)
     except Exception:
         logger.exception("Failed to schedule async sendMessage")
+
+
+def send_paced(bot, chat_id, delay=0, **kwargs):
+    """
+    Send a turn prompt after `delay` seconds without blocking the chat's game
+    queue (inline menus and plays for the chat keep being served meanwhile).
+    All paced prompts of a chat go through one FIFO queue, so they keep their order.
+    """
+    game_thread_runner.submit(f"pacing:{chat_id}", _send_after_delay, bot, chat_id, delay, kwargs)
+
+
+def _send_after_delay(bot, chat_id, delay, kwargs):
+    if delay > 0:
+        time.sleep(delay)
+    send_async(bot, chat_id, **kwargs)
 
 
 def answer_async(bot, *args, **kwargs):
