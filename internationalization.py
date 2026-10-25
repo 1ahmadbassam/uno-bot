@@ -103,7 +103,8 @@ def __(singular, plural=None, n=1, multi=False):
     else:
         translations.append(_(singular, plural, n, 'en_US'))
 
-    return '\n'.join(translations)
+    res = '\n'.join(translations).strip()
+    return res if res else (singular if n == 1 else plural or singular)
 
 
 def user_locale(func):

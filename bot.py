@@ -546,9 +546,13 @@ def _handle_color_callback(bot, query, chat_id, color, context):
         else:
             announcement = __("Color set to {color}!\n", multi=game.translate).format(color=color_display)
 
-        nextplayer_message = announcement + (
-            __("Next player: {name}", multi=game.translate)
-            .format(name=display_name(game.current_player.user)))
+        next_str = __("Next player: {name}", multi=game.translate).format(name=display_name(game.current_player.user))
+        if not next_str.strip():
+            next_str = f"Next player: {display_name(game.current_player.user)}"
+
+        nextplayer_message = (announcement + next_str).strip()
+        if not nextplayer_message:
+            nextplayer_message = f"Next player: {display_name(game.current_player.user)}"
 
         reply_markup = make_turn_keyboard(game, chat_id)
         send_async(bot, chat_id, text=nextplayer_message, reply_markup=reply_markup, disable_notification=True)
@@ -608,12 +612,16 @@ def _handle_action_callback(bot, query, chat_id, action, context):
                 draw_action_text = __("📥 {name} drew a card.", multi=game.translate).format(
                     name=player_name
                 )
+            if not draw_action_text.strip():
+                draw_action_text = f"📥 {player_name} drew {cards_drawn} card{'s' if cards_drawn > 1 else ''}."
 
             if game.current_player == player:
                 # Normal draw: still player's turn!
-                prompt_text = draw_action_text + "\n" + (
-                    __("Next player: {name}", multi=game.translate).format(name=player_name)
-                )
+                next_str = __("Next player: {name}", multi=game.translate).format(name=player_name)
+                if not next_str.strip():
+                    next_str = f"Next player: {player_name}"
+                prompt_text = f"{draw_action_text}\n{next_str}"
+
                 reply_markup = make_turn_keyboard(game, chat_id)
                 if query.message:
                     try:
@@ -638,7 +646,9 @@ def _handle_action_callback(bot, query, chat_id, action, context):
 
                 nextplayer_message = (
                     __("Next player: {name}", multi=game.translate)
-                    .format(name=display_name(game.current_player.user)))
+                    .format(name=display_name(game.current_player.user))).strip()
+                if not nextplayer_message:
+                    nextplayer_message = f"Next player: {display_name(game.current_player.user)}"
 
                 reply_markup = make_turn_keyboard(game, chat_id)
                 send_async(bot, chat_id, text=nextplayer_message, reply_markup=reply_markup, disable_notification=True)
@@ -657,6 +667,8 @@ def _handle_action_callback(bot, query, chat_id, action, context):
                 pass_action_text = __("⏭️ {name} passed.", multi=game.translate).format(
                     name=player_name
                 )
+                if not pass_action_text.strip():
+                    pass_action_text = f"⏭️ {player_name} passed."
                 query.edit_message_text(text=pass_action_text, reply_markup=None)
             except (BadRequest, Exception):
                 pass
@@ -668,7 +680,10 @@ def _handle_action_callback(bot, query, chat_id, action, context):
             pass_msg = (
                 __("Next player: {next_player}", multi=game.translate)
                 .format(next_player=display_name(game.current_player.user))
-            )
+            ).strip()
+            if not pass_msg:
+                pass_msg = f"Next player: {display_name(game.current_player.user)}"
+
             reply_markup = make_turn_keyboard(game, chat_id)
             send_async(bot, chat_id, text=pass_msg, reply_markup=reply_markup, disable_notification=True)
             start_player_countdown(bot, game, context.job_queue)

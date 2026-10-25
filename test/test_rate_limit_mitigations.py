@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 # Provide compatibility stubs for isolated unit testing
-if 'telegram' in sys.modules:
+try:
     import telegram
     if not hasattr(telegram, 'ParseMode'):
         try:
@@ -12,8 +12,6 @@ if 'telegram' in sys.modules:
             telegram.ParseMode = telegram.constants.ParseMode
         except Exception:
             telegram.ParseMode = object()
-
-if 'telegram.ext' in sys.modules:
     import telegram.ext
     if not hasattr(telegram.ext, 'Filters'):
         telegram.ext.Filters = getattr(telegram.ext, 'filters', object())
@@ -22,6 +20,8 @@ if 'telegram.ext' in sys.modules:
             telegram.ext.filters.regex = getattr(telegram.ext.filters, 'Regex', lambda *a, **k: object())
         if not hasattr(telegram.ext.filters, 'status_update'):
             telegram.ext.filters.status_update = object()
+except ImportError:
+    pass
 
 if 'apscheduler' not in sys.modules:
     ap = types.ModuleType('apscheduler')

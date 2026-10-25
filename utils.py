@@ -179,6 +179,13 @@ def _replace_chat_id(args, kwargs, new_chat_id):
 
 
 def _send_message_with_migration_handling(bot, *args, **kwargs):
+    text = kwargs.get('text')
+    if text is None and len(args) > 1:
+        text = args[1]
+    if text is not None and not str(text).strip():
+        logger.warning("Dropping sendMessage: text is empty (chat_id=%s)", _extract_chat_id(args, kwargs))
+        return
+
     try:
         bot.sendMessage(*args, **kwargs)
     except RetryAfter as err:
