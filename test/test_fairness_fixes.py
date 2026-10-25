@@ -284,6 +284,33 @@ class TestFairnessFixes(unittest.TestCase):
         game2._first_card_()
         self.assertEqual(game2.current_player, p1_2)
 
+    def test_starting_draw_two_allows_counter_and_turn_order(self):
+        """Starting with Draw Two sets draw_counter=2 without skipping Player 1, allowing counter or draw"""
+        game = Game(SimpleNamespace(id=3, title="Test Group 3", type="group"))
+        p0 = Player(game, SimpleNamespace(id=300, first_name="A"))
+        p1 = Player(game, SimpleNamespace(id=301, first_name="B"))
+        game.deck.cards = [c.Card(c.BLUE, c.DRAW_TWO)]
+        game._first_card_()
+
+        # Player 0 remains current_player, draw_counter is 2
+        self.assertEqual(game.current_player, p0)
+        self.assertEqual(game.draw_counter, 2)
+
+        # Player 0 has a +2 card and normal cards
+        counter_card = c.Card(c.RED, c.DRAW_TWO)
+        number_card = c.Card(c.BLUE, '7')
+        p0.cards = [counter_card, number_card]
+
+        # Only the counter card (+2) is playable
+        playable = p0.playable_cards()
+        self.assertIn(counter_card, playable)
+        self.assertNotIn(number_card, playable)
+
+        # Player 0 plays counter card: draw_counter stacks to 4 and turn moves to Player 1
+        p0.play(counter_card)
+        self.assertEqual(game.draw_counter, 4)
+        self.assertEqual(game.current_player, p1)
+
     def test_2_5_linked_list_reversal_integrity(self):
         """2.5: Doubly-linked ring remains consistent when reversed and players leave"""
         self.assertEqual(self.game.players, [self.p0, self.p1, self.p2])

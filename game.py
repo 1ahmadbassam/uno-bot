@@ -131,12 +131,9 @@ class Game(object):
         if card.value == c.SKIP:
             self.turn()
         elif card.value == c.DRAW_TWO:
+            # Set draw counter so the first player can counter by playing another +2,
+            # or draw 2 cards and be skipped if they cannot counter
             self.draw_counter = 2
-            try:
-                self.current_player.draw()
-            except DeckEmptyError:
-                pass
-            self.turn()
         elif card.value == c.REVERSE:
             if self.current_player == self.current_player.next.next:
                 self.turn()
