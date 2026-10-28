@@ -42,7 +42,7 @@ from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELA
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
                     RejoinNotAllowedError)
-from internationalization import _, __, user_locale, game_locales, locales_for_game
+from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_choose_color, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_other_cards, add_pass,
                      add_card, add_mode_classic, add_mode_fast, add_mode_wild, add_mode_text)
@@ -609,6 +609,18 @@ def _handle_action_callback(bot, query, chat_id, action, context):
         _action_callback_for_game(bot, query, game, chat_id, action, context)
 
 
+def _drawn_card_notice(player):
+    """Private popup text naming the card the player just drew, in their own language"""
+    drawn = player.cards[-1]
+    with locale_for_user(player.user.id):
+        notice = _("You drew {card}.").format(card=c.label(drawn))
+        if drawn in player.playable_cards():
+            notice += "\n" + _("You can play it or pass.")
+        else:
+            notice += "\n" + _("You can't play it, so pass.")
+    return notice
+
+
 def _action_callback_for_game(bot, query, game, chat_id, action, context):
     if not game.started or game.choosing_color:
         _answer_callback(bot, query, _("This button is no longer valid."))
@@ -619,16 +631,25 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
         _answer_callback(bot, query, _("It's not your turn!"), show_alert=True)
         return
 
-    _answer_callback(bot, query)
+    if action != "draw":
+        _answer_callback(bot, query)
     player_name = display_name(player.user)
 
     if action == "draw":
         if player.drew:
+            _answer_callback(bot, query)
             return
         draw_counter_before = getattr(game, 'draw_counter', 0)
         reset_waiting_time(bot, player)
         do_draw(bot, player)
         gm.persist_game(game)
+
+        # Tell only the drawing player which card they got (the callback answer
+        # is private), so they can decide to play or pass without the inline menu
+        if game_is_running(game) and game.current_player is player and player.drew_card:
+            _answer_callback(bot, query, _drawn_card_notice(player), show_alert=True)
+        else:
+            _answer_callback(bot, query)
 
         if game_is_running(game):
             cards_drawn = draw_counter_before or 1

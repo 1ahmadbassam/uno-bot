@@ -347,6 +347,12 @@ class Card(object):
         return str(self) < str(other)
 
 
+def label(card):
+    """Readable card name for plain-text messages, e.g. '💚+2' or '⬛️+4'"""
+    return (repr(card).replace('Draw Four', '+4').replace('Draw', '+2')
+            .replace('Colorchooser', 'Color Chooser'))
+
+
 def from_str(string):
     """Decodes a Card object from a string, preserving color for special cards if present"""
     if not string:

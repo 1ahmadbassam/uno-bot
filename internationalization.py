@@ -109,24 +109,31 @@ def __(singular, plural=None, n=1, multi=False):
     return res if res.strip() else (singular if n == 1 else plural or singular)
 
 
+@contextmanager
+def locale_for_user(user_id):
+    """Use one user's own language, e.g. for a reply only that user sees"""
+    with db_session:
+        us = UserSetting.get(id=user_id)
+
+    if us and us.lang != 'en':
+        _.push(us.lang)
+    else:
+        _.push('en_US')
+
+    try:
+        yield
+    finally:
+        _.pop()
+
+
 def user_locale(func):
     @wraps(func)
     @db_session
     def wrapped(update, context, *pargs, **kwargs):
         user = _user_chat_from_update(update)[0]
 
-        with db_session:
-            us = UserSetting.get(id=user.id)
-
-        if us and us.lang != 'en':
-            _.push(us.lang)
-        else:
-            _.push('en_US')
-
-        try:
+        with locale_for_user(user.id):
             return func(update, context, *pargs, **kwargs)
-        finally:
-            _.pop()
     return wrapped
 
 

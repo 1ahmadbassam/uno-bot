@@ -539,3 +539,15 @@ msgstr ""
 #: utils.py:332
 msgid "⏭️ Pass"
 msgstr ""
+
+#: bot.py:616
+msgid "You drew {card}."
+msgstr ""
+
+#: bot.py:618
+msgid "You can play it or pass."
+msgstr ""
+
+#: bot.py:620
+msgid "You can't play it, so pass."
+msgstr ""

@@ -324,6 +324,60 @@ class TestRateLimitMitigations(unittest.TestCase):
         mock_paced.assert_called_once()
         self.assertIn("Bob", mock_paced.call_args[1]['text'])
 
+    def _press_draw(self, deck_card, last_card, draw_counter=0):
+        """Press the Draw button as Alice; returns (bot, query, group message mocks)"""
+        bot = MagicMock()
+        chat = MockChat(-100123)
+        game = Game(chat)
+        p1 = Player(game, MockUser(111, "Alice"))
+        Player(game, MockUser(222, "Bob"))
+        game.current_player = p1
+        game.started = True
+        game.last_card = last_card
+        game.draw_counter = draw_counter
+        p1.cards = [c.Card(c.GREEN, '1')]
+        game.deck.cards = [deck_card for _ in range(max(draw_counter, 1))]
+        query = MagicMock(from_user=p1.user, message=MagicMock())
+
+        with patch('bot.gm') as mock_gm, patch('bot.send_async') as send, patch('bot.send_paced') as paced, \
+                patch('bot.start_player_countdown'), patch('bot.game_is_running', return_value=True), \
+                patch('actions.gm'), patch('actions.send_async'):
+            mock_gm.chatid_games.get.return_value = [game]
+            _handle_action_callback(bot, query, chat.id, "draw", MagicMock())
+        return bot, query, (send, paced)
+
+    def _group_texts(self, query, mocks):
+        texts = [call[1].get('text', '') for m in mocks for call in m.call_args_list]
+        texts += [call[1].get('text', '') for call in query.edit_message_text.call_args_list]
+        return texts
+
+    def test_draw_button_tells_player_the_card_privately(self):
+        bot, query, mocks = self._press_draw(c.Card(c.RED, '2'), c.Card(c.RED, '5'))
+
+        bot.answerCallbackQuery.assert_called_once()
+        kwargs = bot.answerCallbackQuery.call_args[1]
+        self.assertTrue(kwargs.get('show_alert'))
+        self.assertIn("You drew " + c.label(c.Card(c.RED, '2')), kwargs['text'])
+        self.assertIn("You can play it or pass.", kwargs['text'])
+        # The card is never shown in the group
+        for text in self._group_texts(query, mocks):
+            self.assertNotIn(c.label(c.Card(c.RED, '2')), text)
+
+    def test_draw_button_says_when_drawn_card_is_unplayable(self):
+        bot, _, _ = self._press_draw(c.Card(c.BLUE, '3'), c.Card(c.RED, '5'))
+        kwargs = bot.answerCallbackQuery.call_args[1]
+        self.assertIn("You drew " + c.label(c.Card(c.BLUE, '3')), kwargs['text'])
+        self.assertIn("You can't play it, so pass.", kwargs['text'])
+
+    def test_draw_button_names_special_cards_readably(self):
+        bot, _, _ = self._press_draw(c.Card(c.BLUE, c.DRAW_TWO), c.Card(c.RED, '5'))
+        self.assertIn("+2", bot.answerCallbackQuery.call_args[1]['text'])
+
+    def test_penalty_draw_has_no_card_popup(self):
+        bot, _, _ = self._press_draw(c.Card(c.BLUE, '3'), c.Card(c.RED, c.DRAW_TWO), draw_counter=2)
+        bot.answerCallbackQuery.assert_called_once()
+        self.assertNotIn('text', bot.answerCallbackQuery.call_args[1])
+
     @patch('utils.send_async')
     @patch('time.sleep')
     def test_paced_send_waits_then_sends(self, mock_sleep, mock_send):
