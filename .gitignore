@@ -80,3 +80,8 @@ images/api_auth.json
 images/sticker_config.json
 images/sticker_uploader.session
 .DS_Store
+
+# Website Data
+web/*.json
+web/*.csv
+import/
