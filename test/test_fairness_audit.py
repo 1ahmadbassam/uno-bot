@@ -41,8 +41,6 @@ class TestFairnessAudit(unittest.TestCase):
         self.game.deck.cards = [c.Card(c.GREEN, '1') for _ in range(30)]
         self.game.last_card = c.Card(c.RED, '5')
         self.game.current_player = self.alice
-        self.stats = {uid: SimpleNamespace(stats=True, games_played=0, first_places=0, cards_played=0)
-                      for uid in (1, 2, 3)}
 
     def add_charlie(self):
         self.charlie = Player(self.game, stubs.MockUser(3, "Charlie"))
@@ -50,40 +48,35 @@ class TestFairnessAudit(unittest.TestCase):
     def patched_actions(self):
         gm = MagicMock()
         gm.leave_game.side_effect = leave_like_game_manager(self.game)
-        user_setting = patch('actions.UserSetting')
-        return gm, user_setting
+        return gm, patch('actions.rivalry')
 
     def win_with(self, card):
         self.alice.cards = [card]
-        gm, user_setting = self.patched_actions()
-        with patch('actions.gm', gm), user_setting as us, patch('actions.send_async'):
-            us.get.side_effect = lambda id: self.stats.get(id)
+        gm, rivalry_patch = self.patched_actions()
+        with patch('actions.gm', gm), rivalry_patch as rivalry, patch('actions.send_async'):
             do_play_card(BOT, self.alice, str(card))
-        return gm
+        return gm, rivalry
 
     # VULN-01
-    def test_two_player_win_with_skip_credits_the_loser(self):
-        gm = self.win_with(c.Card(c.RED, c.SKIP))
-        self.assertEqual((self.stats[1].games_played, self.stats[1].first_places), (1, 1))
-        self.assertEqual((self.stats[2].games_played, self.stats[2].first_places), (1, 0))
+    def test_two_player_win_with_skip_records_the_winner(self):
+        gm, rivalry = self.win_with(c.Card(c.RED, c.SKIP))
+        rivalry.record_first_place.assert_called_once_with(BOT, self.game, self.alice.user)
         gm.end_game.assert_called_once()
 
-    def test_two_player_win_with_reverse_credits_the_loser(self):
-        self.win_with(c.Card(c.RED, c.REVERSE))
-        self.assertEqual(self.stats[1].games_played, 1)
-        self.assertEqual(self.stats[2].games_played, 1)
+    def test_two_player_win_with_reverse_records_the_winner(self):
+        _, rivalry = self.win_with(c.Card(c.RED, c.REVERSE))
+        rivalry.record_first_place.assert_called_once_with(BOT, self.game, self.alice.user)
 
-    def test_two_player_deferred_draw_four_win_credits_the_loser(self):
+    def test_two_player_deferred_draw_four_win_records_the_winner(self):
         self.alice.cards = [c.Card(None, None, special=c.DRAW_FOUR)]
-        gm, user_setting = self.patched_actions()
-        with patch('actions.gm', gm), user_setting as us, patch('actions.send_async'):
-            us.get.side_effect = lambda id: self.stats.get(id)
+        gm, rivalry_patch = self.patched_actions()
+        with patch('actions.gm', gm), rivalry_patch as rivalry, patch('actions.send_async'):
             do_play_card(BOT, self.alice, 'draw_four')
             self.assertTrue(self.alice.pending_win)
             self.assertIs(self.game.current_player, self.bob)
+            rivalry.record_first_place.assert_not_called()
             do_draw(BOT, self.bob)
-        self.assertEqual((self.stats[1].games_played, self.stats[1].first_places), (1, 1))
-        self.assertEqual(self.stats[2].games_played, 1)
+        rivalry.record_first_place.assert_called_once_with(BOT, self.game, self.alice.user)
 
     # VULN-02
     def test_penalty_is_cancelled_when_its_target_leaves(self):

@@ -490,14 +490,6 @@ msgstr[1] "കളിക്കാർ: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "നിങ്ങളുടെ ക്രമീകരണങ്ങൾ പ്രൈവറ്റ് ചാറ്റിൽ അപ്ഡേറ്റ് ചെയ്യുക."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "ഗെയിം വിവരങ്ങൾ ലഭ്യമാക്കുന്നതിന്."
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "ഗെയിം വിവരങ്ങൾ ഡിലീറ്റ് ചെയ്യുന്നതിന്."
-
 #: settings.py:55
 msgid "Language"
 msgstr "ഭാഷ."
@@ -506,17 +498,9 @@ msgstr "ഭാഷ."
 msgid "Settings"
 msgstr "സജീകരണങ്ങൾ."
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "ഗെയിം വിവരങ്ങൾ enable ചെയ്തു."
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "ഭാഷ തിരഞ്ഞെടുക്കൂ."
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "ഗെയിം വിവരങ്ങൾ ഡിലീറ്റ് ചെയ്യുകയും disable ചെയ്യുകയും ചെയ്തു."
 
 #: settings.py:99
 msgid "Set locale!"
@@ -609,35 +593,6 @@ msgstr ""
 "ഗെയിം മോഡ് മാറ്റാൻ, ഗെയിം സൃഷ്ടിച്ചയാൾ ഒരു കാർഡ് കളിക്കുന്നതുപോലെ "
 "ബോട്ടിന്റെ പേരും ഒരു സ്പേസും ടൈപ്പ് ചെയ്യണം, അപ്പോൾ എല്ലാ ഗെയിം മോഡ് "
 "ഓപ്ഷനുകളും ദൃശ്യമാകും."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"ഗെയിം വിവരങ്ങൾ enable  ചെയ്തിട്ടില്ല. /settings ബോടിന്റെ പ്രൈവറ്റ് ചാറ്റിൽ "
-"ഉപയോഗിച്ച് ഗെയിം വിവരങ്ങൾ പ്രവർത്തനക്ഷമമാക്കൂ."
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} ഗെയിം കളിച്ചു."
-msgstr[1] "{number} ഗെയിം കളിച്ചു"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} ഒന്നാം സ്ഥാനം ({percent}%)."
-msgstr[1] "{number} ഒന്നാം സ്ഥാനങ്ങൾ  ({percent}%)."
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} കാർഡ് കളിച്ചു."
-msgstr[1] "{number}  കാർഡ് കളിച്ചു"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

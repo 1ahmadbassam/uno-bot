@@ -16,5 +16,16 @@
     "shuffle_players": true,
     "turn_pacing_delay": 1.5,
     "stale_game_unload_seconds": 1800,
-    "stale_game_scan_every_seconds": 60
+    "stale_game_scan_every_seconds": 60,
+    "rivalry": {
+        "enabled": false,
+        "players": [
+            {"id": 0, "name": "A"},
+            {"id": 0, "name": "I"}
+        ],
+        "chat_id": null,
+        "timezone": "UTC",
+        "export_dir": null,
+        "pin": true
+    }
 }

@@ -32,6 +32,7 @@ from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
     CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext, TypeHandler
 
 import card as c
+import rivalry
 import settings
 import simple_commands
 from access_control import access_control
@@ -1283,6 +1284,7 @@ dispatcher.add_handler(CommandHandler('skip', threaded_skip_player))
 dispatcher.add_handler(CommandHandler('notify_me', threaded_notify_me))
 simple_commands.register()
 settings.register()
+rivalry.register()
 dispatcher.add_handler(MessageHandler(Filters.status_update, threaded_status_update))
 dispatcher.add_error_handler(error)
 

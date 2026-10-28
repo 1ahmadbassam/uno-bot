@@ -495,14 +495,6 @@ msgstr[1] "Jugadores: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "Por favor, edita tus ajustes en un chat privado con el bot."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "Habilitar estadísticas"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "Borrar estadísticas"
-
 #: settings.py:55
 msgid "Language"
 msgstr "Idioma"
@@ -511,17 +503,9 @@ msgstr "Idioma"
 msgid "Settings"
 msgstr "Ajustes"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "¡Estadísticas habilitadas!"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "Selecciona tu idioma"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "¡Estadísticas borradas y deshabilitadas!"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -615,35 +599,6 @@ msgstr ""
 "Para cambiar el modo de juego, el CREADOR DE LA PARTIDA debe escribir el "
 "nombre del bot y un espacio, igual que al jugar una carta, y aparecerán "
 "todas las opciones de modo de juego."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"Tus estadísticas no están habilitadas. Usa /settings en un chat privado con "
-"el bot para habilitarlas."
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} partida jugada."
-msgstr[1] "{number} partidas jugadas."
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} primer lugar ({percent}%)."
-msgstr[1] "{number} primeros lugares ({percent}%)."
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} carta jugada."
-msgstr[1] "{number} cartas jugadas."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

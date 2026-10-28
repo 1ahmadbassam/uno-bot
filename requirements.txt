@@ -3,3 +3,4 @@ urllib3<2
 pony>=0.7.20
 standard-imghdr
 setuptools<80
+tzdata

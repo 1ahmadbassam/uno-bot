@@ -24,17 +24,14 @@ import os
 from telegram.ext import Updater
 
 from game_manager import GameManager
-from database import db
+from database import bind_database
 import user_setting  # noqa: F401
 import persisted_state  # noqa: F401
+import rivalry_models  # noqa: F401
 
 UNO_DB_PATH = os.getenv('UNO_DB', 'uno.sqlite3')
-UNO_DB_DIR = os.path.dirname(UNO_DB_PATH)
-if UNO_DB_DIR:
-    os.makedirs(UNO_DB_DIR, exist_ok=True)
 
-db.bind('sqlite', UNO_DB_PATH, create_db=True)
-db.generate_mapping(create_tables=True)
+bind_database(UNO_DB_PATH)
 
 gm = GameManager()
 gm.rebuild_user_chat_index()

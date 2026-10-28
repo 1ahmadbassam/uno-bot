@@ -1,6 +1,7 @@
 import logging
 
 import card as c
+import rivalry
 from datetime import datetime
 from deck import csprng
 
@@ -13,7 +14,6 @@ from errors import DeckEmptyError, NotEnoughPlayersError
 from game_threads import game_thread_runner
 from internationalization import __, _, locales_for_game
 from shared_vars import gm
-from user_setting import UserSetting
 from utils import send_async, send_paced, display_name, display_color_group, game_is_running, make_turn_keyboard
 
 logger = logging.getLogger(__name__)
@@ -135,19 +135,12 @@ def player_won(bot, player):
     chat = game.chat
     user = player.user
 
-    us = UserSetting.get(id=user.id)
-    if not us:
-        us = UserSetting(id=user.id)
-
     send_async(bot, chat.id,
                text=__("{name} won!", multi=game.translate)
                .format(name=user.first_name))
 
-    if us.stats:
-        us.games_played += 1
-
-        if game.players_won == 0:
-            us.first_places += 1
+    if game.players_won == 0:
+        rivalry.record_first_place(bot, game, user)
 
     game.players_won += 1
 
@@ -156,13 +149,6 @@ def player_won(bot, player):
     except NotEnoughPlayersError:
         send_async(bot, chat.id,
                    text=__("Game ended!", multi=game.translate))
-
-        # After a Skip, Reverse or settled +4 the turn is back with the winner,
-        # so the other player can't be taken from game.current_player
-        survivor = next((p for p in game.players if p.user.id != user.id), None)
-        us2 = UserSetting.get(id=survivor.user.id) if survivor else None
-        if us2 and us2.stats:
-            us2.games_played += 1
 
         gm.end_game(chat, user)
 
@@ -183,33 +169,20 @@ def forfeit_win(bot, game, leaving_user):
                text=__("{name} won!", multi=game.translate)
                .format(name=survivor.user.first_name))
 
-    us = UserSetting.get(id=survivor.user.id)
-    if us and us.stats:
-        us.games_played += 1
-        if game.players_won == 0:
-            us.first_places += 1
+    if game.players_won == 0:
+        rivalry.record_first_place(bot, game, survivor.user, forfeit=True)
     game.players_won += 1
-
-    # The game still counts as played (and lost) for the player who left
-    us_left = UserSetting.get(id=leaving_user.id)
-    if us_left and us_left.stats:
-        us_left.games_played += 1
 
 
 def end_game_without_winner(bot, game):
     """
-    Count a 2-player game as played for both players without crediting a win,
-    e.g. when one player kicks the other.
+    End a 2-player game without crediting a win, e.g. when one player kicks the other.
     Call it before the game is ended (both players are still in the game).
     """
     if not game.started:
         return
     send_async(bot, game.chat.id,
                text=__("The game ended without a winner.", multi=game.translate))
-    for player in game.players:
-        us = UserSetting.get(id=player.user.id)
-        if us and us.stats:
-            us.games_played += 1
 
 
 def cancel_penalty_after_leave(bot, game, was_current, was_choosing):
@@ -276,17 +249,9 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     player.play(card)
     game = player.game
     chat = game.chat
-    user = player.user
 
     if card.special == c.DRAW_FOUR:
         game.last_bluffer = player
-
-    us = UserSetting.get(id=user.id)
-    if not us:
-        us = UserSetting(id=user.id)
-
-    if us.stats:
-        us.cards_played += 1
 
     if len(player.cards) == 1 and notify_uno:
         send_async(bot, chat.id, text="UNO!", disable_notification=True)

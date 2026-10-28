@@ -462,14 +462,6 @@ msgstr[0] "玩家: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "請私訊這台機器人來編輯設定。"
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "啟用統計資料"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "刪除所有統計資料"
-
 #: settings.py:55
 msgid "Language"
 msgstr "語言"
@@ -478,17 +470,9 @@ msgstr "語言"
 msgid "Settings"
 msgstr "設定"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "已啟用統計資料!"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "選擇語言"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "已停用並刪除統計資料!"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -567,30 +551,6 @@ msgstr ""
 " ✍️ 文字模式使用一般的 UNO 牌組，但以文字取代貼圖顯示卡牌。\n"
 "\n"
 "要變更遊戲模式，遊戲建立者需要像出牌時一樣輸入機器人的名稱和一個空格，所有遊戲模式選項就會出現。"
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr "您尚未啟用統計資料。請在這台機器人的私人對話中傳送 <code>/settings</code> 以啟用。"
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "已遊玩 {number} 場遊戲"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "拿了 {number} 次第一名 ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "已遊玩 {number} 張牌"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

@@ -72,3 +72,14 @@ TURN_PACING_DELAY = float(os.getenv("TURN_PACING_DELAY", config.get("turn_pacing
 
 if isinstance(SHUFFLE_PLAYERS, str):
     SHUFFLE_PLAYERS = SHUFFLE_PLAYERS.lower() in ("yes", "true", "t", "1")
+
+# Head-to-head score between two players, recorded automatically when one of them wins
+RIVALRY = config.get("rivalry") or {}
+RIVALRY_ENABLED = bool(RIVALRY.get("enabled", False))
+# [(telegram_id, name), (telegram_id, name)]: the order is the column order of the exports
+RIVALRY_PLAYERS = [(int(p["id"]), str(p.get("name") or p["id"])) for p in RIVALRY.get("players") or []]
+RIVALRY_CHAT_ID = int(RIVALRY["chat_id"]) if RIVALRY.get("chat_id") not in (None, "") else None
+RIVALRY_TIMEZONE = RIVALRY.get("timezone") or "UTC"
+# None: a "web" folder next to the database; false: no export
+RIVALRY_EXPORT_DIR = RIVALRY.get("export_dir")
+RIVALRY_PIN = bool(RIVALRY.get("pin", True))

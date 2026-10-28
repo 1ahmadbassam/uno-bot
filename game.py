@@ -21,7 +21,7 @@
 import logging
 import secrets
 from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS
-from datetime import datetime
+from datetime import datetime, timezone
 
 from deck import Deck, csprng
 import card as c
@@ -39,6 +39,7 @@ class Game(object):
         self.choosing_color = False
         self.opening_color_choice = False
         self.started = False
+        self.started_at = None
         self.draw_counter = 0
         self.players_won = 0
         self.starter = None
@@ -49,6 +50,8 @@ class Game(object):
         self.translate = ENABLE_TRANSLATIONS
         self.last_activity = datetime.now()
         self.last_bluffer = None
+        self.started_at = None  # UTC
+        self.turns = 0
         # Users who left (or were removed from) this game after it started;
         # they can't rejoin it for a fresh hand
         self.left_users = set()
@@ -103,6 +106,8 @@ class Game(object):
 
         self._first_card_()
         self.started = True
+        self.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.turns = 0
 
     def abort_start(self):
         """Undo start() when dealing failed, so the lobby can still be started"""
@@ -116,6 +121,7 @@ class Game(object):
         self.choosing_color = False
         self.opening_color_choice = False
         self.started = False
+        self.started_at = None
 
     def set_mode(self, mode):
         self.touch()
@@ -130,6 +136,7 @@ class Game(object):
         """Marks the turn as over and change the current player"""
         self.touch()
         self.logger.debug("Next Player")
+        self.turns += 1
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
             self.last_card.color = csprng.choice(c.COLORS)

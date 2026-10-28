@@ -491,14 +491,6 @@ msgstr[2] "Игроки: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "Пожалуйста, напишите боту для изменения своих настроек."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "Включить статистику"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "Удалить всю статистику"
-
 #: settings.py:55
 msgid "Language"
 msgstr "Язык"
@@ -507,17 +499,9 @@ msgstr "Язык"
 msgid "Settings"
 msgstr "Настройки"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "Статистика включена!"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "Выберите язык"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "Статистика удалена и отключена!"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -609,38 +593,6 @@ msgstr ""
 "\n"
 "Чтобы сменить режим игры, СОЗДАТЕЛЬ ИГРЫ должен ввести имя бота и пробел, "
 "как при игре картой, и появятся все варианты режимов."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"Вы не включали статистику. Чтобы ее активировать, напишите /settings в "
-"приватном чате с ботом."
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} игра сыграна"
-msgstr[1] "{number} игры сыграно"
-msgstr[2] "{number} игр сыграно"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} первое место ({percent}%)"
-msgstr[1] "{number} первых места ({percent}%)"
-msgstr[2] "{number} первых мест ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} карта сыграна"
-msgstr[1] "{number} карты сыграно"
-msgstr[2] "{number} карт сыграно"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

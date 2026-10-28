@@ -496,14 +496,6 @@ msgstr[1] "Pemain: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "Silakan ubah pengaturan melalui chat pribadi dengan bot."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "Mengaktifkan statistik"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "Menghapus semua statistik"
-
 #: settings.py:55
 msgid "Language"
 msgstr "Bahasa"
@@ -512,17 +504,9 @@ msgstr "Bahasa"
 msgid "Settings"
 msgstr "Pengaturan"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "Mengaktifkan statistik"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "Memilih lokasi"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "Menghapus dan menonaktifkan statisk"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -613,35 +597,6 @@ msgstr ""
 "Untuk mengganti mode permainan, PEMBUAT PERMAINAN harus mengetik nama bot "
 "dan spasi, sama seperti saat memainkan kartu, lalu semua opsi mode "
 "permainan akan muncul."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"Kamu belum menyalakan statistik. Gunakan /settings melalui chat pribadi "
-"kepada bot untuk menyalakannya."
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} permainan dimainkan"
-msgstr[1] "{number} permainan dimainkan"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} juara pertama ({percent}%)"
-msgstr[1] "{number} juara pertama ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} kartu dimainkan"
-msgstr[1] "{number} kartu dimainkan"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

@@ -469,14 +469,6 @@ msgid "Please edit your settings in a private chat with the bot."
 msgstr ""
 "Vui lòng chỉnh sửa cài đặt của bạn trong cuộc trò chuyện riêng tư với bot."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "Bật thống kê"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "Xoá tất cả dữ liệu thống kê"
-
 #: settings.py:55
 msgid "Language"
 msgstr "Ngôn ngữ"
@@ -485,17 +477,9 @@ msgstr "Ngôn ngữ"
 msgid "Settings"
 msgstr "Cài đặt"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "Đã bật thống kê"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "Chọn ngôn ngữ"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "Đã xóa và vô hiệu hóa số liệu thống kê!"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -586,32 +570,6 @@ msgstr ""
 "\n"
 "Để đổi chế độ chơi, NGƯỜI TẠO TRÒ CHƠI cần gõ tên bot và một dấu cách, "
 "giống như khi đánh bài, và tất cả các chế độ chơi sẽ hiện ra."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"Bạn chưa kích hoạt thống kê. Sử dụng /settings trong cuộc trò chuyện riêng "
-"với bot để kích hoạt."
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} ván đã chơi"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} vị trí đầu tiên ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} bài đã chơi"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

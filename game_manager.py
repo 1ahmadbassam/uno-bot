@@ -118,6 +118,8 @@ class GameManager(object):
             # Who played the last Wild Draw Four, so a challenge after a restart judges the right player
             'last_bluffer_id': game.last_bluffer.user.id if getattr(game, 'last_bluffer', None) else None,
             'left_users': sorted(getattr(game, 'left_users', set())),
+            'started_at': game.started_at.isoformat() if getattr(game, 'started_at', None) else None,
+            'turns': getattr(game, 'turns', 0),
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
 
@@ -140,6 +142,8 @@ class GameManager(object):
         game.deck.graveyard = [self._deserialize_card(card) for card in data.get('deck_graveyard', [])]
         game.last_activity = datetime.fromisoformat(data.get('last_activity', datetime.now().isoformat()))
         game.left_users = set(data.get('left_users') or [])
+        game.started_at = datetime.fromisoformat(data['started_at']) if data.get('started_at') else None
+        game.turns = data.get('turns', 0)
         game.job = None
 
         for player_data in data.get('players', []):

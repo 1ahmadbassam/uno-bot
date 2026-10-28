@@ -154,7 +154,7 @@ def locales_for_game(game):
     a handler, e.g. callback handlers and timer jobs on the game worker threads"""
     initial_depth = len(_.locale_stack)
     # Keep a db_session open for the whole block: the wrapped code may read or
-    # update user stats (e.g. a win awarded from a button or timer)
+    # write the head-to-head score (e.g. a win awarded from a button or timer)
     with db_session:
         _push_game_locales(game)
         try:

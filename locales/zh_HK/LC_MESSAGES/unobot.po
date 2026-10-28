@@ -462,14 +462,6 @@ msgstr[0] "玩家: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "請pm個bot修改你嘅設定"
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "啓用數據記錄"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "刪除所有數據"
-
 #: settings.py:55
 msgid "Language"
 msgstr "語言"
@@ -478,17 +470,9 @@ msgstr "語言"
 msgid "Settings"
 msgstr "設定"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "已經啓用咗數據記錄!"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "請揀個區域"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "已經熄咗同埋delete咗數據記錄"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -567,30 +551,6 @@ msgstr ""
 " ✍️ 文字模式用普通 UNO 牌，但係用文字代替貼圖顯示啲牌。\n"
 "\n"
 "要改遊戲模式，遊戲創建者要好似出牌咁打 bot 嘅名同一個空格，就會見到所有遊戲模式選項。"
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr "你冇啓用數據記錄, pm個bot去啓用"
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "玩咗{number}盤"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "贏咗{number}次 ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "已經玩咗{number}張牌"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

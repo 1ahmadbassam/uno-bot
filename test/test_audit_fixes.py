@@ -124,20 +124,19 @@ class TestAuditFixes(unittest.TestCase):
     # F-V03
     def test_forfeit_credits_the_remaining_player(self):
         self.charlie.leave()
-        stats = {uid: SimpleNamespace(stats=True, games_played=0, first_places=0) for uid in (1, 2)}
-        with patch('actions.UserSetting') as user_setting, patch('actions.send_async') as send:
-            user_setting.get.side_effect = lambda id: stats.get(id)
+        with patch('actions.rivalry') as rivalry, patch('actions.send_async') as send:
             forfeit_win(BOT, self.game, self.alice.user)
 
         self.assertIn("Bob won!", send.call_args[1]['text'])
-        self.assertEqual((stats[2].games_played, stats[2].first_places), (1, 1))
-        self.assertEqual((stats[1].games_played, stats[1].first_places), (1, 0))
+        rivalry.record_first_place.assert_called_once_with(BOT, self.game, self.bob.user, forfeit=True)
+        self.assertEqual(self.game.players_won, 1)
 
     def test_no_forfeit_win_before_the_game_started(self):
         self.game.started = False
-        with patch('actions.UserSetting'), patch('actions.send_async') as send:
+        with patch('actions.rivalry') as rivalry, patch('actions.send_async') as send:
             forfeit_win(BOT, self.game, self.alice.user)
         send.assert_not_called()
+        rivalry.record_first_place.assert_not_called()
 
     def test_timeout_removal_in_two_player_game_credits_forfeit(self):
         self.charlie.leave()

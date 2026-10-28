@@ -13,4 +13,4 @@ notify_me - Get a message when there's a new game in this group
 help - How to use this bot? 
 modes - Explanation of game modes
 settings - Language and other settings 
-stats - Show statistics 
+score - Show the head-to-head score

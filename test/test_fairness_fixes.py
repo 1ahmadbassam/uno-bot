@@ -102,10 +102,7 @@ if 'user_setting' not in sys.modules:
     us = types.ModuleType('user_setting')
     class FakeUserSetting:
         def __init__(self, *args, **kwargs):
-            self.stats = False
-            self.cards_played = 0
-            self.games_played = 0
-            self.first_places = 0
+            self.lang = ''
         @classmethod
         def get(cls, *args, **kwargs): return None
     us.UserSetting = FakeUserSetting

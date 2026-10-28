@@ -468,14 +468,6 @@ msgstr[1] "Oyuncular: {player_list}"
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "Lütfen ayarlarınızı botun özel sohbetinde düzenleyin."
 
-#: settings.py:51
-msgid "Enable statistics"
-msgstr "İstatistikleri Aç"
-
-#: settings.py:53
-msgid "Delete all statistics"
-msgstr "Tüm istatistikleri sil"
-
 #: settings.py:55
 msgid "Language"
 msgstr "Dil"
@@ -484,17 +476,9 @@ msgstr "Dil"
 msgid "Settings"
 msgstr "Ayarlar"
 
-#: settings.py:70
-msgid "Enabled statistics!"
-msgstr "İstatistikler açıldı!"
-
 #: settings.py:76
 msgid "Select locale"
 msgstr "Dili seçiniz"
-
-#: settings.py:86
-msgid "Deleted and disabled statistics!"
-msgstr "İstatistikler devredışı bırakıldı ve silindi!"
 
 #: settings.py:99
 msgid "Set locale!"
@@ -583,35 +567,6 @@ msgstr ""
 "Oyun modunu değiştirmek için OYUNU KURAN KİŞİ, tıpkı kart oynarken olduğu "
 "gibi botun adını ve bir boşluk yazmalıdır; ardından tüm oyun modu "
 "seçenekleri görünür."
-
-#: simple_commands.py:104
-msgid ""
-"You did not enable statistics. Use /settings in a private chat with the bot "
-"to enable them."
-msgstr ""
-"İstatistikleri etkinleştirmediniz. Bota özel sohbetten/settings komutunu "
-"gönderve istatistik ayarını aç"
-
-#: simple_commands.py:111
-#, python-brace-format
-msgid "{number} game played"
-msgid_plural "{number} games played"
-msgstr[0] "{number} Oyun oynandı"
-msgstr[1] "{number} Oyun oynandı"
-
-#: simple_commands.py:119
-#, python-brace-format
-msgid "{number} first place ({percent}%)"
-msgid_plural "{number} first places ({percent}%)"
-msgstr[0] "{number} Defa birincilik ({percent}%)"
-msgstr[1] "{number} Defa birincilik ({percent}%)"
-
-#: simple_commands.py:126
-#, python-brace-format
-msgid "{number} card played"
-msgid_plural "{number} cards played"
-msgstr[0] "{number} Kart oynandı"
-msgstr[1] "{number} Kart oynandı"
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format
