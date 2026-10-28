@@ -84,4 +84,5 @@ images/sticker_uploader.session
 # Website Data
 web/*.json
 web/*.csv
+web/old/
 import/
