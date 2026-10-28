@@ -36,10 +36,11 @@ import settings
 import simple_commands
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
-    settle_draw_four_after_leave, forfeit_win
+    settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
-                    NotEnoughPlayersError, DeckEmptyError)
+                    NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
+                    RejoinNotAllowedError)
 from internationalization import _, __, user_locale, game_locales, locales_for_game
 from results import (add_call_bluff, add_choose_color, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_other_cards, add_pass,
@@ -222,6 +223,16 @@ def join_game(update: Update, context: CallbackContext):
     except LobbyClosedError:
             send_async(context.bot, chat.id, text=_("The lobby is closed"))
 
+    except LobbyFullError:
+        send_async(context.bot, chat.id,
+                   text=_("The game is full."),
+                   reply_to_message_id=update.message.message_id)
+
+    except RejoinNotAllowedError:
+        send_async(context.bot, chat.id,
+                   text=_("You left this game, so you can't join it again."),
+                   reply_to_message_id=update.message.message_id)
+
     except NoGameInChatError:
         send_async(context.bot, chat.id,
                    text=_("No game is running at the moment. "
@@ -286,6 +297,7 @@ def leave_game(update: Update, context: CallbackContext):
 
         if settle_draw_four_after_leave(context.bot, game, player, was_current):
             return
+        cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
 
         if game.started:
             send_async(context.bot, chat.id,
@@ -293,6 +305,9 @@ def leave_game(update: Update, context: CallbackContext):
                                multi=game.translate).format(
                            name=display_name(game.current_player.user)),
                        reply_to_message_id=update.message.message_id)
+            if was_current:
+                # The countdown was for the player who left
+                start_player_countdown(context.bot, game, context.job_queue)
         else:
             send_async(context.bot, chat.id,
                        text=__("{name} left the game before it started.",
@@ -349,7 +364,11 @@ def kick_player(update: Update, context: CallbackContext):
             except NotEnoughPlayersError:
                 send_async(context.bot, chat.id,
                                 text=_("{0} was kicked by {1}".format(display_name(kicked), display_name(user))))
-                forfeit_win(context.bot, game, kicked)
+                if user.id != kicked.id and any(p.user.id == user.id for p in game.players):
+                    # Kicking the only opponent must not hand the kicker a win
+                    end_game_without_winner(context.bot, game)
+                else:
+                    forfeit_win(context.bot, game, kicked)
                 # End it via the kicked player: the kicking admin may not be playing
                 gm.end_game(chat, kicked)
                 send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
@@ -365,6 +384,7 @@ def kick_player(update: Update, context: CallbackContext):
 
             if settle_draw_four_after_leave(context.bot, game, kicked_player, was_current):
                 return
+            cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
 
         else:
             send_async(context.bot, chat.id,
@@ -377,6 +397,9 @@ def kick_player(update: Update, context: CallbackContext):
                            multi=game.translate).format(
                        name=display_name(game.current_player.user)),
                    reply_to_message_id=update.message.message_id)
+        if was_current:
+            # The countdown was for the kicked player
+            start_player_countdown(context.bot, game, context.job_queue)
 
     else:
         send_async(context.bot, chat.id,
@@ -710,7 +733,17 @@ def status_update(update: Update, context: CallbackContext):
                 send_async(context.bot, chat.id,
                            text=__("Player left while choosing a color! Color automatically set to {color}.",
                                    multi=game.translate).format(color=display_color_group(game.last_card.color, game)))
-            settle_draw_four_after_leave(context.bot, game, player, was_current)
+            if settle_draw_four_after_leave(context.bot, game, player, was_current):
+                return
+            cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
+            if was_current and game.started:
+                send_async(context.bot, chat.id,
+                           text=__("Next player: {name}", multi=game.translate)
+                           .format(name=display_name(game.current_player.user)),
+                           reply_markup=make_turn_keyboard(game, chat.id),
+                           disable_notification=True)
+                # The countdown was for the player who left
+                start_player_countdown(context.bot, game, context.job_queue)
 
 
 @game_locales
@@ -742,8 +775,16 @@ def start_game(update: Update, context: CallbackContext):
             # Starting a game
             game.start()
 
-            for player in game.players:
-                player.draw_first_hand()
+            try:
+                for player in game.players:
+                    player.draw_first_hand()
+            except DeckEmptyError:
+                game.abort_start()
+                gm.persist_game(game)
+                send_async(context.bot, chat.id,
+                           text=_("There are not enough cards in the deck for "
+                                  "this many players."))
+                return
             gm.persist_game(game)
             if game.choosing_color:
                 first_message = (
@@ -943,12 +984,13 @@ def skip_player(update: Update, context: CallbackContext):
 
     started = skipped_player.turn_started
     now = datetime.now()
-    delta = (now - started).seconds
+    # total_seconds(): .seconds wraps a negative delta (clock set back) to ~86400
+    delta = max(0.0, (now - started).total_seconds())
 
     # You can't skip if the current player still has time left
     # You can skip yourself even if you have time left (you'll still draw)
     if delta < skipped_player.waiting_time and player != skipped_player:
-        n = skipped_player.waiting_time - delta
+        n = max(1, int(skipped_player.waiting_time - delta))
         send_async(context.bot, chat.id,
                    text=_("Please wait {time} second",
                           "Please wait {time} seconds",
@@ -956,7 +998,9 @@ def skip_player(update: Update, context: CallbackContext):
                    .format(time=n),
                    reply_to_message_id=update.message.message_id)
     else:
-        do_skip(context.bot, player)
+        # Pass the job queue so fast mode starts the next player's countdown;
+        # passing the skipped (current) player keeps do_skip's stale-timer check happy
+        do_skip(context.bot, skipped_player, context.job_queue)
 
 
 @game_locales
@@ -1109,9 +1153,11 @@ def process_result(update: Update, context: CallbackContext):
         reset_waiting_time(context.bot, player)
         do_draw(context.bot, player)
     elif result_id == 'pass':
+        reset_waiting_time(context.bot, player)
         game.turn()
     elif result_id in c.COLORS:
         if game.choosing_color and player == game.current_player:
+            reset_waiting_time(context.bot, player)
             is_opening = getattr(game, 'opening_color_choice', False)
             game.choose_color(result_id)
             if is_opening:
@@ -1162,7 +1208,8 @@ def _inline_action_allowed(player, game, result_id):
         return False
 
     if result_id == 'call_bluff':
-        return bool(game.last_card and game.last_card.special == c.DRAW_FOUR and game.draw_counter > 0)
+        return bool(not game.choosing_color and game.last_card and
+                    game.last_card.special == c.DRAW_FOUR and game.draw_counter > 0)
     if result_id == 'draw':
         return not game.choosing_color and not player.drew
     if result_id == 'pass':

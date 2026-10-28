@@ -36,3 +36,11 @@ class NotEnoughPlayersError(Exception):
 
 class DeckEmptyError(Exception):
     pass
+
+
+class LobbyFullError(Exception):
+    pass
+
+
+class RejoinNotAllowedError(Exception):
+    pass

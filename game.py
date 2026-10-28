@@ -49,6 +49,9 @@ class Game(object):
         self.translate = ENABLE_TRANSLATIONS
         self.last_activity = datetime.now()
         self.last_bluffer = None
+        # Users who left (or were removed from) this game after it started;
+        # they can't rejoin it for a fresh hand
+        self.left_users = set()
 
         self.logger = logging.getLogger(__name__)
 
@@ -100,6 +103,19 @@ class Game(object):
 
         self._first_card_()
         self.started = True
+
+    def abort_start(self):
+        """Undo start() when dealing failed, so the lobby can still be started"""
+        self.touch()
+        for player in self.players:
+            player.cards = list()
+        self.deck = Deck()
+        self.last_card = None
+        self.draw_counter = 0
+        self.reversed = False
+        self.choosing_color = False
+        self.opening_color_choice = False
+        self.started = False
 
     def set_mode(self, mode):
         self.touch()

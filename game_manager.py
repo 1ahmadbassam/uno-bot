@@ -27,9 +27,10 @@ from pony.orm import db_session
 
 from game import Game
 from player import Player
-from config import STALE_GAME_UNLOAD_SECONDS, STALE_GAME_SCAN_EVERY_SECONDS
+from config import STALE_GAME_UNLOAD_SECONDS, STALE_GAME_SCAN_EVERY_SECONDS, MAX_PLAYERS
 from errors import (AlreadyJoinedError, LobbyClosedError, NoGameInChatError,
-                    NotEnoughPlayersError, DeckEmptyError)
+                    NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
+                    RejoinNotAllowedError)
 from persisted_state import PersistedChatState, PersistedUserChat
 
 class GameManager(object):
@@ -116,6 +117,7 @@ class GameManager(object):
             'current_player_idx': current_player_idx,
             # Who played the last Wild Draw Four, so a challenge after a restart judges the right player
             'last_bluffer_id': game.last_bluffer.user.id if getattr(game, 'last_bluffer', None) else None,
+            'left_users': sorted(getattr(game, 'left_users', set())),
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
 
@@ -137,6 +139,7 @@ class GameManager(object):
         game.deck.cards = [self._deserialize_card(card) for card in data.get('deck_cards', [])]
         game.deck.graveyard = [self._deserialize_card(card) for card in data.get('deck_graveyard', [])]
         game.last_activity = datetime.fromisoformat(data.get('last_activity', datetime.now().isoformat()))
+        game.left_users = set(data.get('left_users') or [])
         game.job = None
 
         for player_data in data.get('players', []):
@@ -438,6 +441,13 @@ class GameManager(object):
             if player in game.players:
                 raise AlreadyJoinedError()
 
+        # Leaving a started game and joining again would swap the hand for a fresh one
+        if game.started and user.id in game.left_users:
+            raise RejoinNotAllowedError()
+
+        if len(game.players) >= MAX_PLAYERS:
+            raise LobbyFullError()
+
         try:
             self.leave_game(user, chat)
         except NoGameInChatError:
@@ -484,6 +494,8 @@ class GameManager(object):
                             g.turn()
 
                         p.leave()
+                        if g.started:
+                            g.left_users.add(user.id)
                         g.touch()
                         self._persist_chat(chat.id)
                         return
@@ -500,6 +512,8 @@ class GameManager(object):
 
         player.leave()
         players.remove(player)
+        if game.started:
+            game.left_users.add(user.id)
         game.touch()
 
         # If this is the selected game, switch to another

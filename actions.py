@@ -79,6 +79,9 @@ def do_skip(bot, player, job_queue=None):
             pass
         if was_choosing:
             game.draw_counter = draw_counter
+        elif draw_counter and game.last_card.special == c.DRAW_FOUR:
+            # The +4 penalty was taken, so it can't be challenged any more
+            game.last_bluffer = None
 
         n = skipped_player.waiting_time
         game.turn()
@@ -100,6 +103,7 @@ def do_skip(bot, player, job_queue=None):
     else:
         try:
             gm.leave_game(skipped_player.user, chat)
+            cancel_penalty_after_leave(bot, game, True, was_choosing)
             send_paced(bot, chat.id,
                        text=__("{name1} ran out of time "
                             "and has been removed from the game!\n"
@@ -153,7 +157,10 @@ def player_won(bot, player):
         send_async(bot, chat.id,
                    text=__("Game ended!", multi=game.translate))
 
-        us2 = UserSetting.get(id=game.current_player.user.id)
+        # After a Skip, Reverse or settled +4 the turn is back with the winner,
+        # so the other player can't be taken from game.current_player
+        survivor = next((p for p in game.players if p.user.id != user.id), None)
+        us2 = UserSetting.get(id=survivor.user.id) if survivor else None
         if us2 and us2.stats:
             us2.games_played += 1
 
@@ -187,6 +194,40 @@ def forfeit_win(bot, game, leaving_user):
     us_left = UserSetting.get(id=leaving_user.id)
     if us_left and us_left.stats:
         us_left.games_played += 1
+
+
+def end_game_without_winner(bot, game):
+    """
+    Count a 2-player game as played for both players without crediting a win,
+    e.g. when one player kicks the other.
+    Call it before the game is ended (both players are still in the game).
+    """
+    if not game.started:
+        return
+    send_async(bot, game.chat.id,
+               text=__("The game ended without a winner.", multi=game.translate))
+    for player in game.players:
+        us = UserSetting.get(id=player.user.id)
+        if us and us.stats:
+            us.games_played += 1
+
+
+def cancel_penalty_after_leave(bot, game, was_current, was_choosing):
+    """
+    Cancel a +2/+4 penalty when the player it targeted leaves or is removed
+    before drawing, so it doesn't pass on to the next player.
+    A player who left while choosing a color had just played the card
+    themselves: the penalty is then the next player's and stays.
+    Call it after settle_draw_four_after_leave.
+    """
+    if not was_current or was_choosing or game.draw_counter <= 0:
+        return
+    game.draw_counter = 0
+    game.last_bluffer = None
+    send_async(bot, game.chat.id,
+               text=__("The player facing the draw penalty left the game, so it was cancelled.",
+                       multi=game.translate))
+    gm.persist_game(game)
 
 
 def settle_draw_four_after_leave(bot, game, left_player, was_current):
@@ -299,6 +340,9 @@ def do_draw(bot, player):
         bluffer.pending_win = False
         game.last_bluffer = None
         player_won(bot, bluffer)
+    elif game.last_card.special == c.DRAW_FOUR and draw_counter_before > 0:
+        # The +4 penalty was taken, so it can't be challenged any more
+        game.last_bluffer = None
 
     gm.persist_game(game)
 
