@@ -26,37 +26,8 @@ from telegram import InlineQueryResultArticle, InputTextMessageContent, \
     InlineQueryResultCachedSticker as Sticker
 
 import card as c
-from utils import display_color, display_color_group, display_name
+from utils import display_name
 from internationalization import _, __
-
-
-def add_choose_color(results, game):
-    """Add choose color options"""
-    for color in c.COLORS:
-        results.append(
-            InlineQueryResultArticle(
-                id=color,
-                title=_("Choose Color"),
-                description=display_color(color),
-                input_message_content=
-                InputTextMessageContent(display_color_group(color, game))
-            )
-        )
-
-
-def add_other_cards(player, results, game):
-    """Add hand cards when choosing colors"""
-
-    results.append(
-        InlineQueryResultArticle(
-            "hand",
-            title=_("Card (tap for game state):",
-                    "Cards (tap for game state):",
-                    len(player.cards)),
-            description=', '.join([repr(card) for card in player.cards]),
-            input_message_content=game_info(game)
-        )
-    )
 
 
 def player_list(game):

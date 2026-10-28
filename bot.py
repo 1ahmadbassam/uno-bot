@@ -43,8 +43,8 @@ from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
                     RejoinNotAllowedError)
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
-from results import (add_call_bluff, add_choose_color, add_draw, add_gameinfo,
-                     add_no_game, add_not_started, add_other_cards, add_pass,
+from results import (add_call_bluff, add_draw, add_gameinfo,
+                     add_no_game, add_not_started, add_pass,
                      add_card, add_mode_classic, add_mode_fast, add_mode_wild, add_mode_text)
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
@@ -305,6 +305,7 @@ def leave_game(update: Update, context: CallbackContext):
                        text=__("Okay. Next Player: {name}",
                                multi=game.translate).format(
                            name=display_name(game.current_player.user)),
+                       reply_markup=make_turn_keyboard(game, chat.id),
                        reply_to_message_id=update.message.message_id)
             if was_current:
                 # The countdown was for the player who left
@@ -397,6 +398,7 @@ def kick_player(update: Update, context: CallbackContext):
                    text=__("Okay. Next Player: {name}",
                            multi=game.translate).format(
                        name=display_name(game.current_player.user)),
+                   reply_markup=make_turn_keyboard(game, chat.id),
                    reply_to_message_id=update.message.message_id)
         if was_current:
             # The countdown was for the kicked player
@@ -1060,8 +1062,10 @@ def reply_to_query(update: Update, context: CallbackContext):
 
         elif user_id == game.current_player.user.id:
             if game.choosing_color:
-                add_choose_color(results, game)
-                add_other_cards(player, results, game)
+                # The color is picked with the buttons under the color prompt, so the
+                # menu only shows the hand, greyed out like when it's not your turn
+                for card in sorted(player.cards):
+                    add_card(game, card, results, can_play=False)
             else:
                 if not player.drew:
                     add_draw(player, results)

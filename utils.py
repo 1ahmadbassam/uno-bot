@@ -302,6 +302,8 @@ def make_color_keyboard(chat_id, game=None):
         y_text = _("{emoji} Yellow").format(emoji='💛')
 
     return InlineKeyboardMarkup([
+        # Opens the inline menu in this chat so the player can look at their hand
+        [InlineKeyboardButton(text=_("🃏 Show my cards"), switch_inline_query_current_chat='')],
         [
             InlineKeyboardButton(text=r_text, callback_data=f"color:{chat_id}:r"),
             InlineKeyboardButton(text=b_text, callback_data=f"color:{chat_id}:b"),

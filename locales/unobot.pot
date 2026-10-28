@@ -551,3 +551,7 @@ msgstr ""
 #: bot.py:620
 msgid "You can't play it, so pass."
 msgstr ""
+
+#: utils.py:306
+msgid "🃏 Show my cards"
+msgstr ""

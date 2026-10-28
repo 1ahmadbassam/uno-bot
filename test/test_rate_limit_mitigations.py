@@ -134,10 +134,17 @@ class TestRateLimitMitigations(unittest.TestCase):
 
     def test_make_color_keyboard(self):
         markup = make_color_keyboard(-100999)
-        self.assertEqual(len(markup.inline_keyboard), 2)
-        all_buttons = [btn for row in markup.inline_keyboard for btn in row]
-        self.assertEqual(len(all_buttons), 4)
-        callback_datas = [btn.callback_data for btn in all_buttons]
+        self.assertEqual(len(markup.inline_keyboard), 3)
+
+        # Top row opens the inline menu so the player can see their hand
+        top_row = markup.inline_keyboard[0]
+        self.assertEqual(len(top_row), 1)
+        self.assertEqual(top_row[0].switch_inline_query_current_chat, '')
+        self.assertIsNone(top_row[0].callback_data)
+
+        color_buttons = [btn for row in markup.inline_keyboard[1:] for btn in row]
+        self.assertEqual(len(color_buttons), 4)
+        callback_datas = [btn.callback_data for btn in color_buttons]
         self.assertIn("color:-100999:r", callback_datas)
         self.assertIn("color:-100999:b", callback_datas)
         self.assertIn("color:-100999:g", callback_datas)
@@ -323,6 +330,37 @@ class TestRateLimitMitigations(unittest.TestCase):
         self.assertIn("passed", query_pass.edit_message_text.call_args[1]['text'])
         mock_paced.assert_called_once()
         self.assertIn("Bob", mock_paced.call_args[1]['text'])
+
+    def test_color_choice_menu_shows_hand_as_greyed_out_cards(self):
+        import inspect
+        import bot
+        chat = MockChat(-100123)
+        game = Game(chat)
+        p1 = Player(game, MockUser(111, "Alice"))
+        Player(game, MockUser(222, "Bob"))
+        game.current_player = p1
+        game.started = True
+        game.last_card = c.Card(None, None, special=c.CHOOSE)
+        game.choosing_color = True
+        p1.cards = [c.Card(c.RED, '7'), c.Card(c.GREEN, '1'), c.Card(None, None, special=c.DRAW_FOUR)]
+
+        gm = MagicMock()
+        gm.userid_players = {p1.user.id: [p1]}
+        gm.userid_current = {p1.user.id: p1}
+        update = MagicMock()
+        update.inline_query.from_user = p1.user
+        # PTB 20+ freezes result objects, but reply_to_query appends the anti-cheat
+        # token to result ids (fine on the pinned PTB 13); unfreeze for this test
+        unfreeze = (patch.object(telegram.TelegramObject, '_freeze', lambda self: None)
+                    if hasattr(telegram.TelegramObject, '_freeze') else patch('bot.logger'))
+        with patch('bot.gm', gm), patch('bot.answer_async') as answer, unfreeze:
+            inspect.unwrap(bot.reply_to_query)(update, MagicMock())
+
+        results = answer.call_args[0][2]
+        # Only the hand, every card greyed out: colors are picked with the prompt's buttons
+        self.assertEqual(len(results), len(p1.cards))
+        self.assertEqual(sorted(r.sticker_file_id for r in results),
+                         sorted(c.STICKERS_GREY[str(card)] for card in p1.cards))
 
     def _press_draw(self, deck_card, last_card, draw_counter=0):
         """Press the Draw button as Alice; returns (bot, query, group message mocks)"""
