@@ -357,13 +357,13 @@ def kick_player(update: Update, context: CallbackContext):
                 gm.leave_game(kicked, chat)
 
             except NoGameInChatError:
-                send_async(context.bot, chat.id, text=_("Player {name} is not found in the current game.".format(name=display_name(kicked))),
+                send_async(context.bot, chat.id, text=_("Player {name} is not found in the current game.").format(name=display_name(kicked)),
                                 reply_to_message_id=update.message.message_id)
                 return
 
             except NotEnoughPlayersError:
                 send_async(context.bot, chat.id,
-                                text=_("{0} was kicked by {1}".format(display_name(kicked), display_name(user))))
+                                text=_("{0} was kicked by {1}").format(display_name(kicked), display_name(user)))
                 if user.id != kicked.id and any(p.user.id == user.id for p in game.players):
                     # Kicking the only opponent must not hand the kicker a win
                     end_game_without_winner(context.bot, game)
@@ -375,7 +375,7 @@ def kick_player(update: Update, context: CallbackContext):
                 return
 
             send_async(context.bot, chat.id,
-                            text=_("{0} was kicked by {1}".format(display_name(kicked), display_name(user))))
+                            text=_("{0} was kicked by {1}").format(display_name(kicked), display_name(user)))
 
             if was_choosing and game.last_card and game.last_card.color:
                 send_async(context.bot, chat.id,
@@ -689,8 +689,8 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
                 pass
 
         if game_is_running(game):
-            pass_msg = __("Next player: {next_player}", multi=game.translate).format(
-                next_player=display_name(game.current_player.user))
+            pass_msg = __("Next player: {name}", multi=game.translate).format(
+                name=display_name(game.current_player.user))
 
             reply_markup = make_turn_keyboard(game, chat_id)
             send_paced(bot, chat_id, TURN_PACING_DELAY,
@@ -1124,7 +1124,7 @@ def process_result(update: Update, context: CallbackContext):
         game.set_mode(mode)
         gm.persist_game(game)
         logger.info("Gamemode changed to {mode}".format(mode = mode))
-        send_async(context.bot, chat.id, text=__("Gamemode changed to {mode}".format(mode = mode)))
+        send_async(context.bot, chat.id, text=__("Gamemode changed to {mode}", multi=game.translate).format(mode=mode))
         return
     elif len(result_id) == 36:  # UUID result
         return

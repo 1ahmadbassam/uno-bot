@@ -17,8 +17,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: uno_bot 0.1\n"
 "Report-Msgid-Bugs-To: uno@jhoeke.de\n"
-"POT-Creation-Date: 2019-08-28 14:21+0800\n"
-"PO-Revision-Date: 2020-04-13 09:50+0800\n"
+"POT-Creation-Date: 2026-10-28 20:54+0000\n"
+"PO-Revision-Date: 2026-10-28 20:54+0000\n"
 "Last-Translator: XhyEax <xhyeax@gmail.com>\n"
 "Language-Team: en <uno@jhoeke.de>\n"
 "Language: zh_CN\n"
@@ -28,7 +28,12 @@ msgstr ""
 "X-Generator: Poedit 2.2.4\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: actions.py:48
+#: actions.py:51
+#, python-brace-format
+msgid "Time ran out to choose a color! Color automatically set to {color}."
+msgstr "选择颜色超时！颜色已自动设为{color}。"
+
+#: actions.py:90
 #, python-brace-format
 msgid ""
 "Waiting time to skip this player has been reduced to {time} seconds.\n"
@@ -37,12 +42,7 @@ msgstr ""
 "该玩家的等待时间已降至 {time} 秒。\n"
 "轮到： {name}"
 
-#: actions.py:54 actions.py:69
-#, python-brace-format
-msgid "{player} was skipped! "
-msgstr "{player} 已被跳过！ "
-
-#: actions.py:64
+#: actions.py:108
 #, python-brace-format
 msgid ""
 "{name1} ran out of time and has been removed from the game!\n"
@@ -51,7 +51,7 @@ msgstr ""
 "{name1} 已经被连续跳过了 4 次。\n"
 "轮到： {name2}"
 
-#: actions.py:76
+#: actions.py:123
 #, python-brace-format
 msgid ""
 "{name} ran out of time and has been removed from the game!\n"
@@ -60,124 +60,162 @@ msgstr ""
 "{name} 已经被连续跳过了 4 次。\n"
 "游戏结束。"
 
-#: actions.py:101
-msgid "Please choose a color"
-msgstr "请选择颜色"
-
-#: actions.py:108
+#: actions.py:143 actions.py:183
 #, python-brace-format
 msgid "{name} won!"
 msgstr "{name} 赢了！"
 
-#: actions.py:123 bot.py:119 bot.py:199 bot.py:261 bot.py:340
+#: actions.py:158 bot.py:197 bot.py:290 bot.py:374 bot.py:726
 msgid "Game ended!"
 msgstr "游戏结束！"
 
-#: actions.py:141 actions.py:165 actions.py:179
+#: actions.py:208
+msgid "The game ended without a winner."
+msgstr "游戏结束，没有赢家。"
+
+#: actions.py:228
+msgid ""
+"The player facing the draw penalty left the game, so it was cancelled."
+msgstr "需要抽罚牌的玩家离开了游戏，罚牌已取消。"
+
+#: actions.py:254 actions.py:362
+msgid ""
+"The player who played the +4 left the game, so its penalty is cancelled."
+msgstr "打出 +4 的玩家离开了游戏，其罚牌已取消。"
+
+#: actions.py:301
+#, python-brace-format
+msgid "Winning card was Wild! Color set to {color}."
+msgstr "最后一张是万能牌！颜色设为{color}。"
+
+#: actions.py:314
+msgid "Please choose a color"
+msgstr "请选择颜色"
+
+#: actions.py:329 actions.py:384 actions.py:400
 msgid "There are no more cards in the deck."
 msgstr "牌堆中已经没有更多的牌了。"
 
-#: actions.py:157
+#: actions.py:376
 #, python-brace-format
 msgid "Bluff called! Giving 4 cards to {name}"
 msgstr "质疑成功！给 {name} 4 张牌"
 
-#: actions.py:171
+#: actions.py:392
 #, python-brace-format
 msgid "{name1} didn't bluff! Giving 6 cards to {name2}"
 msgstr "质疑 {name1} 失败！给 {name2} 6 张牌"
 
-#: bot.py:60
+#: bot.py:136
 msgid ""
-"Send this command in a group to be notified when a new game is started there."
+"Send this command in a group to be notified when a new game is started "
+"there."
 msgstr "在群组中发送该指令，以在新游戏开始时通知您。"
 
-#: bot.py:83
+#: bot.py:159
 #, python-brace-format
 msgid "A new game has been started in {title}"
 msgstr "新游戏已在 {title} 开始"
 
-#: bot.py:93
+#: bot.py:170
 msgid ""
 "Created a new game! Join the game with /join and start the game with /start"
 msgstr "创建新游戏成功！请使用 /join 加入游戏，然后使用 /start 开始游戏"
 
-#: bot.py:110 bot.py:433 bot.py:461 bot.py:488 bot.py:516
+#: bot.py:188 bot.py:543 bot.py:859 bot.py:889 bot.py:918 bot.py:948
 msgid "There is no running game in this chat."
 msgstr "这个群中并没有正在运行的游戏。"
 
-#: bot.py:123 bot.py:239
+#: bot.py:201 bot.py:343
 msgid ""
 "The game is not started yet. Join the game with /join and start the game "
 "with /start"
 msgstr "游戏尚未开始。请使用 /join 加入游戏，然后使用 /start 开始游戏"
 
-#: bot.py:129 bot.py:281 bot.py:446 bot.py:473 bot.py:501 bot.py:530
+#: bot.py:207 bot.py:406 bot.py:873 bot.py:902 bot.py:932 bot.py:963
 #, python-brace-format
 msgid "Only the game creator ({name}) and admin can do that."
 msgstr "只有游戏创建者 ({name}) 和管理员才能执行该命令。"
 
-#: bot.py:146
+#: bot.py:224
 msgid "The lobby is closed"
 msgstr "已禁止中途加入游戏"
 
-#: bot.py:150 bot.py:232
+#: bot.py:228
+msgid "The game is full."
+msgstr "游戏人数已满。"
+
+#: bot.py:233
+msgid "You left this game, so you can't join it again."
+msgstr "你已离开这局游戏，无法再次加入。"
+
+#: bot.py:238 bot.py:336
 msgid "No game is running at the moment. Create a new game with /new"
 msgstr "这个群并没有运行中的游戏。请使用 /new 创建新游戏"
 
-#: bot.py:156
+#: bot.py:244
 msgid "You already joined the game. Start the game with /start"
 msgstr "您已经加入了游戏。请使用 /start 开始游戏"
 
-#: bot.py:162
+#: bot.py:250
 msgid "There are not enough cards left in the deck for new players to join."
 msgstr "牌堆中已经没有足够给新加入玩家的牌了。"
 
-#: bot.py:168
+#: bot.py:256
 msgid "Joined the game"
 msgstr "游戏加入成功"
 
-#: bot.py:181 bot.py:193
+#: bot.py:269 bot.py:283
 msgid "You are not playing in a game in this group."
 msgstr "您在这个群中并没有参加游戏。"
 
-#: bot.py:204 bot.py:274
+#: bot.py:295 bot.py:382 bot.py:734
+#, python-brace-format
+msgid ""
+"Player left while choosing a color! Color automatically set to {color}."
+msgstr "有玩家在选择颜色时离开了！颜色已自动设为{color}。"
+
+#: bot.py:304 bot.py:396
 #, python-brace-format
 msgid "Okay. Next Player: {name}"
 msgstr "好的，轮到： {name}"
 
-#: bot.py:210
+#: bot.py:313
 #, python-brace-format
 msgid "{name} left the game before it started."
 msgstr "{name} 在游戏开始前就离开游戏了。"
 
-#: bot.py:253
+#: bot.py:360
 #, python-brace-format
 msgid "Player {name} is not found in the current game."
 msgstr "未在当前游戏中找到{name}玩家。"
 
-#: bot.py:260 bot.py:265
+#: bot.py:366 bot.py:378
 #, python-brace-format
 msgid "{0} was kicked by {1}"
 msgstr "{0} 已被 {1} 踢出游戏"
 
-#: bot.py:269
+#: bot.py:391
 msgid "Please reply to the person you want to kick and type /kick again."
 msgstr "请回复要踢出的人，并再次输入 /kick 。"
 
-#: bot.py:299
-msgid "Game not found."
-msgstr "游戏未找到。"
+#: bot.py:422 bot.py:559 bot.py:613
+msgid "This button is no longer valid."
+msgstr "此按钮已失效。"
 
-#: bot.py:304
-msgid "Back to last group"
-msgstr "返回上一个群"
-
-#: bot.py:307
+#: bot.py:433
 msgid "Please switch to the group you selected!"
 msgstr "请切换到您选择的群！"
 
-#: bot.py:313
+#: bot.py:460
+msgid "Game not found."
+msgstr "游戏未找到。"
+
+#: bot.py:466
+msgid "Back to last group"
+msgstr "返回上一个群"
+
+#: bot.py:470
 #, python-brace-format
 msgid ""
 "Selected group: {group}\n"
@@ -186,26 +224,84 @@ msgstr ""
 "选择群： {group}\n"
 "<b>请确保您已切换到正确的群！</b>"
 
-#: bot.py:343
+#: bot.py:564 bot.py:618
+msgid "It's not your turn!"
+msgstr "还没轮到你！"
+
+#: bot.py:574
+#, python-brace-format
+msgid "🎨 {name} chose {color}."
+msgstr "🎨 {name} 选择了{color}。"
+
+#: bot.py:589 bot.py:1164
+#, python-brace-format
+msgid "Starting color set to {color}!\n"
+msgstr "起始颜色设为{color}！\n"
+
+#: bot.py:591 bot.py:1168
+#, python-brace-format
+msgid "Color set to {color}!\n"
+msgstr "颜色设为{color}！\n"
+
+#: bot.py:593 bot.py:645 bot.py:667 bot.py:692 bot.py:741 bot.py:1195
+#, python-brace-format
+msgid "Next player: {name}"
+msgstr "轮到： {name}"
+
+#: bot.py:635
+#, python-brace-format
+msgid "📥 {name} drew {number} cards."
+msgstr "📥 {name} 抽了 {number} 张牌。"
+
+#: bot.py:639
+#, python-brace-format
+msgid "📥 {name} drew a card."
+msgstr "📥 {name} 抽了一张牌。"
+
+#: bot.py:684
+#, python-brace-format
+msgid "⏭️ {name} passed."
+msgstr "⏭️ {name} 选择了过。"
+
+#: bot.py:729
 #, python-brace-format
 msgid "Removing {name} from the game"
 msgstr "已成功将 {name} 移出游戏"
 
-#: bot.py:360
+#: bot.py:762
 msgid "There is no game running in this chat. Create a new one with /new"
 msgstr "这个群并没有运行中的游戏。请使用 /new 创建新游戏"
 
-#: bot.py:365
+#: bot.py:767
 msgid "The game has already started"
 msgstr "游戏已经开始"
 
-#: bot.py:369
+#: bot.py:771
 #, python-brace-format
 msgid ""
 "At least {minplayers} players must /join the game before you can start it"
 msgstr "至少需要 {minplayers} 个人 /join 加入游戏，才能开始游戏"
 
-#: bot.py:380
+#: bot.py:785
+msgid "There are not enough cards in the deck for this many players."
+msgstr "牌堆中的牌不足以供这么多玩家使用。"
+
+#: bot.py:791
+#, python-brace-format
+msgid ""
+"First card is Wild!\n"
+"First player: {name}\n"
+"Please choose the starting color.\n"
+"Use /close to stop people from joining the game.\n"
+"Enable multi-translations with /enable_translations"
+msgstr ""
+"第一张牌是万能牌！\n"
+"第一位玩家：{name}\n"
+"请选择起始颜色。\n"
+"使用 /close 阻止其他人加入游戏。\n"
+"使用 /enable_translations 开启多语言翻译"
+
+#: bot.py:801
 #, python-brace-format
 msgid ""
 "First player: {name}\n"
@@ -216,58 +312,53 @@ msgstr ""
 "可使用 /close 阻止其他人中途加入游戏。\n"
 "使用 /enable_translations 启动游戏翻译功能"
 
-#: bot.py:417
+#: bot.py:842
 msgid "Please select the group you want to play in."
 msgstr "请选择您要参加游戏的群。"
 
-#: bot.py:440
+#: bot.py:867
 msgid "Closed the lobby. No more players can join this game."
 msgstr "游戏已设置成不允许中途加入，玩家将不允许加入游戏。"
 
-#: bot.py:468
+#: bot.py:897
 msgid "Opened the lobby. New players may /join the game."
 msgstr "游戏已设置成允许中途加入，新玩家现在可以使用 /join 加入游戏。"
 
-#: bot.py:495
+#: bot.py:926
 msgid "Enabled multi-translations. Disable with /disable_translations"
 msgstr "游戏翻译已启用，使用 /disable_translations 可以停用该功能"
 
-#: bot.py:523
+#: bot.py:956
 msgid ""
 "Disabled multi-translations. Enable them again with /enable_translations"
 msgstr "游戏翻译已停用，使用 /enable_translations 可以启用该功能"
 
-#: bot.py:546
+#: bot.py:979
 msgid "You are not playing in a game in this chat."
 msgstr "您并不在游戏中。"
 
-#: bot.py:561
+#: bot.py:995
 #, python-brace-format
 msgid "Please wait {time} second"
 msgid_plural "Please wait {time} seconds"
 msgstr[0] "请等待 {time} 秒"
 
-#: bot.py:637
+#: bot.py:1075
 #, python-brace-format
 msgid "Current game: {game}"
 msgstr "当前游戏： {game}"
 
-#: bot.py:672
+#: bot.py:1127
 #, python-brace-format
 msgid "Gamemode changed to {mode}"
 msgstr "游戏模式已切换为 {mode}"
 
-#: bot.py:678
+#: bot.py:1183
 #, python-brace-format
-msgid "Cheat attempt by {name}"
-msgstr "{name} 试图作弊"
+msgid "{name}, please choose a color:"
+msgstr "{name}，请选择颜色："
 
-#: bot.py:697
-#, python-brace-format
-msgid "Next player: {name}"
-msgstr "轮到： {name}"
-
-#: bot.py:709
+#: bot.py:1234
 #, python-brace-format
 msgid "Waiting time for {name} has been reset to {time} seconds"
 msgstr "{name} 的等待时间已经重置为 {time} 秒"
@@ -293,10 +384,9 @@ msgstr "您并不在游戏中"
 
 #: results.py:78
 msgid ""
-"Not playing right now. Use /new to start a game or /join to join the current "
-"game in this group"
-msgstr ""
-"您并不在游戏中。请使用 /new 创建一个新游戏，或者使用 /join 加入一个现有的游戏"
+"Not playing right now. Use /new to start a game or /join to join the "
+"current game in this group"
+msgstr "您并不在游戏中。请使用 /new 创建一个新游戏，或者使用 /join 加入一个现有的游戏"
 
 #: results.py:90
 msgid "The game wasn't started yet"
@@ -320,7 +410,7 @@ msgstr "🚀 Sanic 模式"
 
 #: results.py:116
 msgid "Gotta go fast! 🚀"
-msgstr "搞快点！ 🚀\""
+msgstr "搞快点！🚀"
 
 #: results.py:126
 msgid "🐉 Wild mode"
@@ -330,69 +420,77 @@ msgstr "🐉 野性模式"
 msgid "Into the Wild~ 🐉"
 msgstr "进入旷野~ 🐉"
 
-#: results.py:141
+#: results.py:138
+msgid "✍️ Text mode"
+msgstr "✍️ 文字模式"
+
+#: results.py:140
+msgid "Text ✍️"
+msgstr "文字 ✍️"
+
+#: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
 msgid_plural "Drawing {number} cards"
 msgstr[0] "抽取 {number} 张牌"
 
-#: results.py:167
+#: results.py:179
 msgid "Pass"
 msgstr "过"
 
-#: results.py:180
+#: results.py:192
 msgid "I'm calling your bluff!"
 msgstr "我要质疑你！"
 
-#: results.py:203
+#: results.py:220
 #, python-brace-format
 msgid "Current player: {name}"
 msgstr "轮到： {name}"
 
-#: results.py:206
+#: results.py:223
 #, python-brace-format
 msgid "Last card: {card}"
 msgstr "上一张牌： {card}"
 
-#: results.py:208
+#: results.py:225
 #, python-brace-format
 msgid "Player: {player_list}"
 msgid_plural "Players: {player_list}"
 msgstr[0] "玩家： {player_list}"
 
-#: settings.py:37
+#: settings.py:44
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "请私聊我修改您的设置。"
 
-#: settings.py:47
+#: settings.py:51
 msgid "Enable statistics"
 msgstr "启用数据统计"
 
-#: settings.py:49
+#: settings.py:53
 msgid "Delete all statistics"
 msgstr "删除所有统计数据"
 
-#: settings.py:51
+#: settings.py:55
 msgid "Language"
 msgstr "语言"
 
-#: settings.py:52
+#: settings.py:56
 msgid "Settings"
 msgstr "设置"
 
-#: settings.py:66
+#: settings.py:70
 msgid "Enabled statistics!"
 msgstr "数据统计已启用！"
 
-#: settings.py:72
+#: settings.py:76
 msgid "Select locale"
 msgstr "请选择语言"
 
-#: settings.py:82
+#: settings.py:86
 msgid "Deleted and disabled statistics!"
 msgstr "统计数据已经被删除并已停用！"
 
-#: settings.py:95
+#: settings.py:99
 msgid "Set locale!"
 msgstr "语言设置成功！"
 
@@ -401,10 +499,17 @@ msgid ""
 "Follow these steps:\n"
 "\n"
 "1. Add this bot to a group\n"
-"2. In the group, start a new game with /new or join an already running game with /join\n"
+"2. In the group, start a new game with /new or join an already running game "
+"with /join\n"
 "3. After at least two players have joined, start the game with /start\n"
-"4. Type the bot's username into your chat box and hit <b>space</b>, or click the <code>via @the bot's username</code> text next to messages. You will see your cards (some greyed out), any extra options like drawing, and a <b>?</b> to see the current game state. The <b>greyed out cards</b> are those you <b>can not play</b> at the moment. Tap an option to execute the selected action.\n"
-"Players can join the game at any time. To leave a game, use /leave. Use /notify_me to receive a private message when a new game is started.\n"
+"4. Type the bot's username into your chat box and hit <b>space</b>, or "
+"click the <code>via @the bot's username</code> text next to messages. You "
+"will see your cards (some greyed out), any extra options like drawing, and "
+"a <b>?</b> to see the current game state. The <b>greyed out cards</b> are "
+"those you <b>can not play</b> at the moment. Tap an option to execute the "
+"selected action.\n"
+"Players can join the game at any time. To leave a game, use /leave. Use "
+"/notify_me to receive a private message when a new game is started.\n"
 "\n"
 "<b>Language</b> and other settings: /settings\n"
 "Other commands (only game creator):\n"
@@ -412,7 +517,8 @@ msgid ""
 "/open - Open lobby\n"
 "/kill - Terminate the game\n"
 "/kick - Select a player to kick by replying to him or her\n"
-"/enable_translations - Translate relevant texts into all languages spoken in a game\n"
+"/enable_translations - Translate relevant texts into all languages spoken "
+"in a game\n"
 "/disable_translations - Use English for those texts\n"
 "\n"
 msgstr ""
@@ -421,7 +527,9 @@ msgstr ""
 "1. 将这个 Bot 加进一个群\n"
 "2. 在这个群中，您可以使用 /new 创建一个新游戏，或者使用 /join 加入一个现有的游戏\n"
 "3. 当有最少两名玩家加入后，请使用 /start 开始游戏\n"
-"4. 在聊天框中输入 <code>@the bot's username</code> 并按空格键，或者点击信息旁边的 <code>via @the bot's username</code> 。您就可以看到您的手牌，以及一些像抽牌这样的选项， <b>?</b> 选项用来查看当前游戏状态。 <b>灰色的牌</b> 是您当前 <b>不可以</b> 打出的。请选择其中的一个选项。\n"
+"4. 在聊天框中输入 <code>@the bot's username</code> 并按空格键，或者点击信息旁边的 <code>via @the "
+"bot's username</code> 。您就可以看到您的手牌，以及一些像抽牌这样的选项， <b>?</b> 选项用来查看当前游戏状态。 "
+"<b>灰色的牌</b> 是您当前 <b>不可以</b> 打出的。请选择其中的一个选项。\n"
 "玩家随时可以加入游戏，如果想要离开当前的游戏，请输入 /leave 。\n"
 "\n"
 "<b>语言</b> 和其他设置： /settings \n"
@@ -432,9 +540,9 @@ msgstr ""
 "/disable_translations - 关闭翻译并使用英文\n"
 "\n"
 
-#: simple_commands.py:73
+#: simple_commands.py:70
 msgid ""
-"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
+"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
 "\n"
 " 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
 "skip.\n"
@@ -442,85 +550,79 @@ msgid ""
 "skips a player if he/she takes too long to play its turn\n"
 " 🐉 The Wild mode uses a deck with more special cards, less number variety "
 "and no auto skip.\n"
+" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
+"uses the text.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and a "
-"space, just like when playing a card, and all gamemode options should appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and "
+"a space, just like when playing a card, and all gamemode options should "
+"appear."
 msgstr ""
-"本机器人有三种游戏模式: 传统、Sanic 及野性 (Wild) 模式。\n"
-" 🎻 传统模式使用常见的 UNO 卡组，且不会自动跳过。\n"
-" 🚀 Sanic 模式使用常见的 UNO 卡组，且机器人会自动跳过闲置过久的玩家。\n"
-" 🐉 野性 (Wild) 模式使用功能牌较多、数字牌较少的卡组，并且不会自动跳过。\n"
+"这个 UNO 机器人有四种游戏模式：经典、Sanic、野性和文字。\n"
 "\n"
-"如果要切换游戏模式，游戏创建者必须输入机器人的使用者名称 + 空格，就像玩游戏那"
-"样，之后将显示出所有游戏模式选项以供选择。"
+" 🎻 经典模式使用常规 UNO 牌组，没有自动跳过。\n"
+" 🚀 Sanic 模式使用常规 UNO 牌组，如果玩家出牌时间过长，机器人会自动跳过该玩家\n"
+" 🐉 野性模式使用特殊牌更多、数字种类更少的牌组，没有自动跳过。\n"
+" ✍️ 文字模式使用常规 UNO 牌组，但用文字代替贴纸显示卡牌。\n"
+"\n"
+"要更改游戏模式，游戏创建者需要像出牌时一样输入机器人的名字和一个空格，所有游戏模式选项就会出现。"
 
-#: simple_commands.py:85
-msgid ""
-"This bot is Free Software and licensed under the AGPL. The code is available "
-"here: \n"
-"https://github.com/jh0ker/mau_mau_bot"
-msgstr ""
-"本机器人是一个在 AGPL 协议下发行的自由软件。源代码可以在这里取得：\n"
-"https://github.com/jh0ker/mau_mau_bot"
-
-#: simple_commands.py:88
-msgid ""
-"Attributions:\n"
-"Draw icon by <a href=\"http://www.faithtoken.com/\">Faithtoken</a>\n"
-"Pass icon by <a href=\"http://delapouite.com/\">Delapouite</a>\n"
-"Originals available on http://game-icons.net\n"
-"Icons edited by ɳick"
-msgstr ""
-"来源:\n"
-"抽牌图标来自 <a href=\\http://www.faithtoken.com/\\>Faithtoken</\n"
-"a>。\n"
-"跳过图标來自 <a href=\\http://delapouite.com/\\>Delapouite</a>。\n"
-"原始图标可在 http://game-icons.net 获取。\n"
-"图标由 ɳick 编辑"
-
-#: simple_commands.py:115
+#: simple_commands.py:104
 msgid ""
 "You did not enable statistics. Use /settings in a private chat with the bot "
 "to enable them."
 msgstr "您并没有启用数据统计。请私聊我发送 /settings 进行设置。"
 
-#: simple_commands.py:122
+#: simple_commands.py:111
 #, python-brace-format
 msgid "{number} game played"
 msgid_plural "{number} games played"
 msgstr[0] "玩了 {number} 盘"
 
-#: simple_commands.py:129
+#: simple_commands.py:119
 #, python-brace-format
 msgid "{number} first place ({percent}%)"
 msgid_plural "{number} first places ({percent}%)"
 msgstr[0] "赢了 {number} 盘 ({percent}%)"
 
-#: simple_commands.py:136
+#: simple_commands.py:126
 #, python-brace-format
 msgid "{number} card played"
 msgid_plural "{number} cards played"
 msgstr[0] "总共出过 {number} 张牌"
 
-#: utils.py:55 utils.py:67
+#: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format
 msgid "{emoji} Red"
 msgstr "{emoji} 红色"
 
-#: utils.py:57 utils.py:70
+#: utils.py:82 utils.py:95 utils.py:300
 #, python-brace-format
 msgid "{emoji} Blue"
 msgstr "{emoji} 蓝色"
 
-#: utils.py:59 utils.py:73
+#: utils.py:84 utils.py:98 utils.py:301
 #, python-brace-format
 msgid "{emoji} Green"
 msgstr "{emoji} 绿色"
 
-#: utils.py:61 utils.py:76
+#: utils.py:86 utils.py:101 utils.py:302
 #, python-brace-format
 msgid "{emoji} Yellow"
 msgstr "{emoji} 黄色"
 
-#~ msgid "Drawing {number} cards"
-#~ msgstr "抽取 {number} 张牌"
+#: utils.py:318
+msgid "Make your choice!"
+msgstr "请做出选择！"
+
+#: utils.py:327
+#, python-brace-format
+msgid "📥 Draw {number} cards"
+msgstr "📥 抽 {number} 张牌"
+
+#: utils.py:329
+msgid "📥 Draw card"
+msgstr "📥 抽牌"
+
+#: utils.py:332
+msgid "⏭️ Pass"
+msgstr "⏭️ 过"

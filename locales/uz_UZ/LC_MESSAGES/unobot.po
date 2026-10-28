@@ -2,13 +2,12 @@
 # This file is put in the public domain.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: uno_bot 1.0\n"
 "Report-Msgid-Bugs-To: uno@jhoeke.de\n"
-"POT-Creation-Date: 2019-08-28 14:21+0800\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"POT-Creation-Date: 2026-10-28 20:54+0000\n"
+"PO-Revision-Date: 2026-10-28 20:54+0000\n"
 "Last-Translator: Shohrux V <uno@jhoeke.de>\n"
 "Language-Team: Uzbek <uno@jhoeke.de>\n"
 "Language: uz_UZ\n"
@@ -17,21 +16,23 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: actions.py:48
+#: actions.py:51
+#, python-brace-format
+msgid "Time ran out to choose a color! Color automatically set to {color}."
+msgstr ""
+"Rang tanlash vaqti tugadi! Rang avtomatik ravishda {color} qilib belgilandi."
+
+#: actions.py:90
 #, python-brace-format
 msgid ""
 "Waiting time to skip this player has been reduced to {time} seconds.\n"
 "Next player: {name}"
 msgstr ""
-"Bu oʻyinchini oʻtkazib yuborishni kutish vaqti {time} soniyagacha qisqartirildi.\n"
+"Bu oʻyinchini oʻtkazib yuborishni kutish vaqti {time} soniyagacha "
+"qisqartirildi.\n"
 "Keyingi oʻyinchi: {name}"
 
-#: actions.py:54 actions.py:69
-#, python-brace-format
-msgid "{player} was skipped! "
-msgstr "{player} oʻtkazib yuborildi!"
-
-#: actions.py:64
+#: actions.py:108
 #, python-brace-format
 msgid ""
 "{name1} ran out of time and has been removed from the game!\n"
@@ -40,7 +41,7 @@ msgstr ""
 "{name1}ning vaqti tugadi va oʻyindan olib tashlandi!\n"
 "Keyingi oʻyinchi: {name2}"
 
-#: actions.py:76
+#: actions.py:123
 #, python-brace-format
 msgid ""
 "{name} ran out of time and has been removed from the game!\n"
@@ -49,125 +50,178 @@ msgstr ""
 "{name}ning vaqti tugadi va oʻyindan olib tashlandi!\n"
 "Oʻyin tugadi."
 
-#: actions.py:101
-msgid "Please choose a color"
-msgstr "Iltimos, rang tanlang"
-
-#: actions.py:108
+#: actions.py:143 actions.py:183
 #, python-brace-format
 msgid "{name} won!"
 msgstr "{name} goʻlib bo'ldi!"
 
-#: actions.py:123 bot.py:119 bot.py:199 bot.py:261 bot.py:340
+#: actions.py:158 bot.py:197 bot.py:290 bot.py:374 bot.py:726
 msgid "Game ended!"
 msgstr "Oʻyin tugadi!"
 
-#: actions.py:141 actions.py:165 actions.py:179
+#: actions.py:208
+msgid "The game ended without a winner."
+msgstr "Oʻyin gʻolibsiz tugadi."
+
+#: actions.py:228
+msgid ""
+"The player facing the draw penalty left the game, so it was cancelled."
+msgstr ""
+"Jarima kartalarini olishi kerak boʻlgan oʻyinchi oʻyindan chiqib ketdi, "
+"shuning uchun jarima bekor qilindi."
+
+#: actions.py:254 actions.py:362
+msgid ""
+"The player who played the +4 left the game, so its penalty is cancelled."
+msgstr ""
+"+4 kartasini oʻynagan oʻyinchi oʻyindan chiqib ketdi, shuning uchun uning "
+"jarimasi bekor qilindi."
+
+#: actions.py:301
+#, python-brace-format
+msgid "Winning card was Wild! Color set to {color}."
+msgstr "Gʻolib karta Wild edi! Rang {color} qilib belgilandi."
+
+#: actions.py:314
+msgid "Please choose a color"
+msgstr "Iltimos, rang tanlang"
+
+#: actions.py:329 actions.py:384 actions.py:400
 msgid "There are no more cards in the deck."
 msgstr "Toʻplamda boshqa kartalar yoʻq."
 
-#: actions.py:157
+#: actions.py:376
 #, python-brace-format
 msgid "Bluff called! Giving 4 cards to {name}"
 msgstr "Soxta chaqiruv! {name}ga 4 ta karta berilmoqda"
 
-#: actions.py:171
+#: actions.py:392
 #, python-brace-format
 msgid "{name1} didn't bluff! Giving 6 cards to {name2}"
 msgstr "{name1} soxta emas! {name2}ga 6 ta karta berilmoqda"
 
-#: bot.py:60
+#: bot.py:136
 msgid ""
-"Send this command in a group to be notified when a new game is started there."
-msgstr "Bu buyruqni guruhga yuboring va u yerda yangi oʻyin boshlanganda xabardor boʻling."
+"Send this command in a group to be notified when a new game is started "
+"there."
+msgstr ""
+"Bu buyruqni guruhga yuboring va u yerda yangi oʻyin boshlanganda xabardor "
+"boʻling."
 
-#: bot.py:83
+#: bot.py:159
 #, python-brace-format
 msgid "A new game has been started in {title}"
 msgstr "{title} oʻyinida yangi oʻyin boshlandi"
 
-#: bot.py:93
+#: bot.py:170
 msgid ""
 "Created a new game! Join the game with /join and start the game with /start"
-msgstr "Yangi oʻyin yaratildi! Oʻyinga /join bilan qoʻshiling va oʻyinni /start bilan boshlang"
+msgstr ""
+"Yangi oʻyin yaratildi! Oʻyinga /join bilan qoʻshiling va oʻyinni /start "
+"bilan boshlang"
 
-#: bot.py:110 bot.py:433 bot.py:461 bot.py:488 bot.py:516
+#: bot.py:188 bot.py:543 bot.py:859 bot.py:889 bot.py:918 bot.py:948
 msgid "There is no running game in this chat."
 msgstr "Bu chatda hech qanday oʻynadigan oʻyin yoʻq."
 
-#: bot.py:123 bot.py:239
+#: bot.py:201 bot.py:343
 msgid ""
 "The game is not started yet. Join the game with /join and start the game "
 "with /start"
-msgstr "O'yin hali boshlanmadi. Oʻyinga /join bilan qoʻshiling va oʻyinni "
-"/start bilan boshlang"
+msgstr ""
+"O'yin hali boshlanmadi. Oʻyinga /join bilan qoʻshiling va oʻyinni /start "
+"bilan boshlang"
 
-#: bot.py:129 bot.py:281 bot.py:446 bot.py:473 bot.py:501 bot.py:530
+#: bot.py:207 bot.py:406 bot.py:873 bot.py:902 bot.py:932 bot.py:963
 #, python-brace-format
 msgid "Only the game creator ({name}) and admin can do that."
 msgstr "Buni faqat oʻyin yaratuvchisi ({name}) va administrator qila oladi."
 
-#: bot.py:146
+#: bot.py:224
 msgid "The lobby is closed"
 msgstr "Lobbi yopiq"
 
-#: bot.py:150 bot.py:232
-msgid "No game is running at the moment. Create a new game with /new"
-msgstr "Hozirda hech qanday oʻyin ishlamayapti. /new bilan yangi oʻyin yarating"
+#: bot.py:228
+msgid "The game is full."
+msgstr "Oʻyin toʻla."
 
-#: bot.py:156
+#: bot.py:233
+msgid "You left this game, so you can't join it again."
+msgstr ""
+"Siz bu oʻyindan chiqqansiz, shuning uchun unga qayta qoʻshila olmaysiz."
+
+#: bot.py:238 bot.py:336
+msgid "No game is running at the moment. Create a new game with /new"
+msgstr ""
+"Hozirda hech qanday oʻyin ishlamayapti. /new bilan yangi oʻyin yarating"
+
+#: bot.py:244
 msgid "You already joined the game. Start the game with /start"
 msgstr "Siz allaqachon oʻyinga qoʻshilgansiz. Oʻyinni /start bilan boshlang"
 
-#: bot.py:162
+#: bot.py:250
 msgid "There are not enough cards left in the deck for new players to join."
-msgstr "Yangi oʻyinchilar qoʻshilishi uchun toʻplamda yetarlicha kartalar qolmadi."
+msgstr ""
+"Yangi oʻyinchilar qoʻshilishi uchun toʻplamda yetarlicha kartalar qolmadi."
 
-#: bot.py:168
+#: bot.py:256
 msgid "Joined the game"
 msgstr "Oʻyinga qoʻshildi"
 
-#: bot.py:181 bot.py:193
+#: bot.py:269 bot.py:283
 msgid "You are not playing in a game in this group."
 msgstr "Siz ushbu guruhdagi oʻyinda oʻynamayapsiz."
 
-#: bot.py:204 bot.py:274
+#: bot.py:295 bot.py:382 bot.py:734
+#, python-brace-format
+msgid ""
+"Player left while choosing a color! Color automatically set to {color}."
+msgstr ""
+"Oʻyinchi rang tanlayotganda chiqib ketdi! Rang avtomatik ravishda {color} "
+"qilib belgilandi."
+
+#: bot.py:304 bot.py:396
 #, python-brace-format
 msgid "Okay. Next Player: {name}"
 msgstr "Yaxshi. Keyingi oʻyinchi: {name}"
 
-#: bot.py:210
+#: bot.py:313
 #, python-brace-format
 msgid "{name} left the game before it started."
 msgstr "{name} oʻyin boshlanishidan oldin oʻyinni tark etdi."
 
-#: bot.py:253
+#: bot.py:360
 #, python-brace-format
 msgid "Player {name} is not found in the current game."
 msgstr "{name} oʻyinchisi joriy oʻyinda topilmadi."
 
-#: bot.py:260 bot.py:265
+#: bot.py:366 bot.py:378
 #, python-brace-format
 msgid "{0} was kicked by {1}"
 msgstr "{0}ni {1} tepdi"
 
-#: bot.py:269
+#: bot.py:391
 msgid "Please reply to the person you want to kick and type /kick again."
-msgstr "Iltimos, tepmoqchi boʻlgan odamga javob bering va yana /kick ni kiriting."
+msgstr ""
+"Iltimos, tepmoqchi boʻlgan odamga javob bering va yana /kick ni kiriting."
 
-#: bot.py:299
-msgid "Game not found."
-msgstr "Oʻyin topilmadi."
+#: bot.py:422 bot.py:559 bot.py:613
+msgid "This button is no longer valid."
+msgstr "Bu tugma endi yaroqsiz."
 
-#: bot.py:304
-msgid "Back to last group"
-msgstr "Oxirgi guruhga qaytish"
-
-#: bot.py:307
+#: bot.py:433
 msgid "Please switch to the group you selected!"
 msgstr "Iltimos, siz tanlagan guruhga oʻting!"
 
-#: bot.py:313
+#: bot.py:460
+msgid "Game not found."
+msgstr "Oʻyin topilmadi."
+
+#: bot.py:466
+msgid "Back to last group"
+msgstr "Oxirgi guruhga qaytish"
+
+#: bot.py:470
 #, python-brace-format
 msgid ""
 "Selected group: {group}\n"
@@ -176,92 +230,150 @@ msgstr ""
 "Tanlangan guruh: {group}\n"
 "<b>Toʻgʻri guruhga oʻtganingizga ishonch hosil qiling!</b>"
 
-#: bot.py:343
+#: bot.py:564 bot.py:618
+msgid "It's not your turn!"
+msgstr "Hozir sizning navbatingiz emas!"
+
+#: bot.py:574
+#, python-brace-format
+msgid "🎨 {name} chose {color}."
+msgstr "🎨 {name} {color} rangini tanladi."
+
+#: bot.py:589 bot.py:1164
+#, python-brace-format
+msgid "Starting color set to {color}!\n"
+msgstr "Boshlangʻich rang {color} qilib belgilandi!\n"
+
+#: bot.py:591 bot.py:1168
+#, python-brace-format
+msgid "Color set to {color}!\n"
+msgstr "Rang {color} qilib belgilandi!\n"
+
+#: bot.py:593 bot.py:645 bot.py:667 bot.py:692 bot.py:741 bot.py:1195
+#, python-brace-format
+msgid "Next player: {name}"
+msgstr "Keyingi oʻyinchi: {name}"
+
+#: bot.py:635
+#, python-brace-format
+msgid "📥 {name} drew {number} cards."
+msgstr "📥 {name} {number} ta karta oldi."
+
+#: bot.py:639
+#, python-brace-format
+msgid "📥 {name} drew a card."
+msgstr "📥 {name} bitta karta oldi."
+
+#: bot.py:684
+#, python-brace-format
+msgid "⏭️ {name} passed."
+msgstr "⏭️ {name} navbatni oʻtkazdi."
+
+#: bot.py:729
 #, python-brace-format
 msgid "Removing {name} from the game"
 msgstr "{name} oʻyindan olib tashlanmoqda"
 
-#: bot.py:360
+#: bot.py:762
 msgid "There is no game running in this chat. Create a new one with /new"
-msgstr "Bu chatda hech qanday o‘yin ishlamayapti. /new bilan yangisini yarating"
+msgstr ""
+"Bu chatda hech qanday o‘yin ishlamayapti. /new bilan yangisini yarating"
 
-#: bot.py:365
+#: bot.py:767
 msgid "The game has already started"
 msgstr "O'yin allaqachon boshlangan"
 
-#: bot.py:369
+#: bot.py:771
 #, python-brace-format
 msgid ""
 "At least {minplayers} players must /join the game before you can start it"
 msgstr ""
-"Oʻyinni boshlashdan oldin kamida {minplayers} oʻyinchi ishtirok etishi kerak."
-"/join bosing!"
+"Oʻyinni boshlashdan oldin kamida {minplayers} oʻyinchi ishtirok etishi "
+"kerak./join bosing!"
 
-#: bot.py:380
-#, python-brace-format, fuzzy
+#: bot.py:785
+msgid "There are not enough cards in the deck for this many players."
+msgstr "Bunchalik koʻp oʻyinchi uchun dastada kartalar yetarli emas."
+
+#: bot.py:791
+#, python-brace-format
+msgid ""
+"First card is Wild!\n"
+"First player: {name}\n"
+"Please choose the starting color.\n"
+"Use /close to stop people from joining the game.\n"
+"Enable multi-translations with /enable_translations"
+msgstr ""
+"Birinchi karta Wild!\n"
+"Birinchi oʻyinchi: {name}\n"
+"Iltimos, boshlangʻich rangni tanlang.\n"
+"Odamlarning oʻyinga qoʻshilishini toʻxtatish uchun /close dan foydalaning.\n"
+"/enable_translations bilan koʻp tilli tarjimani yoqing"
+
+#: bot.py:801
+#, python-brace-format
 msgid ""
 "First player: {name}\n"
 "Use /close to stop people from joining the game.\n"
 "Enable multi-translations with /enable_translations"
 msgstr ""
 "Birinchi o'yinchi: {name}\n"
-"Odamlarning oʻyinga qoʻshilishini toʻxtatish uchun /close tugmasidan foydalaning.\n"
+"Odamlarning oʻyinga qoʻshilishini toʻxtatish uchun /close tugmasidan "
+"foydalaning.\n"
 "/enable_translations Koʻp tarjimalar funksiyasini yoqing"
 
-#: bot.py:417
+#: bot.py:842
 msgid "Please select the group you want to play in."
 msgstr "Iltimos, oʻynamoqchi boʻlgan guruhni tanlang."
 
-#: bot.py:440
+#: bot.py:867
 msgid "Closed the lobby. No more players can join this game."
 msgstr "Lobbi yopildi. Bu oʻyinga boshqa oʻyinchilar qoʻshila olmaydi."
 
-#: bot.py:468
+#: bot.py:897
 msgid "Opened the lobby. New players may /join the game."
 msgstr "Lobbi ochildi. Yangi o'yinchilar o'yinga qo'shilishlari mumkin."
 
-#: bot.py:495
+#: bot.py:926
 msgid "Enabled multi-translations. Disable with /disable_translations"
-msgstr "Ko'p tarjimalar funksiyasi yoqilgan. Uni o'chirish uchun /disable_translations tugmani bosing"
+msgstr ""
+"Ko'p tarjimalar funksiyasi yoqilgan. Uni o'chirish uchun "
+"/disable_translations tugmani bosing"
 
-#: bot.py:523
+#: bot.py:956
 msgid ""
 "Disabled multi-translations. Enable them again with /enable_translations"
 msgstr ""
-"Ko'p tarjimalar funksiyasi o'chirilgan. /enable_translations bilan ularni yana yoqing"
+"Ko'p tarjimalar funksiyasi o'chirilgan. /enable_translations bilan ularni "
+"yana yoqing"
 
-#: bot.py:546
+#: bot.py:979
 msgid "You are not playing in a game in this chat."
 msgstr "Siz bu chatdagi oʻyinda oʻynamayapsiz."
 
-#: bot.py:561
+#: bot.py:995
 #, python-brace-format
 msgid "Please wait {time} second"
 msgid_plural "Please wait {time} seconds"
 msgstr[0] "Iltimos, {time} soniya kuting"
 msgstr[1] "Iltimos, {time} soniya kuting"
 
-#: bot.py:637
+#: bot.py:1075
 #, python-brace-format
 msgid "Current game: {game}"
 msgstr "Joriy oʻyin: {game}"
 
-#: bot.py:672
+#: bot.py:1127
 #, python-brace-format
 msgid "Gamemode changed to {mode}"
 msgstr "Oʻyin rejimi {mode}ga oʻzgartirildi"
 
-#: bot.py:678
+#: bot.py:1183
 #, python-brace-format
-msgid "Cheat attempt by {name}"
-msgstr "{name} tomonidan firibgarlik urinishi"
+msgid "{name}, please choose a color:"
+msgstr "{name}, iltimos, rang tanlang:"
 
-#: bot.py:697
-#, python-brace-format
-msgid "Next player: {name}"
-msgstr "Keyingi oʻyinchi: {name}"
-
-#: bot.py:709
+#: bot.py:1234
 #, python-brace-format
 msgid "Waiting time for {name} has been reset to {time} seconds"
 msgstr "{name} uchun kutish vaqti {time} soniyaga qaytarildi"
@@ -289,11 +401,11 @@ msgstr "Siz oʻynamayapsiz"
 
 #: results.py:78
 msgid ""
-"Not playing right now. Use /new to start a game or /join to join the current "
-"game in this group"
+"Not playing right now. Use /new to start a game or /join to join the "
+"current game in this group"
 msgstr ""
-"Hozir oʻynamayapti. Oʻyinni boshlash uchun /new tugmasidan foydalaning"
-"yoki ushbu guruhdagi joriy oʻyinga qoʻshiling."
+"Hozir oʻynamayapti. Oʻyinni boshlash uchun /new tugmasidan foydalaningyoki "
+"ushbu guruhdagi joriy oʻyinga qoʻshiling."
 
 #: results.py:90
 msgid "The game wasn't started yet"
@@ -327,71 +439,79 @@ msgstr "🐉 Wild rejimi"
 msgid "Into the Wild~ 🐉"
 msgstr "Wild tabiatga~ 🐉"
 
-#: results.py:141
+#: results.py:138
+msgid "✍️ Text mode"
+msgstr "✍️ Matn rejimi"
+
+#: results.py:140
+msgid "Text ✍️"
+msgstr "Matn ✍️"
+
+#: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
 msgid_plural "Drawing {number} cards"
 msgstr[0] "{number} ta karta koʻtarildi"
 msgstr[1] "{number} ta karta koʻtarildi"
 
-#: results.py:167
+#: results.py:179
 msgid "Pass"
 msgstr "Oʻtish"
 
-#: results.py:180
+#: results.py:192
 msgid "I'm calling your bluff!"
 msgstr "Men sizning soxtaligingizni chaqiraman!"
 
-#: results.py:203
+#: results.py:220
 #, python-brace-format
 msgid "Current player: {name}"
 msgstr "Joriy oʻyinchi: {name}"
 
-#: results.py:206
+#: results.py:223
 #, python-brace-format
 msgid "Last card: {card}"
 msgstr "Oxirgi karta: {card}"
 
-#: results.py:208
+#: results.py:225
 #, python-brace-format
 msgid "Player: {player_list}"
 msgid_plural "Players: {player_list}"
 msgstr[0] "Oʻyinchi: {player_list}"
 msgstr[1] "Oʻyinchi: {player_list}"
 
-#: settings.py:37
+#: settings.py:44
 msgid "Please edit your settings in a private chat with the bot."
 msgstr "Iltimos, sozlamalaringizni bot bilan shaxsiy chatda tahrirlang."
 
-#: settings.py:47
+#: settings.py:51
 msgid "Enable statistics"
 msgstr "Statistikani yoqing"
 
-#: settings.py:49
+#: settings.py:53
 msgid "Delete all statistics"
 msgstr "Barcha statistikani o'chirib tashlang"
 
-#: settings.py:51
+#: settings.py:55
 msgid "Language"
 msgstr "Til"
 
-#: settings.py:52
+#: settings.py:56
 msgid "Settings"
 msgstr "Sozlamalar"
 
-#: settings.py:66
+#: settings.py:70
 msgid "Enabled statistics!"
 msgstr "Statistika yoqilgan"
 
-#: settings.py:72
+#: settings.py:76
 msgid "Select locale"
 msgstr "Mahalliy tilni tanlang"
 
-#: settings.py:82
+#: settings.py:86
 msgid "Deleted and disabled statistics!"
 msgstr "Statistika o'chirilgan!"
 
-#: settings.py:95
+#: settings.py:99
 msgid "Set locale!"
 msgstr "Mahalliy til sozlang!"
 
@@ -400,10 +520,17 @@ msgid ""
 "Follow these steps:\n"
 "\n"
 "1. Add this bot to a group\n"
-"2. In the group, start a new game with /new or join an already running game with /join\n"
+"2. In the group, start a new game with /new or join an already running game "
+"with /join\n"
 "3. After at least two players have joined, start the game with /start\n"
-"4. Type the bot's username into your chat box and hit <b>space</b>, or click the <code>via @the bot's username</code> text next to messages. You will see your cards (some greyed out), any extra options like drawing, and a <b>?</b> to see the current game state. The <b>greyed out cards</b> are those you <b>can not play</b> at the moment. Tap an option to execute the selected action.\n"
-"Players can join the game at any time. To leave a game, use /leave. Use /notify_me to receive a private message when a new game is started.\n"
+"4. Type the bot's username into your chat box and hit <b>space</b>, or "
+"click the <code>via @the bot's username</code> text next to messages. You "
+"will see your cards (some greyed out), any extra options like drawing, and "
+"a <b>?</b> to see the current game state. The <b>greyed out cards</b> are "
+"those you <b>can not play</b> at the moment. Tap an option to execute the "
+"selected action.\n"
+"Players can join the game at any time. To leave a game, use /leave. Use "
+"/notify_me to receive a private message when a new game is started.\n"
 "\n"
 "<b>Language</b> and other settings: /settings\n"
 "Other commands (only game creator):\n"
@@ -411,30 +538,41 @@ msgid ""
 "/open - Open lobby\n"
 "/kill - Terminate the game\n"
 "/kick - Select a player to kick by replying to him or her\n"
-"/enable_translations - Translate relevant texts into all languages spoken in a game\n"
+"/enable_translations - Translate relevant texts into all languages spoken "
+"in a game\n"
 "/disable_translations - Use English for those texts\n"
 "\n"
 msgstr ""
 "Quyidagi amallarni bajaring:\n"
 "\n"
 "1. Ushbu botni guruhga qo'shing\n"
-"2. Guruhda /new bilan yangi o‘yinni boshlang yoki /join bilan allaqachon ishlayotgan o‘yinga qo‘shiling\n"
-"3. Kamida ikkita o‘yinchi qo‘shilgandan so‘ng, o‘yinni /start bilan boshlang\n"
-"4. Chat maydoniga <code>@the bot's username</code> so‘zini kiriting va <b>bo‘sh joy</b> tugmasini bosingyoki xabarlar yonidagi <code>@the bot's username orqali</code> matnni bosing.Siz kartalaringizni (ba'zilari kul rangda), koʻtarish kabi qoʻshimchavariantlarni va <b>?</b> joriy oʻyin holatini koʻrish uchun.<b>Kulrang kartalar</b> - bu siz <b>hozir oʻynay olmaydigan</b> kartalar.Tanlangan amalni bajarish uchun variantni bosing.\n"
-"Oʻyinchilar oʻyinga istalgan vaqtda qoʻshilishlari mumkin.Oʻyinni tark etish uchun /leave dan foydalaning.Yangi oʻyin boshlanganda shaxsiy xabar olish uchun /notify_me dan foydalaning.\n"
+"2. Guruhda /new bilan yangi o‘yinni boshlang yoki /join bilan allaqachon "
+"ishlayotgan o‘yinga qo‘shiling\n"
+"3. Kamida ikkita o‘yinchi qo‘shilgandan so‘ng, o‘yinni /start bilan "
+"boshlang\n"
+"4. Chat maydoniga <code>@the bot's username</code> so‘zini kiriting va "
+"<b>bo‘sh joy</b> tugmasini bosingyoki xabarlar yonidagi <code>@the bot's "
+"username orqali</code> matnni bosing.Siz kartalaringizni (ba'zilari kul "
+"rangda), koʻtarish kabi qoʻshimchavariantlarni va <b>?</b> joriy oʻyin "
+"holatini koʻrish uchun.<b>Kulrang kartalar</b> - bu siz <b>hozir oʻynay "
+"olmaydigan</b> kartalar.Tanlangan amalni bajarish uchun variantni bosing.\n"
+"Oʻyinchilar oʻyinga istalgan vaqtda qoʻshilishlari mumkin.Oʻyinni tark "
+"etish uchun /leave dan foydalaning.Yangi oʻyin boshlanganda shaxsiy xabar "
+"olish uchun /notify_me dan foydalaning.\n"
 "\n"
 "Til va boshqa sozlamalar: /settings\n"
 "Boshqa buyruqlar (faqat oʻyin yaratuvchisi uchun):/close - Lobbini yopish\n"
 "/open - Lobbini ochish\n"
 "/kill - Oʻyinni tugatish\n"
 "/kick - Tepadigan oʻyinchiga javob berish orqali uni tanlash\n"
-"/enable_translations - Tegishli matnlarni o'yinda aytiladigan barcha tillarga tarjima qilish\n"
+"/enable_translations - Tegishli matnlarni o'yinda aytiladigan barcha "
+"tillarga tarjima qilish\n"
 "/disable_translations - Ushbu matnlar uchun ingliz tilidan foydalaning\n"
 "\n"
 
-#: simple_commands.py:73
+#: simple_commands.py:70
 msgid ""
-"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
+"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
 "\n"
 " 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
 "skip.\n"
@@ -442,93 +580,91 @@ msgid ""
 "skips a player if he/she takes too long to play its turn\n"
 " 🐉 The Wild mode uses a deck with more special cards, less number variety "
 "and no auto skip.\n"
+" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
+"uses the text.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and a "
-"space, just like when playing a card, and all gamemode options should appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and "
+"a space, just like when playing a card, and all gamemode options should "
+"appear."
 msgstr ""
-"Ushbu UNO boti uchta o'yin rejimiga ega: Klassik, Sanik va Wild.\n"
+"Bu UNO botida toʻrtta oʻyin rejimi bor: Klassik, Sanik, Wild va Matn.\n"
 "\n"
-"🎻 Klassik rejim an'anaviy UNO toʻplamdan foydalanadi"
-"va avtomatik oʻtkazib yuborish yoʻq.\n"
-"🚀 Sanik rejimi an'anaviy UNO toʻplamdan foydalanadi"
-"va agar oʻyinchi oʻz navbatini oʻynash uchun juda uzoq vaqt"
-"talab qilsa, bot avtomatik ravishda uni oʻtkazib yuboradi.\n"
-"🐉 Wild rejim koʻproq maxsus kartalar, kamroq raqam turlari"
-"va avtomatik oʻtkazib yuborishsiz toʻplamdan foydalanadi."
+" 🎻 Klassik rejim oddiy UNO dastasidan foydalanadi va avtomatik oʻtkazib "
+"yuborish yoʻq.\n"
+" 🚀 Sanik rejimi oddiy UNO dastasidan foydalanadi va oʻyinchi navbatini "
+"oʻynashga juda koʻp vaqt sarflasa, bot uni avtomatik ravishda oʻtkazib "
+"yuboradi\n"
+" 🐉 Wild rejimi koʻproq maxsus kartalar va kamroq raqam turlariga ega "
+"dastadan foydalanadi, avtomatik oʻtkazib yuborish yoʻq.\n"
+" ✍️ Matn rejimi oddiy UNO dastasidan foydalanadi, lekin stikerlar oʻrniga "
+"kartalarni matn shaklida koʻrsatadi.\n"
 "\n"
-"Oʻyin rejimini oʻzgartirish uchun GAME CREATOR xuddi karta oʻynayotganda"
-"boʻlgani kabi bot nikini va boʻsh joyni kiritishi kerak va oʻyin"
-"rejimining barcha variantlari paydo boʻlishi kerak."
+"Oʻyin rejimini oʻzgartirish uchun OʻYIN YARATUVCHISI xuddi karta "
+"oʻynagandek bot nomini va boʻsh joy yozishi kerak, shunda barcha oʻyin "
+"rejimi variantlari paydo boʻladi."
 
-#: simple_commands.py:85
-msgid ""
-"This bot is Free Software and licensed under the AGPL. The code is available "
-"here: \n"
-"https://github.com/jh0ker/mau_mau_bot"
-msgstr ""
-"Bu bot bepul dasturiy ta'minot bo'lib, AGPL litsenziyasiga ega."
-"Kodni bu yerda topishingiz mumkin: \n"
-"https://github.com/jh0ker/mau_mau_bot"
-
-#: simple_commands.py:88
-msgid ""
-"Attributions:\n"
-"Draw icon by <a href=\"http://www.faithtoken.com/\">Faithtoken</a>\n"
-"Pass icon by <a href=\"http://delapouite.com/\">Delapouite</a>\n"
-"Originals available on http://game-icons.net\n"
-"Icons edited by ɳick"
-msgstr ""
-"Yaratuvchilar:\n"
-"<a href=\"http://www.faithtoken.com/\">Faithtoken</a> tomonidan \"Draw\" belgisi\n"
-"<a href=\"http://delapouite.com/\">Delapouite</a> tomonidan \"Pass\" belgisi\n"
-"Asl http://game-icons.net da mavjud\n."
-"ɳick tomonidan tahrirlangan belgilar"
-
-#: simple_commands.py:115
+#: simple_commands.py:104
 msgid ""
 "You did not enable statistics. Use /settings in a private chat with the bot "
 "to enable them."
 msgstr ""
-"Siz statistikani yoqmagansiz. Ularni yoqish uchun bot bilan shaxsiy"
-"chatda /settings dan foydalaning."
+"Siz statistikani yoqmagansiz. Ularni yoqish uchun bot bilan shaxsiychatda "
+"/settings dan foydalaning."
 
-#: simple_commands.py:122
+#: simple_commands.py:111
 #, python-brace-format
 msgid "{number} game played"
 msgid_plural "{number} games played"
 msgstr[0] "{number} oʻyini oʻynaldi"
 msgstr[1] "{number} oʻyini oʻynaldi"
 
-#: simple_commands.py:129
+#: simple_commands.py:119
 #, python-brace-format
 msgid "{number} first place ({percent}%)"
 msgid_plural "{number} first places ({percent}%)"
 msgstr[0] "{number} birinchi oʻrin ({percent}%)"
 msgstr[1] "{number} birinchi oʻrin ({percent}%)"
 
-#: simple_commands.py:136
+#: simple_commands.py:126
 #, python-brace-format
 msgid "{number} card played"
 msgid_plural "{number} cards played"
 msgstr[0] "{number} ta karta oʻynadi"
 msgstr[1] "{number} ta karta oʻynadi"
 
-#: utils.py:55 utils.py:67
+#: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format
 msgid "{emoji} Red"
 msgstr "{emoji} Qizil"
 
-#: utils.py:57 utils.py:70
+#: utils.py:82 utils.py:95 utils.py:300
 #, python-brace-format
 msgid "{emoji} Blue"
 msgstr "{emoji} Koʻk"
 
-#: utils.py:59 utils.py:73
+#: utils.py:84 utils.py:98 utils.py:301
 #, python-brace-format
 msgid "{emoji} Green"
 msgstr "{emoji} Yashil"
 
-#: utils.py:61 utils.py:76
+#: utils.py:86 utils.py:101 utils.py:302
 #, python-brace-format
 msgid "{emoji} Yellow"
 msgstr "{emoji} Sariq"
+
+#: utils.py:318
+msgid "Make your choice!"
+msgstr "Tanlovingizni qiling!"
+
+#: utils.py:327
+#, python-brace-format
+msgid "📥 Draw {number} cards"
+msgstr "📥 {number} ta karta olish"
+
+#: utils.py:329
+msgid "📥 Draw card"
+msgstr "📥 Karta olish"
+
+#: utils.py:332
+msgid "⏭️ Pass"
+msgstr "⏭️ Oʻtish"
