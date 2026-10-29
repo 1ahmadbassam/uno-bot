@@ -92,6 +92,18 @@ def biggest_leads(results, a_id, b_id):
     return leads
 
 
+def best_win_shares(results, a_id, b_id):
+    """{player id: (best_wins, total_games)}"""
+    best = {a_id: (0, 1), b_id: (0, 1)}
+    for _, a, b in running_scores(results, a_id, b_id):
+        total = a + b
+        for pid, wins in ((a_id, a), (b_id, b)):
+            best_w, best_n = best[pid]
+            if wins * best_n > best_w * total or (wins > 0 and wins * best_n == best_w * total):
+                best[pid] = (wins, total)
+    return best
+
+
 def most_wins_in_a_day(results, tz):
     """{player id: (wins, local date)}"""
     per_day = Counter((r.winner_id, to_local(r.ended_at, tz).date()) for r in results)
@@ -237,12 +249,26 @@ def score_text(rivals, title, results, tz, now, all_results=None, show_periods=F
               "Longest streak: " + rivals.pair(longest, first, second)]
 
     leads = biggest_leads(results, rivals.a_id, rivals.b_id)
+    bests = best_win_shares(results, rivals.a_id, rivals.b_id)
     best_days = most_wins_in_a_day(results, tz)
     forfeits = Counter(r.winner_id for r in results if r.outcome == 'forfeit')
+    share_values = {pid: ("%.1f%% (%d game%s)" %
+                          (percent(bests[pid][0], bests[pid][1]),
+                           bests[pid][1], "" if bests[pid][1] == 1 else "s"))
+                    for pid in (first, second)}
+    ratio_first = ratio(bests[first][0], bests[first][1] - bests[first][0])
+    ratio_second = ratio(bests[second][0], bests[second][1] - bests[second][0])
+    ratio_line = ("Best ratio: %s/%s %s (%d game%s) · %s/%s %s (%d game%s)" %
+                  (rivals.name(first), rivals.name(second), ratio_first,
+                   bests[first][1], "" if bests[first][1] == 1 else "s",
+                   rivals.name(second), rivals.name(first), ratio_second,
+                   bests[second][1], "" if bests[second][1] == 1 else "s"))
     day_values = {pid: ("%d (%s)" % (best_days[pid][0], best_days[pid][1].strftime('%d %b %Y'))
                         if pid in best_days else "0") for pid in (first, second)}
     lines += ["", "<b>Records</b>",
               "Biggest lead: " + rivals.pair(leads, first, second, "+{}"),
+              "Best win share: " + rivals.pair(share_values, first, second),
+              ratio_line,
               "Most wins in a day: " + rivals.pair(day_values, first, second),
               "Forfeit wins: " + rivals.pair(forfeits, first, second)]
 

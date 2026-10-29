@@ -141,6 +141,26 @@ class TestStats(unittest.TestCase):
         self.assertIn("A A A I", text)
         self.assertIn("Average length: 5m 00s", text)
         self.assertIn("Periods", text)
+        self.assertIn("Best win share: Alice 100.0% (3 games) · Ivan 25.0% (4 games)", text)
+        self.assertIn("Best ratio: Alice/Ivan ∞ (3 games) · Ivan/Alice 0.33 (4 games)", text)
+
+    def test_best_win_shares_and_ratios(self):
+        rows = results([A, A, I, I, I, A])
+        bests = rs.best_win_shares(rows, A, I)
+        self.assertEqual(bests[A], (2, 2))
+        self.assertEqual(bests[I], (3, 5))
+
+        # Single game: singular "(1 game)"
+        single = results([A])
+        single_text = rs.score_text(self.rivals, "Season 2026", single, BEIRUT, datetime.now(timezone.utc))
+        self.assertIn("Best win share: Alice 100.0% (1 game) · Ivan 0.0% (1 game)", single_text)
+        self.assertIn("Best ratio: Alice/Ivan ∞ (1 game) · Ivan/Alice 0.00 (1 game)", single_text)
+
+        # Leader first when Ivan is ahead
+        ivan_ahead = results([I, I, A])
+        ahead_text = rs.score_text(self.rivals, "Season 2026", ivan_ahead, BEIRUT, datetime.now(timezone.utc))
+        self.assertIn("Best win share: Ivan 100.0% (2 games) · Alice 33.3% (3 games)", ahead_text)
+        self.assertIn("Best ratio: Ivan/Alice ∞ (2 games) · Alice/Ivan 0.50 (3 games)", ahead_text)
 
     def test_score_text_without_games(self):
         self.assertIn("No games recorded yet", rs.score_text(self.rivals, "S", [], BEIRUT, datetime.now(timezone.utc)))
