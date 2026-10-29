@@ -59,6 +59,7 @@ if 'pony' not in sys.modules:
         po.PrimaryKey = lambda *args, **kwargs: None
         po.Required = lambda *args, **kwargs: None
         po.Optional = lambda *args, **kwargs: None
+        po.LongStr = str
         p.orm = po
         sys.modules['pony'] = p
         sys.modules['pony.orm'] = po

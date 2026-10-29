@@ -120,6 +120,7 @@ class GameManager(object):
             'left_users': sorted(getattr(game, 'left_users', set())),
             'started_at': game.started_at.isoformat() if getattr(game, 'started_at', None) else None,
             'turns': getattr(game, 'turns', 0),
+            'rivalry_log': getattr(game, 'rivalry_log', None),
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
 
@@ -144,6 +145,7 @@ class GameManager(object):
         game.left_users = set(data.get('left_users') or [])
         game.started_at = datetime.fromisoformat(data['started_at']) if data.get('started_at') else None
         game.turns = data.get('turns', 0)
+        game.rivalry_log = data.get('rivalry_log')
         game.job = None
 
         for player_data in data.get('players', []):

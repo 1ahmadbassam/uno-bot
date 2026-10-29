@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
-from pony.orm import Optional, PrimaryKey, Required
+from pony.orm import LongStr, Optional, PrimaryKey, Required
 
 from database import db
 
@@ -27,3 +27,10 @@ class RivalryMatch(db.Entity):
     loser_cards_left = Optional(int)
     chat_id = Optional(int, size=64)
     message_id = Optional(int, size=64)  # The pinned score message
+
+
+class RivalryGameLog(db.Entity):
+    """The turn-by-turn log (rivalry_log.py) of a game the bot hosted, as JSON"""
+    id = PrimaryKey(int, auto=True)
+    match_id = Required(int, unique=True)
+    events = Required(LongStr)

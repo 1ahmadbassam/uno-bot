@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 
 from deck import Deck, csprng
 import card as c
+import rivalry_log
 from errors import DeckEmptyError
 
 class Game(object):
@@ -52,6 +53,7 @@ class Game(object):
         self.last_bluffer = None
         self.started_at = None  # UTC
         self.turns = 0
+        self.rivalry_log = None  # See rivalry_log.py
         # Users who left (or were removed from) this game after it started;
         # they can't rejoin it for a fresh hand
         self.left_users = set()
@@ -140,9 +142,11 @@ class Game(object):
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
             self.last_card.color = csprng.choice(c.COLORS)
+            rivalry_log.color(self, self.current_player, self.last_card.color, auto=True)
         self.current_player = self.current_player.next
         self.current_player.drew = False
         self.current_player.turn_started = datetime.now()
+        rivalry_log.turn(self)
         self.choosing_color = False
         self.opening_color_choice = False
 
@@ -218,9 +222,10 @@ class Game(object):
             self.logger.debug("Choosing Color...")
             self.choosing_color = True
 
-    def choose_color(self, color):
-        """Carries out the color choosing and turns the game"""
+    def choose_color(self, color, auto=False):
+        """Carries out the color choosing and turns the game; `auto`: the bot picked it"""
         self.touch()
+        rivalry_log.color(self, self.current_player, color, auto)
         self.last_card.color = color
         self.choosing_color = False
         if getattr(self, 'opening_color_choice', False):

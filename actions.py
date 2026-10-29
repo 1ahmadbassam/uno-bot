@@ -2,6 +2,7 @@ import logging
 
 import card as c
 import rivalry
+import rivalry_log
 from datetime import datetime
 from deck import csprng
 
@@ -39,11 +40,13 @@ def do_skip(bot, player, job_queue=None):
                     display_name(player.user), display_name(skipped_player.user))
         return
 
+    rivalry_log.timed_out(game, skipped_player)
     # A player who timed out while choosing a color already played their card;
     # any draw counter is the next player's penalty, not theirs.
     was_choosing = game.choosing_color or (game.last_card and not game.last_card.color)
     if was_choosing:
         auto_color = csprng.choice(c.COLORS)
+        rivalry_log.color(game, skipped_player, auto_color, auto=True)
         game.last_card.color = auto_color
         game.choosing_color = False
         game.opening_color_choice = False
@@ -73,10 +76,12 @@ def do_skip(bot, player, job_queue=None):
         draw_counter = game.draw_counter
         if was_choosing:
             game.draw_counter = 0
+        before = len(skipped_player.cards)
         try:
             skipped_player.draw()
         except DeckEmptyError:
             pass
+        rivalry_log.drew(game, skipped_player, before, 'time')
         if was_choosing:
             game.draw_counter = draw_counter
         elif draw_counter and game.last_card.special == c.DRAW_FOUR:
@@ -248,9 +253,11 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
 def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     """Plays the selected card and sends an update to the group if needed"""
     card = c.from_str(result_id)
+    think = rivalry_log.think_time(player.game, player)
     player.play(card)
     game = player.game
     chat = game.chat
+    rivalry_log.played(game, player, card, think)
 
     if card.special == c.DRAW_FOUR:
         game.last_bluffer = player
@@ -263,7 +270,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
         # so remaining players can continue without deadlock
         if game.choosing_color:
             auto_color = csprng.choice(c.COLORS)
-            game.choose_color(auto_color)
+            game.choose_color(auto_color, auto=True)
             send_async(bot, chat.id,
                        text=__("Winning card was Wild! Color set to {color}.",
                                multi=game.translate)
@@ -288,6 +295,7 @@ def do_draw(bot, player):
     """Does the drawing"""
     game = player.game
     draw_counter_before = game.draw_counter
+    before = len(player.cards)
 
     try:
         player.draw()
@@ -295,6 +303,7 @@ def do_draw(bot, player):
         send_async(bot, player.game.chat.id,
                    text=__("There are no more cards in the deck.",
                            multi=game.translate))
+    rivalry_log.drew(game, player, before, 'pen' if draw_counter_before else 'vol')
 
     if (game.last_card.value == c.DRAW_TWO or
         game.last_card.special == c.DRAW_FOUR) and \
@@ -334,6 +343,7 @@ def do_call_bluff(bot, player):
     was_bluffing = bluffer.bluffing
     # Reset bluffing state so it never persists across subsequent turns
     bluffer.bluffing = False
+    rivalry_log.challenge(game, player, bluffer, was_bluffing)
 
     if was_bluffing:
         if getattr(bluffer, 'pending_win', False):
@@ -344,12 +354,14 @@ def do_call_bluff(bot, player):
                            multi=game.translate)
                    .format(name=bluffer.user.first_name))
 
+        before = len(bluffer.cards)
         try:
             bluffer.draw()
         except DeckEmptyError:
             send_async(bot, player.game.chat.id,
                        text=__("There are no more cards in the deck.",
                                multi=game.translate))
+        rivalry_log.drew(game, bluffer, before, 'bluff', src=rivalry_log.key(player))
         # F-03: Challenger retains their turn on successful challenge!
         game.draw_counter = 0
 
@@ -360,12 +372,14 @@ def do_call_bluff(bot, player):
                            multi=game.translate)
                    .format(name1=bluffer.user.first_name,
                            name2=player.user.first_name))
+        before = len(player.cards)
         try:
             player.draw()
         except DeckEmptyError:
             send_async(bot, player.game.chat.id,
                        text=__("There are no more cards in the deck.",
                                multi=game.translate))
+        rivalry_log.drew(game, player, before, 'chal', src=rivalry_log.key(bluffer))
 
         game.turn()
         # F-04: If bluffer was innocent and had pending win, award the win now!

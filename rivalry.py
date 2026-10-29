@@ -20,10 +20,11 @@ from telegram import ParseMode, Update
 from telegram.error import ChatMigrated, RetryAfter
 from telegram.ext import CommandHandler, CallbackContext
 
+import rivalry_log
 import rivalry_stats as rs
 from config import (ADMIN_LIST, RIVALRY_ENABLED, RIVALRY_PLAYERS, RIVALRY_CHAT_ID, RIVALRY_TIMEZONE,
-                    RIVALRY_EXPORT_DIR, RIVALRY_PIN, RIVALRY_COLORS, RIVALRY_WEB_URL)
-from rivalry_models import RivalryMatch, RivalrySeason
+                    RIVALRY_EXPORT_DIR, RIVALRY_PIN, RIVALRY_COLORS, RIVALRY_WEB_URL, TURN_PACING_DELAY)
+from rivalry_models import RivalryGameLog, RivalryMatch, RivalrySeason
 from shared_vars import dispatcher, gm
 from utils import send_async, _retry_after_delay
 
@@ -35,6 +36,7 @@ ENABLED = RIVALRY_ENABLED and len(RIVALRY_PLAYERS) == 2 and len(RIVAL_IDS) == 2 
 ANNOUNCE_DELAY = 1.0
 HISTORY_DEFAULT, HISTORY_MAX = 10, 50
 INDEX_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'index.html')
+REPLAY_HTML = os.path.join(os.path.dirname(INDEX_HTML), 'replay.html')
 
 _export_lock = threading.Lock()
 
@@ -112,7 +114,20 @@ def record_first_place(bot, game, winner_user, forfeit=False):
     except Exception:
         logger.exception("Could not record the rivalry result of chat %s", game.chat.id)
         return
+    _store_log(game, winner_user.id, outcome, match_id)
     dispatcher.run_async(_announce, bot, game.chat.id, match_id)
+
+
+def _store_log(game, winner_id, outcome, match_id):
+    """Save the game's turn-by-turn log next to its result; a failure here never loses the result"""
+    log = rivalry_log.finish(game, winner_id, outcome)
+    if log is None:
+        return
+    try:
+        with orm.db_session:
+            RivalryGameLog(match_id=match_id, events=json.dumps(log, separators=(',', ':')))
+    except Exception:
+        logger.exception("Could not store the log of rivalry result %s", match_id)
 
 
 def _current_season():
@@ -140,6 +155,17 @@ def _load():
     rivals = _rivals()
     results = rs.between([_result(m) for m in RivalryMatch.select()], rivals.a_id, rivals.b_id)
     return seasons, results
+
+
+def _logs():
+    """{match id: game log} of the games the bot logged. Call within a db_session."""
+    logs = {}
+    for row in RivalryGameLog.select():
+        try:
+            logs[row.match_id] = json.loads(row.events)
+        except ValueError:
+            logger.warning("Skipping the unreadable log of rivalry result %s", row.match_id)
+    return logs
 
 
 def _announce(bot, chat_id, match_id):
@@ -242,12 +268,14 @@ def _write_atomic(path, content):
     os.replace(temp, path)
 
 
-def write_exports(directory, rivals, seasons, results, tz, colors=None):
+def write_exports(directory, rivals, seasons, results, tz, colors=None, logs=None, pacing=None):
     """
     Write the website files:
     index.html (with the data inlined), scores.csv (the current season, in the uno-scores format),
-    old/scores_<season>.csv for the earlier seasons and scores.json with every detail.
+    old/scores_<season>.csv for the earlier seasons, scores.json with every detail,
+    replay.html and games/<match id>.json for each game in `logs`.
     """
+    logs = logs or {}
     current = seasons[-1] if seasons else None
     for season in seasons:
         season_results = [r for r in results if r.season_id == season.id]
@@ -255,12 +283,35 @@ def write_exports(directory, rivals, seasons, results, tz, colors=None):
         _write_atomic(os.path.join(directory, name), rs.scores_csv(rivals, season_results, tz))
     if current is None:
         _write_atomic(os.path.join(directory, 'scores.csv'), rs.scores_csv(rivals, [], tz))
-    data = rs.scores_data(rivals, seasons, results, tz, colors)
+    data = rs.scores_data(rivals, seasons, results, tz, colors, logs, pacing)
     _write_atomic(os.path.join(directory, 'scores.json'), json.dumps(data, ensure_ascii=False, indent=1))
     if os.path.exists(INDEX_HTML):
         with open(INDEX_HTML, encoding='utf-8') as f:
             page = f.read()
         _write_atomic(os.path.join(directory, 'index.html'), rs.inline_data(page, data))
+    if os.path.exists(REPLAY_HTML):
+        with open(REPLAY_HTML, encoding='utf-8') as f:
+            _write_atomic(os.path.join(directory, 'replay.html'), f.read())
+    _write_replays(os.path.join(directory, 'games'), rivals, results, logs, tz, colors, pacing)
+
+
+def _write_replays(directory, rivals, results, logs, tz, colors, pacing):
+    """games/<match id>.json for every logged game; a game's file never changes once written"""
+    wanted = set()
+    for number, r in enumerate(results, 1):
+        if r.id not in logs:
+            continue
+        name = '%d.json' % r.id
+        wanted.add(name)
+        path = os.path.join(directory, name)
+        if not os.path.exists(path):
+            replay = rs.replay_data(rivals, r, number, logs[r.id], tz, colors, pacing)
+            _write_atomic(path, json.dumps(replay, ensure_ascii=False, separators=(',', ':')))
+    if os.path.isdir(directory):
+        # Results removed with /score_undo
+        for name in os.listdir(directory):
+            if name.endswith('.json') and name not in wanted:
+                os.remove(os.path.join(directory, name))
 
 
 def export():
@@ -271,7 +322,9 @@ def export():
         with _export_lock:
             with orm.db_session:
                 seasons, results = _load()
-            write_exports(directory, _rivals(), seasons, results, _timezone(), RIVALRY_COLORS)
+                logs = _logs()
+            write_exports(directory, _rivals(), seasons, results, _timezone(), RIVALRY_COLORS, logs,
+                          TURN_PACING_DELAY)
     except Exception:
         logger.exception("Could not write the rivalry exports to %s", directory)
 
@@ -373,6 +426,8 @@ def score_undo(update: Update, context: CallbackContext):
         removed = RivalryMatch[last.id]
         pinned = (removed.chat_id, removed.message_id) if removed.message_id else None
         removed.delete()
+        for log in RivalryGameLog.select(lambda g: g.match_id == last.id):
+            log.delete()
     results = results[:-1]
     season = next(s for s in seasons if s.id == last.season_id)
     season_results = [r for r in results if r.season_id == season.id]

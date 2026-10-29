@@ -326,6 +326,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
       <a href="#time">When</a>
       <a href="#sessions">Sessions</a>
       <a href="#games">Games</a>
+      <a href="#inside">Inside the games</a>
       <a href="#records">Records</a>
       <a href="#compare">Head to head</a>
       <a href="#seasons">Seasons</a>
@@ -528,6 +529,47 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
   </section>
 
+  <section id="inside">
+    <h2>Inside the games</h2>
+    <p class="lede" id="in-lede"></p>
+    <div id="in-body">
+    <div class="card"><div class="tiles" id="in-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Card mix</h3><span class="hint" data-tip="The share of each kind of card among all the cards a player played.">?</span></div>
+        <div class="chart" id="c-mix"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>The winning card</h3><span class="hint" data-tip="The kind of card each logged game was won with.">?</span></div>
+        <div class="chart" id="c-fin"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won</span><span><i class="sw b"></i><span class="nb"></span> won</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Colors played</h3><span class="hint" data-tip="The share of each color among the colored cards a player played.">?</span></div>
+        <div class="chart" id="c-colors"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Colors chosen</h3><span class="hint" data-tip="Which color a player picked after a wild or +4 (picks made by the bot after a timeout are left out).">?</span></div>
+        <div class="chart" id="c-picks"></div>
+      </div>
+      <div class="card span2">
+        <div class="ch"><h3>Thinking time</h3><span class="hint" data-tip="Average seconds per decision in each logged game, without the bot's pause before each turn.">?</span></div>
+        <div class="chart" id="c-think"></div>
+        <div class="legend"><span><i class="sw line a"></i><span class="na"></span></span><span><i class="sw line b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Luck of the deal</h3><span class="hint" data-tip="Win rates by how the game started: going first, and being dealt more action and wild cards than the other player.">?</span></div>
+        <div class="tbl"><table id="in-start"></table></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Latest replays</h3><span class="hint" data-tip="Watch a game again turn by turn, with both hands.">?</span></div>
+        <div class="tbl"><table id="in-recent"></table></div>
+      </div>
+    </div>
+    </div>
+  </section>
+
   <section id="records">
     <h2>Records</h2>
     <p class="lede">The best of each player within the current filters. Percentage records count only from the 20th game, so an early 1–0 is not 100%.</p>
@@ -587,7 +629,10 @@ var DAYPARTS = [['Morning', 5, 12], ['Afternoon', 12, 17], ['Evening', 17, 22], 
 var OUTCOMES = { win: 'Played', forfeit: 'Forfeit', manual: 'Added by hand', imported: 'Imported' };
 var P = ['a', 'b'];
 
-var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], TZ = 'UTC', SIG = '';
+var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], TZ = 'UTC', SIG = '', PACING = 0;
+var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4'];
+var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4'];
+var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow'];
 var COL = {};
 var S = {
   season: null, mode: 'all', pl: 'all', out: { win: true, forfeit: true, manual: true, imported: true },
@@ -1100,6 +1145,7 @@ function parse(d) {
   DATA = d;
   NAMES = { a: d.players.a, b: d.players.b };
   TZ = d.timezone || 'UTC';
+  PACING = d.pacing || 0;
   SEASONS = d.seasons || [];
   ALL = (d.matches || []).map(function (m, i) {
     var s = m.ended_at, y = +s.slice(0, 4), mo = +s.slice(5, 7), dd = +s.slice(8, 10);
@@ -1110,7 +1156,8 @@ function parse(d) {
       y: y, mo: mo, d: dd, h: +s.slice(11, 13), mi: +s.slice(14, 16),
       wd: (new Date(Date.UTC(y, mo - 1, dd)).getUTCDay() + 6) % 7,
       w: m.winner, l: m.winner === 'a' ? 'b' : 'a', out: m.outcome, mode: m.mode, pl: m.players,
-      turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null
+      turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null,
+      g: m.g || null, d: m.d || null
     };
   });
   SIG = ALL.length + '|' + (ALL.length ? d.matches[ALL.length - 1].ended_at : '') + '|' + SEASONS.length;
@@ -1310,8 +1357,69 @@ function analyze(ms) {
   });
   R.forfeits = { a: 0, b: 0 };
   ms.forEach(function (m) { if (m.out === 'forfeit') R.forfeits[m.w]++; });
+  R.lg = aggLogs(ms.filter(function (m) { return m.d; }));
   return R;
 }
+
+// One of CARD_TYPES for a card such as 'r_5', 'g_draw' or 'draw_four'
+function cardType(card) {
+  if (card === 'draw_four') return 'd4';
+  if (card === 'colorchooser') return 'wild';
+  var v = card.indexOf('_') >= 0 ? card.slice(card.indexOf('_') + 1) : card;
+  return { skip: 'skip', reverse: 'rev', draw: 'd2' }[v] || 'num';
+}
+function addInto(target, values) { for (var i = 0; i < values.length; i++) target[i] += values[i] || 0; }
+
+// Totals over the games the bot logged turn by turn (see rivalry_log.py)
+function aggLogs(list) {
+  var L = { n: list.length, since: list.length ? list[0].key : null, stack: null, fin: {}, think: [], list: list };
+  P.forEach(function (p) {
+    L[p] = {
+      games: 0, wins: 0, first: 0, firstW: 0, better: 0, betterW: 0, worse: 0, worseW: 0,
+      pl: 0, ty: [0, 0, 0, 0, 0, 0], co: [0, 0, 0, 0], pk: [0, 0, 0, 0],
+      dv: 0, dk: 0, ps: 0, fd: 0, dealt: 0, den: 0, sm: 0, au: 0, bl: 0, ch: 0, cw: 0, to: 0,
+      uno: 0, unoG: 0, unoW: 0, thSum: 0, thN: 0, ahead: 0, samples: 0,
+      mx: null, thMax: null, back: null, dealtMax: null
+    };
+  });
+  list.forEach(function (m) {
+    var d = m.d, th = {};
+    if (d.stack && (!L.stack || d.stack > L.stack.v)) L.stack = { v: d.stack, m: m };
+    if (d.fin) {
+      var ft = cardType(d.fin);
+      L.fin[ft] = L.fin[ft] || { a: 0, b: 0 };
+      L.fin[ft][m.w]++;
+    }
+    P.forEach(function (p) {
+      var s = d[p], A = L[p], won = m.w === p;
+      if (!s) return;
+      A.games++;
+      if (won) A.wins++;
+      if (d.first === p) { A.first++; if (won) A.firstW++; }
+      var mine = d.deal && d.deal[p], theirs = d.deal && d.deal[other(p)];
+      if (mine && theirs) {
+        var diff = mine[0] + mine[1] - theirs[0] - theirs[1];
+        if (diff > 0) { A.better++; if (won) A.betterW++; }
+        if (diff < 0) { A.worse++; if (won) A.worseW++; }
+      }
+      A.pl += s.pl; addInto(A.ty, s.ty); addInto(A.co, s.co); addInto(A.pk, s.pk);
+      ['dv', 'dk', 'ps', 'fd', 'dealt', 'den', 'sm', 'au', 'bl', 'ch', 'cw', 'to', 'uno', 'ahead'].forEach(function (k) { A[k] += s[k] || 0; });
+      if (s.uno) { A.unoG++; if (won) A.unoW++; }
+      A.samples += d.samples || 0;
+      A.thSum += s.th[0]; A.thN += s.th[1];
+      if (s.th[1] && (!A.thMax || s.th[2] > A.thMax.v)) A.thMax = { v: s.th[2], m: m };
+      if (!A.mx || s.mx > A.mx.v) A.mx = { v: s.mx, m: m };
+      if (won && s.back > 0 && (!A.back || s.back > A.back.v)) A.back = { v: s.back, m: m };
+      if (s.dealt && (!A.dealtMax || s.dealt > A.dealtMax.v)) A.dealtMax = { v: s.dealt, m: m };
+      th[p] = s.th[1] ? Math.max(0, s.th[0] / s.th[1] - PACING * 1000) / 1000 : null;
+    });
+    L.think.push(th);
+  });
+  return L;
+}
+function thinkAvg(A) { return A.thN ? Math.max(0, A.thSum / A.thN - PACING * 1000) / 1000 : null; }
+function perGame(A, k) { return A.games ? A[k] / A.games : null; }
+function replayLink(m) { return m && m.g ? ' · <a href="replay.html#' + m.g + '">replay</a>' : ''; }
 
 // --- Rendering --------------------------------------------------------------
 function readColors() {
@@ -1814,6 +1922,84 @@ function groupRow(label, ms) {
   return '<tr><td>' + label + '</td>' + winCells(c) + '<td class="num">' + (d.length ? fmtDur(sum(d) / d.length) : '–') + '</td></tr>';
 }
 
+function renderInside(R) {
+  var L = R.lg, a = L.a, b = L.b;
+  if (!L.n) {
+    $('in-lede').innerHTML = 'The bot logs every game the two of you play with it, turn by turn: cards played, draws, colors, bluffs and thinking time. None of the selected games has a log yet.';
+    $('in-body').style.display = 'none';
+    return;
+  }
+  $('in-body').style.display = '';
+  $('in-lede').innerHTML = plural(L.n, 'game') + ' in the selection were logged turn by turn (since ' + fmtKey(L.since) + '). <a href="replay.html">Browse the replays →</a>';
+  function f(v, d) { return v == null ? '–' : (+v).toFixed(d == null ? 1 : d); }
+  function secs(v) { return v == null ? '–' : v.toFixed(1) + 's'; }
+  var t = [];
+  t.push(pairTile('Win rate going first', pct(share(a.firstW, a.first), 0), pct(share(b.firstW, b.first), 0), 'How often a player won the games in which they took the first turn.',
+    a.firstW + ' of ' + a.first, b.firstW + ' of ' + b.first));
+  t.push(pairTile('Cards played per game', f(perGame(a, 'pl')), f(perGame(b, 'pl'))));
+  t.push(pairTile('Penalty cards dealt', f(perGame(a, 'dealt')), f(perGame(b, 'dealt')), 'Cards the other player had to draw because of your +2, +4 or a lost challenge, per game.', 'per game', 'per game'));
+  t.push(pairTile('Penalty cards taken', f(perGame(a, 'fd')), f(perGame(b, 'fd')), 'Cards drawn as a penalty (+2, +4, challenges and timeouts), per game.', 'per game', 'per game'));
+  t.push(pairTile('Chosen draws', f(perGame(a, 'dv')), f(perGame(b, 'dv')), 'Draws made by choice per game, and how often the drawn card could be played.',
+    pct(share(a.dk, a.dv), 0) + ' playable', pct(share(b.dk, b.dv), 0) + ' playable'));
+  t.push(pairTile('Passes per game', f(perGame(a, 'ps')), f(perGame(b, 'ps'))));
+  t.push(pairTile('Time with fewer cards', pct(share(a.ahead, a.samples), 0), pct(share(b.ahead, b.samples), 0), 'The share of each game in which a player held fewer cards than the other.'));
+  t.push(pairTile('UNO turned into a win', pct(share(a.unoW, a.unoG), 0), pct(share(b.unoW, b.unoG), 0), 'Of the games in which a player got down to one card, how many they won.',
+    a.unoW + ' of ' + a.unoG, b.unoW + ' of ' + b.unoG));
+  t.push(pairTile('Hit while on UNO', a.den, b.den, 'Penalties a player had to take while holding their last card.'));
+  t.push(pairTile('Thinking time', secs(thinkAvg(a)), secs(thinkAvg(b)), 'Average seconds per decision (playing, drawing, passing, choosing a color, challenging), without the bot\'s ' + PACING + 's pause before each turn.',
+    a.thMax ? 'slowest ' + Math.round(a.thMax.v / 1000) + 's' : '', b.thMax ? 'slowest ' + Math.round(b.thMax.v / 1000) + 's' : ''));
+  t.push(pairTile('Smart color picks', pct(share(a.sm, sum(a.pk)), 0), pct(share(b.sm, sum(b.pk)), 0), 'How often a player chose the color they held the most of.'));
+  t.push(pairTile('+4 bluffs', a.bl + ' of ' + a.ty[5], b.bl + ' of ' + b.ty[5], 'Wild +4s played while still holding a card of the active color, which the rules forbid unless nobody challenges.'));
+  t.push(pairTile('Challenges won', a.cw + ' of ' + a.ch, b.cw + ' of ' + b.ch, 'Times a player challenged a +4 and caught a bluff.'));
+  t.push(pairTile('Timeouts', a.to, b.to, 'Turns a player ran out of time on.'));
+  t.push(pairTile('Largest hand', a.mx ? a.mx.v : '–', b.mx ? b.mx.v : '–', 'The most cards a player held at once.'));
+  if (L.stack) t.push(tile('Longest +2/+4 stack', '+' + L.stack.v, gameRef(L.stack.m) + replayLink(L.stack.m), 'The biggest pile of +2 and +4 cards played on top of each other before someone drew.'));
+  $('in-tiles').innerHTML = t.join('');
+
+  function shares(A, key) { var tot = sum(A[key]); return A[key].map(function (v) { return tot ? v / tot : 0; }); }
+  function groupedShares(node, labels, key, title) {
+    barChart(node, {
+      cats: labels, grouped: true, frac: true, yFmt: function (v) { return pct(v, 0); },
+      stacks: P.map(function (p) { return { color: COL[p], values: shares(L[p], key) }; }),
+      tip: function (ci) {
+        return '<b>' + labels[ci] + '</b>' + P.map(function (p) {
+          return row(sw(p) + nm(p), pct(shares(L[p], key)[ci], 0) + ' <span class="m">' + L[p][key][ci] + '</span>');
+        }).join('') + (title ? '<div class="m">' + title + '</div>' : '');
+      }
+    });
+  }
+  groupedShares($('c-mix'), CARD_LABELS, 'ty', 'share of the cards played');
+  groupedShares($('c-colors'), COLOR_LABELS, 'co', 'share of the colored cards played');
+  groupedShares($('c-picks'), COLOR_LABELS, 'pk', 'share of the colors chosen');
+  var fins = CARD_TYPES.filter(function (k) { return L.fin[k]; });
+  stackBy($('c-fin'), fins.map(function (k) { return CARD_LABELS[CARD_TYPES.indexOf(k)]; }), fins.map(function (k) { return L.fin[k]; }),
+    function (ci) { return 'Won with a ' + CARD_LABELS[CARD_TYPES.indexOf(fins[ci])].toLowerCase() + ' card'; });
+  lineChart($('c-think'), {
+    xs: L.list.map(function (m, i) { return i + 1; }), yMin: 0, yFmt: function (v) { return v + 's'; },
+    series: P.map(function (p) { return { color: COL[p], values: L.think.map(function (th) { return th[p] == null ? null : f1(th[p]); }) }; }),
+    tip: function (i) {
+      var m = L.list[i];
+      return '<b>Game #' + m.n + '</b> <span class="m">· ' + fmtWhen(m) + '</span><br>' + sw(m.w) + nm(m.w) + ' won' +
+        P.map(function (p) { return row(sw(p) + nm(p), L.think[i][p] == null ? '–' : L.think[i][p].toFixed(1) + 's'); }).join('');
+    }
+  });
+
+  var rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  [['Took the first turn', 'firstW', 'first'], ['Dealt more action and wild cards', 'betterW', 'better'], ['Dealt fewer of them', 'worseW', 'worse'], ['All logged games', 'wins', 'games']].forEach(function (r) {
+    var sa = share(a[r[1]], a[r[2]]), sb = share(b[r[1]], b[r[2]]);
+    rows.push('<tr><td>' + r[0] + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa, 0) + '<span class="meta">won ' + a[r[1]] + ' of ' + a[r[2]] + '</span></td>' +
+      '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + b[r[1]] + ' of ' + b[r[2]] + '</span></td></tr>');
+  });
+  $('in-start').innerHTML = rows.join('');
+
+  rows = ['<tr><th>#</th><th>Ended</th><th>Winner</th><th class="num">Length</th><th></th></tr>'];
+  L.list.slice(-8).reverse().forEach(function (m) {
+    rows.push('<tr><td class="num">' + m.n + '</td><td>' + fmtWhen(m) + '</td><td>' + sw(m.w) + nm(m.w) + '</td><td class="num">' + fmtDur(m.dur) + '</td>' +
+      '<td><a href="replay.html#' + m.g + '">▶ Replay</a></td></tr>');
+  });
+  $('in-recent').innerHTML = rows.join('');
+}
+
 function renderRecords(R) {
   var ms = R.ms;
   function at(i) { return i >= 0 && ms[i] ? gameRef(ms[i]) : ''; }
@@ -1847,7 +2033,20 @@ function renderRecords(R) {
     if (va && vb && va !== vb) { aBetter = r[7] ? va < vb : va > vb; bBetter = !aBetter; } else if (va && !vb && !r[7]) aBetter = true; else if (vb && !va && !r[7]) bBetter = true;
     rows.push('<tr><td>' + r[0] + '</td>' + cell(r[1] || '–', r[1] ? r[2] : '', aBetter) + cell(r[3] || '–', r[3] ? r[4] : '', bBetter) + '</tr>');
   });
+  var L = R.lg;
+  [
+    ['Most penalty cards dealt in a game', 'dealtMax'],
+    ['Biggest comeback in cards', 'back']
+  ].forEach(function (r) {
+    var x = L.a[r[1]], y = L.b[r[1]];
+    if (!x && !y) return;
+    var unit = r[1] === 'back' ? ' behind' : '';
+    rows.push('<tr><td>' + r[0] + '</td>' +
+      cell(x ? plural(x.v, 'card') + unit : '–', x ? gameRef(x.m) + replayLink(x.m) : '', x && (!y || x.v > y.v)) +
+      cell(y ? plural(y.v, 'card') + unit : '–', y ? gameRef(y.m) + replayLink(y.m) : '', y && (!x || y.v > x.v)) + '</tr>');
+  });
   var shared = [];
+  if (L.stack) shared.push(['Longest +2/+4 stack', '+' + L.stack.v, gameRef(L.stack.m) + replayLink(L.stack.m)]);
   if (R.busiest) shared.push(['Most games in a day', R.busiest.n, fmtKey(R.busiest.key)]);
   if (R.sessLongest) shared.push(['Longest session', plural(R.sessLongest.n, 'game'), fmtKey(ms[R.sessLongest.start].key)]);
   if (R.longestGame) shared.push(['Longest game', fmtDur(R.longestGame.dur), gameRef(R.longestGame)]);
@@ -1881,6 +2080,17 @@ function renderCompare(R) {
     ['Cards left when losing', R.cardsLost.a.length ? sum(R.cardsLost.a) / R.cardsLost.a.length : null, R.cardsLost.b.length ? sum(R.cardsLost.b) / R.cardsLost.b.length : null, f1, true],
     ['Fastest win', R.fastest.a ? R.fastest.a.dur : null, R.fastest.b ? R.fastest.b.dur : null, fmtDur, true]
   ];
+  var L = R.lg;
+  if (L.n) items = items.concat([
+    ['Win rate going first', share(L.a.firstW, L.a.first), share(L.b.firstW, L.b.first), pct],
+    ['Penalty cards dealt per game', perGame(L.a, 'dealt'), perGame(L.b, 'dealt'), f1],
+    ['Penalty cards taken per game', perGame(L.a, 'fd'), perGame(L.b, 'fd'), f1, true],
+    ['UNO turned into a win', share(L.a.unoW, L.a.unoG), share(L.b.unoW, L.b.unoG), pct],
+    ['Time with fewer cards', share(L.a.ahead, L.a.samples), share(L.b.ahead, L.b.samples), pct],
+    ['Smart color picks', share(L.a.sm, sum(L.a.pk)), share(L.b.sm, sum(L.b.pk)), pct],
+    ['Challenges won', share(L.a.cw, L.a.ch), share(L.b.cw, L.b.ch), pct],
+    ['Thinking time', thinkAvg(L.a), thinkAvg(L.b), function (v) { return v.toFixed(1) + 's'; }, true]
+  ]);
   $('cmp').innerHTML = items.map(function (it) {
     var a = it[1], b = it[2], fmt = it[3] || function (v) { return v; }, low = it[4];
     if (a == null && b == null) return '';
@@ -1967,13 +2177,13 @@ function renderRecap() {
 // Match log
 var LOG_COLS = [
   ['n', '#', true], ['when', 'Ended', false], ['season', 'Season', false], ['winner', 'Winner', false], ['score', 'Score', true],
-  ['out', 'Recorded', false], ['mode', 'Mode', false], ['pl', 'Players', true], ['turns', 'Turns', true], ['dur', 'Length', true], ['cards', 'Cards left', true]
+  ['out', 'Recorded', false], ['mode', 'Mode', false], ['pl', 'Players', true], ['turns', 'Turns', true], ['dur', 'Length', true], ['cards', 'Cards left', true], ['g', 'Replay', false]
 ];
 function logRows(R) {
   return R.ms.map(function (m, i) {
     return {
       n: m.n, i: i, when: fmtWhen(m), t: m.t, season: m.season, winner: NAMES[m.w], w: m.w,
-      score: R.pts[i].a + '–' + R.pts[i].b, out: OUTCOMES[m.out] || m.out, mode: m.mode || '', pl: m.pl, turns: m.turns, dur: m.dur, cards: m.cards
+      score: R.pts[i].a + '–' + R.pts[i].b, out: OUTCOMES[m.out] || m.out, mode: m.mode || '', pl: m.pl, turns: m.turns, dur: m.dur, cards: m.cards, g: m.g
     };
   });
 }
@@ -1997,7 +2207,8 @@ function renderLog(R) {
   $('log-table').innerHTML = head + view.map(function (r) {
     return '<tr><td class="num">' + r.n + '</td><td>' + r.when + '</td><td>' + esc(r.season) + '</td><td>' + sw(r.w) + esc(r.winner) + '</td><td class="num">' + r.score + '</td>' +
       '<td>' + r.out + '</td><td>' + esc(r.mode) + '</td><td class="num">' + (r.pl || '') + '</td><td class="num">' + (r.turns || '') + '</td>' +
-      '<td class="num">' + (r.dur != null ? fmtDur(r.dur) : '') + '</td><td class="num">' + (r.cards != null ? r.cards : '') + '</td></tr>';
+      '<td class="num">' + (r.dur != null ? fmtDur(r.dur) : '') + '</td><td class="num">' + (r.cards != null ? r.cards : '') + '</td>' +
+      '<td>' + (r.g ? '<a href="replay.html#' + r.g + '">▶</a>' : '') + '</td></tr>';
   }).join('');
   $('log-count').textContent = rows.length === R.n ? plural(R.n, 'game') : rows.length + ' of ' + plural(R.n, 'game');
   $('log-pager').innerHTML = '<span>Page ' + (S.page + 1) + ' of ' + pages + '</span><span>' +
@@ -2089,6 +2300,7 @@ function update() {
   renderTime(R);
   renderSessions(R);
   renderGames(R);
+  renderInside(R);
   renderRecords(R);
   renderCompare(R);
   renderSeasons();

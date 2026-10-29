@@ -19,7 +19,7 @@ WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 # (label, first hour, last hour + 1) in local time; Night wraps past midnight
 DAYPARTS = (('Morning', 5, 12), ('Afternoon', 12, 17), ('Evening', 17, 22), ('Night', 22, 29))
 OUTCOME_NOTES = {'forfeit': 'by forfeit', 'manual': 'added by hand'}
-JSON_VERSION = 2
+JSON_VERSION = 3
 # Best win share and ratio count from this many games, so an early 1–0 is not 100%.
 # web/index.html uses the same number (MIN_GAMES).
 RECORD_MIN_GAMES = 20
@@ -354,8 +354,13 @@ def valid_color(value):
     return value if isinstance(value, str) and COLOR_RE.match(value) else None
 
 
-def scores_data(rivals, seasons: List[Season], results, tz, colors=None):
-    """Every result with its details, for a richer website. Telegram IDs are left out."""
+def scores_data(rivals, seasons: List[Season], results, tz, colors=None, logs=None, pacing=None):
+    """
+    Every result with its details, for a richer website. Telegram IDs are left out.
+    `logs`: {match id: game log}; a result with a log carries its summary ('d') and the
+    name of its replay file ('g'). `pacing`: the bot's delay in seconds before each turn.
+    """
+    logs = logs or {}
     keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
     names = {s.id: s.name for s in seasons}
     colors = list(colors or ()) + [None, None]
@@ -366,6 +371,7 @@ def scores_data(rivals, seasons: List[Season], results, tz, colors=None):
     return {
         'version': JSON_VERSION,
         'timezone': str(getattr(tz, 'key', tz)),
+        'pacing': pacing,
         'players': {'a': rivals.a_name, 'b': rivals.b_name},
         'colors': {'a': valid_color(colors[0]), 'b': valid_color(colors[1])},
         'seasons': [{'name': s.name, 'started_at': stamp(s.started_at)} for s in seasons],
@@ -380,7 +386,28 @@ def scores_data(rivals, seasons: List[Season], results, tz, colors=None):
             'players': r.players,
             'turns': r.turns,
             'loser_cards_left': r.loser_cards_left,
+            **({'g': r.id, 'd': summarize_log(logs[r.id])} if r.id in logs else {}),
         } for number, r in enumerate(results, 1)],
+    }
+
+
+def replay_data(rivals, result, number, log, tz, colors=None, pacing=None):
+    """The replay file of one game: its result and every logged event"""
+    colors = list(colors or ()) + [None, None]
+    keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
+    return {
+        'version': log.get('v', 1),
+        'players': {'a': rivals.a_name, 'b': rivals.b_name},
+        'colors': {'a': valid_color(colors[0]), 'b': valid_color(colors[1])},
+        'n': number,
+        'started_at': to_local(result.started_at, tz).isoformat(timespec='seconds') if result.started_at else None,
+        'ended_at': to_local(result.ended_at, tz).isoformat(timespec='seconds'),
+        'winner': keys.get(result.winner_id),
+        'outcome': result.outcome,
+        'mode': result.mode,
+        'players_count': result.players,
+        'pacing': pacing,
+        'events': log['ev'],
     }
 
 
@@ -394,4 +421,130 @@ def inline_data(page, data):
     # Keep "</script>" and HTML comments in names from closing the script element
     text = text.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
     return page.replace(DATA_PLACEHOLDER, DATA_PLACEHOLDER.replace('></', '>%s</' % text), 1)
+
+
+# --- Game logs (rivalry_log.py) -------------------------------------------
+
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4')
+LOG_COLORS = ('r', 'b', 'g', 'y')
+
+
+def card_type(card):
+    """One of CARD_TYPES for a card string such as 'r_5', 'g_draw' or 'draw_four'"""
+    if card == 'draw_four':
+        return 'd4'
+    if card == 'colorchooser':
+        return 'wild'
+    value = card.split('_', 1)[1] if '_' in card else card
+    return {'skip': 'skip', 'reverse': 'rev', 'draw': 'd2'}.get(value, 'num')
+
+
+def _player_summary(hand):
+    return {
+        'pl': 0,                 # cards played
+        'ty': [0] * 6,           # of each CARD_TYPES
+        'co': [0] * 4,           # colored cards played, by LOG_COLORS
+        'dv': 0, 'dk': 0,        # chosen draws, and how many of those could be played
+        'ps': 0,                 # passes
+        'fd': 0,                 # cards drawn as a penalty
+        'dealt': 0,              # penalty cards the other rival drew because of this one
+        'mx': hand,              # largest hand
+        'uno': 0, 'den': 0,      # times down to one card; penalties taken on one card
+        'pk': [0] * 4, 'sm': 0,  # colors picked, by LOG_COLORS; picks of the color held most
+        'au': 0,                 # colors the bot picked after a timeout
+        'bl': 0,                 # +4s played while holding the active color
+        'ch': 0, 'cw': 0,        # challenges made, and won
+        'to': 0,                 # timeouts
+        'th': [0, 0, 0],         # thinking time: total ms, decisions, longest ms
+        'ahead': 0,              # plays and draws after which this rival held fewer cards
+        'back': 0,               # most cards behind the other rival at any point
+    }
+
+
+def summarize_log(log):
+    """Per-game numbers of a game log for the website's statistics"""
+    events = log['ev']
+    deal = events[0]
+    hands = {key: len(cards) for key, cards in deal['h'].items()}
+    per = {key: _player_summary(hands[key]) for key in hands}
+    stack = max_stack = samples = 0
+    finisher = {}
+    for e in events[1:]:
+        kind, s = e['k'], per.get(e.get('p'))
+        if s is None:
+            continue
+        p = e['p']
+        if 'th' in e:
+            s['th'][0] += e['th']
+            s['th'][1] += 1
+            s['th'][2] = max(s['th'][2], e['th'])
+        if kind == 'play':
+            kind_of_card = card_type(e['c'])
+            s['pl'] += 1
+            s['ty'][CARD_TYPES.index(kind_of_card)] += 1
+            if e['c'][:1] in LOG_COLORS and '_' in e['c']:
+                s['co'][LOG_COLORS.index(e['c'][0])] += 1
+            if kind_of_card == 'd4' and e.get('bl'):
+                s['bl'] += 1
+            if kind_of_card in ('d2', 'd4'):
+                stack += 2 if kind_of_card == 'd2' else 4
+                max_stack = max(max_stack, stack)
+            else:
+                stack = 0
+            if e['h'] == 1 and hands[p] > 1:
+                s['uno'] += 1
+            hands[p] = e['h']
+            finisher[p] = e['c']
+        elif kind == 'draw':
+            count = len(e.get('cs') or ())
+            if e.get('r') == 'vol':
+                s['dv'] += 1
+                s['dk'] += e.get('ok', 0)
+            else:
+                s['fd'] += count
+                if hands[p] == 1:
+                    s['den'] += 1
+                if e.get('src') in per:
+                    per[e['src']]['dealt'] += count
+                stack = 0
+            hands[p] = e['h']
+            s['mx'] = max(s['mx'], e['h'])
+        elif kind == 'pass':
+            s['ps'] += 1
+        elif kind == 'color':
+            if e.get('au'):
+                s['au'] += 1
+            elif e.get('co') in LOG_COLORS:
+                s['pk'][LOG_COLORS.index(e['co'])] += 1
+                s['sm'] += e.get('sm', 0)
+        elif kind == 'chal':
+            s['ch'] += 1
+            s['cw'] += e.get('ok', 0)
+        elif kind == 'time':
+            s['to'] += 1
+        if kind in ('play', 'draw') and len(hands) == 2:
+            samples += 1
+            if hands['a'] < hands['b']:
+                per['a']['ahead'] += 1
+            elif hands['b'] < hands['a']:
+                per['b']['ahead'] += 1
+            per['a']['back'] = max(per['a']['back'], hands['a'] - hands['b'])
+            per['b']['back'] = max(per['b']['back'], hands['b'] - hands['a'])
+
+    end = events[-1] if events[-1]['k'] == 'end' else {}
+    winner = end.get('p')
+    summary = {
+        'first': deal.get('first'),
+        'fc': deal.get('fc'),
+        # (action cards, wild cards) in each starting hand
+        'deal': {key: [sum(1 for card in cards if card_type(card) in ('skip', 'rev', 'd2')),
+                       sum(1 for card in cards if card_type(card) in ('wild', 'd4'))]
+                 for key, cards in deal['h'].items()},
+        'fin': finisher.get(winner) if end.get('o') == 'win' else None,
+        'stack': max_stack,
+        'samples': samples,
+        'ms': end.get('t', events[-1]['t']),
+    }
+    summary.update(per)
+    return summary
 

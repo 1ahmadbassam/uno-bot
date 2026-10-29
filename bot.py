@@ -33,6 +33,7 @@ from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
 
 import card as c
 import rivalry
+import rivalry_log
 import settings
 import simple_commands
 from access_control import access_control
@@ -700,6 +701,7 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
         if not player.drew:
             return
         reset_waiting_time(bot, player)
+        rivalry_log.passed(game, player)
         game.turn()
         gm.persist_game(game)
 
@@ -809,6 +811,7 @@ def start_game(update: Update, context: CallbackContext):
                            text=_("There are not enough cards in the deck for "
                                   "this many players."))
                 return
+            rivalry_log.start(game)
             gm.persist_game(game)
             if game.choosing_color:
                 first_message = (
@@ -1197,6 +1200,7 @@ def process_result(update: Update, context: CallbackContext):
         do_draw(context.bot, player)
     elif result_id == 'pass':
         reset_waiting_time(context.bot, player)
+        rivalry_log.passed(game, player)
         game.turn()
     elif result_id in c.COLORS:
         if game.choosing_color and player == game.current_player:
