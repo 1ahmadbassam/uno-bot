@@ -17,14 +17,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pony import orm
 from telegram import ParseMode, Update
+from telegram.error import ChatMigrated, RetryAfter
 from telegram.ext import CommandHandler, CallbackContext
 
 import rivalry_stats as rs
 from config import (ADMIN_LIST, RIVALRY_ENABLED, RIVALRY_PLAYERS, RIVALRY_CHAT_ID, RIVALRY_TIMEZONE,
                     RIVALRY_EXPORT_DIR, RIVALRY_PIN)
 from rivalry_models import RivalryMatch, RivalrySeason
-from shared_vars import dispatcher
-from utils import send_async
+from shared_vars import dispatcher, gm
+from utils import send_async, _retry_after_delay
 
 logger = logging.getLogger(__name__)
 
@@ -149,13 +150,37 @@ def _announce(bot, chat_id, match_id):
     export()
 
 
+def _send_score_message(bot, chat_id, text):
+    """Send score message with RetryAfter and ChatMigrated handling, returning (message, effective_chat_id)"""
+    effective_chat_id = chat_id
+    for _ in range(2):
+        try:
+            msg = bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+            return msg, effective_chat_id
+        except RetryAfter as err:
+            logger.warning("Rate limited on rivalry send_message (RetryAfter: %s). Sleeping...", err.retry_after)
+            time.sleep(_retry_after_delay(err) + 0.5)
+        except ChatMigrated as err:
+            new_chat_id = err.new_chat_id
+            if effective_chat_id != new_chat_id:
+                gm.migrate_chat_id(effective_chat_id, new_chat_id)
+                effective_chat_id = new_chat_id
+    return bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True), effective_chat_id
+
+
 def _post_score(bot, chat_id, text, match_id=None):
     """Send a score message, pin it in place of the previous one and remember it on `match_id`"""
-    message = bot.send_message(chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    message, chat_id = _send_score_message(bot, chat_id, text)
     if not RIVALRY_PIN:
         return
     try:
         bot.pin_chat_message(chat_id, message.message_id, disable_notification=True)
+    except ChatMigrated as err:
+        try:
+            bot.pin_chat_message(err.new_chat_id, message.message_id, disable_notification=True)
+            chat_id = err.new_chat_id
+        except Exception:
+            logger.warning("Could not pin the score in migrated chat %s", err.new_chat_id, exc_info=True)
     except Exception:
         logger.warning("Could not pin the score in chat %s (is the bot an admin?)", chat_id, exc_info=True)
         return
@@ -168,7 +193,10 @@ def _post_score(bot, chat_id, text, match_id=None):
         if previous is not None:
             previous_message_id, previous.message_id = previous.message_id, None
         if match_id is not None and RivalryMatch.exists(id=match_id):
-            RivalryMatch[match_id].message_id = new_id
+            match = RivalryMatch[match_id]
+            match.message_id = new_id
+            if match.chat_id != chat_id:
+                match.chat_id = chat_id
     if previous_message_id:
         _unpin(bot, chat_id, previous_message_id)
 
@@ -176,6 +204,11 @@ def _post_score(bot, chat_id, text, match_id=None):
 def _unpin(bot, chat_id, message_id):
     try:
         bot.unpin_chat_message(chat_id, message_id=message_id)
+    except ChatMigrated as err:
+        try:
+            bot.unpin_chat_message(err.new_chat_id, message_id=message_id)
+        except Exception:
+            pass
     except Exception:
         logger.info("Could not unpin score message %s in chat %s", message_id, chat_id, exc_info=True)
 

@@ -1044,9 +1044,19 @@ def reply_to_query(update: Update, context: CallbackContext):
         players = gm.userid_players[user_id]
         player = gm.userid_current[user_id]
         game = player.game
-    except KeyError:
+    except (KeyError, AttributeError):
         add_no_game(results)
     else:
+        # Multi-game turn auto-focus: if it is not the player's turn in the currently
+        # focused game, but it is their turn in another started game, switch focus to it.
+        if len(players) > 1 and (not game.started or game.current_player != player):
+            for other_player in players:
+                other_game = other_player.game
+                if other_game.started and other_game.current_player == other_player:
+                    player = other_player
+                    game = other_game
+                    gm.userid_current[user_id] = player
+                    break
 
         # The game has not started.
         # The creator may change the game mode, other users just get a "game has not started" message.
@@ -1095,7 +1105,10 @@ def reply_to_query(update: Update, context: CallbackContext):
             add_gameinfo(game, results)
 
         for result in results:
-            result.id += ':%d' % player.anti_cheat
+            try:
+                result.id += ':%d' % player.anti_cheat
+            except AttributeError:
+                object.__setattr__(result, 'id', f"{result.id}:{player.anti_cheat}")
 
         if players and game and len(players) > 1:
             switch = _('Current game: {game}').format(game=game.chat.title)
@@ -1120,6 +1133,10 @@ def process_result(update: Update, context: CallbackContext):
         chat = game.chat
     except (KeyError, AttributeError):
         return
+
+    # No multi-game focus switch here: the result belongs to the game the menu was
+    # built for, which reply_to_query already stored in userid_current. Switching
+    # now could apply a tap from one group's old menu to another group's game.
 
     logger.debug("Selected result: " + result_id)
 

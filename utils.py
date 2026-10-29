@@ -160,12 +160,23 @@ def answer_async(bot, *args, **kwargs):
         logger.exception("Failed to schedule async answerInlineQuery")
 
 
+def _retry_after_delay(err):
+    """Safely extract delay in seconds from a RetryAfter exception as a float."""
+    val = getattr(err, 'retry_after', 0)
+    if hasattr(val, 'total_seconds'):
+        return float(val.total_seconds())
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 1.0
+
+
 def _answer_inline_query_with_retry(bot, *args, **kwargs):
     try:
         bot.answerInlineQuery(*args, **kwargs)
     except RetryAfter as err:
         logger.warning("Bot rate limited on answerInlineQuery (RetryAfter: %s). Sleeping...", err.retry_after)
-        time.sleep(err.retry_after + 0.5)
+        time.sleep(_retry_after_delay(err) + 0.5)
         try:
             bot.answerInlineQuery(*args, **kwargs)
         except Exception:
@@ -206,7 +217,7 @@ def _send_message_with_migration_handling(bot, *args, **kwargs):
         bot.sendMessage(*args, **kwargs)
     except RetryAfter as err:
         logger.warning("Bot rate limited on sendMessage (RetryAfter: %s). Sleeping...", err.retry_after)
-        time.sleep(err.retry_after + 0.5)
+        time.sleep(_retry_after_delay(err) + 0.5)
         try:
             bot.sendMessage(*args, **kwargs)
         except Exception:
@@ -230,7 +241,7 @@ def _send_message_with_migration_handling(bot, *args, **kwargs):
             bot.sendMessage(*retry_args, **retry_kwargs)
         except RetryAfter as send_err:
             logger.warning("Bot rate limited on migrated sendMessage (RetryAfter: %s). Sleeping...", send_err.retry_after)
-            time.sleep(send_err.retry_after + 0.5)
+            time.sleep(_retry_after_delay(send_err) + 0.5)
             try:
                 bot.sendMessage(*retry_args, **retry_kwargs)
             except Exception:

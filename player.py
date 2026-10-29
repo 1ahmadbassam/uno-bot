@@ -152,7 +152,7 @@ class Player(object):
         # by checking the player's full hand against the active color.
         if card.special == c.DRAW_FOUR:
             active_color = self.game.last_card.color if self.game.last_card else None
-            self.bluffing = any(c.color == active_color for c in self.cards if c.color)
+            self.bluffing = any(hand_card.color == active_color for hand_card in self.cards if hand_card.color)
         else:
             self.bluffing = False
 

@@ -103,6 +103,8 @@ def do_skip(bot, player, job_queue=None):
     else:
         try:
             gm.leave_game(skipped_player.user, chat)
+            if settle_draw_four_after_leave(bot, game, skipped_player, True):
+                return
             cancel_penalty_after_leave(bot, game, True, was_choosing)
             send_paced(bot, chat.id,
                        text=__("{name1} ran out of time "

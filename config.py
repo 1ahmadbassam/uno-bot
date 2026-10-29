@@ -32,7 +32,11 @@ WORKERS = int(os.getenv("WORKERS", config.get("workers", 32)))
 ADMIN_LIST = os.getenv("ADMIN_LIST", config.get("admin_list", None))
 
 if isinstance(ADMIN_LIST, str):
-    ADMIN_LIST = set(int(x) for x in ADMIN_LIST.split())
+    ADMIN_LIST = set(int(x) for x in ADMIN_LIST.replace(',', ' ').split())
+elif isinstance(ADMIN_LIST, (list, set, tuple)):
+    ADMIN_LIST = set(int(x) for x in ADMIN_LIST)
+else:
+    ADMIN_LIST = None
 
 ALLOWED_GROUP_ID = os.getenv("ALLOWED_GROUP_ID", config.get("allowed_group_id", None))
 if ALLOWED_GROUP_ID is not None and str(ALLOWED_GROUP_ID).strip() != "":

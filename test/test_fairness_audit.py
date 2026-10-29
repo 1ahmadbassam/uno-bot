@@ -248,6 +248,94 @@ class TestFairnessAudit(unittest.TestCase):
         self.assertIsNone(self.game.last_bluffer)
         self.assertEqual(len(self.alice.cards), 4)
 
+    # Follow-up improvements
+    def test_timeout_removal_of_bluffer_choosing_color_settles_and_cancels_draw_four(self):
+        self.add_charlie()
+        # Bob plays +4 and is choosing a color
+        self.game.last_card = c.Card(None, None, special=c.DRAW_FOUR)
+        self.game.draw_counter = 4
+        self.game.choosing_color = True
+        self.game.current_player = self.bob
+        self.game.last_bluffer = self.bob
+        self.bob.waiting_time = 0
+
+        gm, _ = self.patched_actions()
+        with patch('actions.gm', gm), patch('actions.send_async'), patch('actions.send_paced'):
+            do_skip(BOT, self.bob)
+
+        # Bob should have been removed, draw_counter zeroed, last_bluffer cleared
+        self.assertNotIn(self.bob, self.game.players)
+        self.assertEqual(self.game.draw_counter, 0)
+        self.assertIsNone(self.game.last_bluffer)
+
+    def test_retry_after_delay_helper(self):
+        from utils import _retry_after_delay
+        # With timedelta
+        td_err = SimpleNamespace(retry_after=timedelta(seconds=4.5))
+        self.assertEqual(_retry_after_delay(td_err), 4.5)
+
+        # With int/float
+        int_err = SimpleNamespace(retry_after=3)
+        self.assertEqual(_retry_after_delay(int_err), 3.0)
+
+        # With malformed object
+        bad_err = SimpleNamespace(retry_after="invalid")
+        self.assertEqual(_retry_after_delay(bad_err), 1.0)
+
+    def test_multi_game_turn_autofocus_in_reply_to_query(self):
+        # Alice is in game1 and game2
+        game1 = self.game
+        chat2 = stubs.MockChat(-200, title="Group 2")
+        game2 = Game(chat2)
+        game2.started = True
+        p2_alice = Player(game2, self.alice.user)
+        p2_bob = Player(game2, self.bob.user)
+        game2.current_player = p2_alice
+        game2.last_card = c.Card(c.RED, '3')
+        p2_alice.cards = [c.Card(c.RED, '7')]
+
+        # In game1, current player is Bob (not Alice's turn)
+        game1.current_player = self.bob
+
+        gm = GameManager()
+        gm.userid_players[self.alice.user.id] = [self.alice, p2_alice]
+        # Currently focused on game1 where it's NOT Alice's turn
+        gm.userid_current[self.alice.user.id] = self.alice
+
+        update = MagicMock()
+        update.inline_query.from_user = self.alice.user
+        update.inline_query.id = 'query_1'
+        context = MagicMock()
+
+        with patch('bot.gm', gm), patch('bot.answer_async') as answer_mock:
+            inspect.unwrap(inspect.unwrap(bot.reply_to_query))(update, context)
+
+        # Focus should automatically switch to p2_alice where it is Alice's turn
+        self.assertIs(gm.userid_current[self.alice.user.id], p2_alice)
+        answer_mock.assert_called_once()
+        results = answer_mock.call_args[0][2]
+        # In text/classic mode, the card should be playable
+        self.assertTrue(len(results) > 0)
+
+    def test_rivalry_post_score_handles_chat_migrated(self):
+        import rivalry
+        from telegram.error import ChatMigrated
+
+        bot_mock = MagicMock()
+        msg_mock = MagicMock(message_id=555)
+        bot_mock.send_message.side_effect = [
+            ChatMigrated(-100999),
+            msg_mock
+        ]
+
+        with patch('rivalry.gm') as mock_gm, patch('rivalry.RIVALRY_PIN', False):
+            rivalry._post_score(bot_mock, -100, "Score text")
+
+        mock_gm.migrate_chat_id.assert_called_once_with(-100, -100999)
+        self.assertEqual(bot_mock.send_message.call_count, 2)
+        # Second call was sent to the new migrated supergroup
+        self.assertEqual(bot_mock.send_message.call_args[0][0], -100999)
+
 
 if __name__ == '__main__':
     unittest.main()

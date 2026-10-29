@@ -100,6 +100,32 @@ class TestInlineResultValidation(unittest.TestCase):
         self.choose(self.bob, 'draw')
         self.assertEqual(len(self.bob.cards), hand)
 
+    def test_old_menu_from_other_group_is_not_played_here(self):
+        """A tap on one group's old menu never plays a card in another group's game"""
+        other_game = Game(stubs.MockChat(-2, "Other group"))
+        alice_there = Player(other_game, self.alice.user)
+        carol = Player(other_game, stubs.MockUser(3, "Carol"))
+        other_game.started = True
+        other_game.last_card = c.Card(c.RED, '5')
+        alice_there.cards = [c.Card(c.RED, '7')]
+        # Alice opened the other group's menu on her turn there; that turn has passed.
+        # It's now her turn here, and her token here happens to have the same value.
+        other_game.current_player = carol
+        self.assertEqual(self.alice.anti_cheat, alice_there.anti_cheat)
+
+        gm = MagicMock()
+        gm.userid_current = {self.alice.user.id: alice_there}
+        gm.userid_players = {self.alice.user.id: [self.alice, alice_there]}
+        with patch('bot.gm', gm), patch('bot.send_async'), patch('bot.send_paced'), \
+                patch('bot.start_player_countdown'), patch('bot.game_is_running', return_value=True), \
+                patch('actions.gm', gm), patch('actions.send_async'):
+            raw_process_result(chosen_result(self.alice.user, f"r_7:{alice_there.anti_cheat}"), MagicMock())
+
+        self.assertEqual(self.game.last_card, c.Card(c.RED, '5'))
+        self.assertIn(c.Card(c.RED, '7'), self.alice.cards)
+        self.assertEqual(other_game.last_card, c.Card(c.RED, '5'))
+        self.assertIs(gm.userid_current[self.alice.user.id], alice_there)
+
     def test_mode_change_after_start_is_rejected(self):
         self.game.owner = {self.alice.user.id}
         self.game.mode = 'classic'
