@@ -109,6 +109,28 @@ class TestAccessControl(unittest.TestCase):
         access_control(update, self.context)
         self.context.bot.leave_chat.assert_not_called()
 
+    @patch('access_control.ALLOWED_GROUP_ID', -1001234567890)
+    @patch('access_control.ALLOWED_USER_IDS', {111, 222})
+    def test_bot_itself_is_exempt_via_context_bot_id(self):
+        self.context.bot.id = 8903789128
+        update = MockUpdate(
+            chat=MockChat(-1001234567890, 'supergroup'),
+            user=MockUser(8903789128, 'unorrbot')
+        )
+        # Should not raise DispatcherHandlerStop despite not being in ALLOWED_USER_IDS
+        access_control(update, self.context)
+
+    @patch('access_control.ALLOWED_GROUP_ID', -1001234567890)
+    @patch('access_control.ALLOWED_USER_IDS', {111, 222})
+    @patch('config.TOKEN', '8903789128:AAHfake_token_for_test')
+    def test_bot_itself_is_exempt_via_token_fallback(self):
+        self.context.bot.id = None
+        update = MockUpdate(
+            chat=MockChat(-1001234567890, 'supergroup'),
+            user=MockUser(8903789128, 'unorrbot')
+        )
+        access_control(update, self.context)
+
 
 class TestConfigParsing(unittest.TestCase):
 

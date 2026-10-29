@@ -42,6 +42,31 @@ def access_control(update, context):
 
     # 2. Restrict users across all interactions (messages, commands, callbacks, inline queries)
     if ALLOWED_USER_IDS:
+        # Allow updates where the effective user is the bot itself (e.g. pinned message service messages)
+        bot_id = None
+        try:
+            bot = getattr(context, 'bot', None)
+            raw_id = getattr(bot, 'id', None)
+            if isinstance(raw_id, int):
+                bot_id = raw_id
+            elif isinstance(raw_id, str) and raw_id.isdigit():
+                bot_id = int(raw_id)
+        except Exception:
+            pass
+
+        if bot_id is None:
+            try:
+                from config import TOKEN
+                if TOKEN and ':' in str(TOKEN):
+                    prefix = str(TOKEN).split(':', 1)[0]
+                    if prefix.isdigit():
+                        bot_id = int(prefix)
+            except Exception:
+                pass
+
+        if user and bot_id is not None and user.id == bot_id:
+            return
+
         if user is None or user.id not in ALLOWED_USER_IDS:
             if user:
                 logger.info(
