@@ -153,7 +153,9 @@ section > .lede { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
 .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
 .legend { display: flex; flex-wrap: wrap; font-size: 12px; color: var(--ink2); margin-top: 6px; }
-.legend > span { display: inline-flex; align-items: center; margin-right: 14px; }
+/* Inline flow, not flex: flex items would drop the space between a name and the text after it */
+.legend > span { display: inline-block; margin-right: 14px; white-space: nowrap; }
+.legend .sw.line { vertical-align: 3px; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .sw.a { background: var(--a); } .sw.b { background: var(--b); } .sw.act { background: var(--act); } .sw.n { background: var(--neutral); }
 .sw.line { height: 3px; width: 14px; border-radius: 2px; }
