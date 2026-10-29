@@ -5,10 +5,10 @@
 # records who came first whenever they play each other, posts and pins the
 # score, serves /score and writes static exports for a website.
 
+import json
 import logging
 import os
 import re
-import shutil
 import threading
 import time
 from datetime import datetime, timezone
@@ -22,7 +22,7 @@ from telegram.ext import CommandHandler, CallbackContext
 
 import rivalry_stats as rs
 from config import (ADMIN_LIST, RIVALRY_ENABLED, RIVALRY_PLAYERS, RIVALRY_CHAT_ID, RIVALRY_TIMEZONE,
-                    RIVALRY_EXPORT_DIR, RIVALRY_PIN)
+                    RIVALRY_EXPORT_DIR, RIVALRY_PIN, RIVALRY_COLORS, RIVALRY_WEB_URL)
 from rivalry_models import RivalryMatch, RivalrySeason
 from shared_vars import dispatcher, gm
 from utils import send_async, _retry_after_delay
@@ -53,6 +53,13 @@ def _utcnow():
 
 def _rivals():
     return rs.Rivals(RIVALRY_PLAYERS)
+
+
+def _with_link(text):
+    """`text` with a link to the website when "web_url" is set"""
+    if not RIVALRY_WEB_URL:
+        return text
+    return '%s\n\n<a href="%s">📈 Full stats</a>' % (text, escape(RIVALRY_WEB_URL, quote=True))
 
 
 def match_for(game, winner_id, forfeit=False):
@@ -143,7 +150,7 @@ def _announce(bot, chat_id, match_id):
             result = next(r for r in results if r.id == match_id)
             season = next(s for s in seasons if s.id == result.season_id)
             season_results = [r for r in results if r.season_id == season.id]
-            text = rs.pin_text(_rivals(), season, season_results, result)
+            text = _with_link(rs.pin_text(_rivals(), season, season_results, result))
         _post_score(bot, chat_id, text, match_id)
     except Exception:
         logger.exception("Could not announce rivalry result %s", match_id)
@@ -235,10 +242,10 @@ def _write_atomic(path, content):
     os.replace(temp, path)
 
 
-def write_exports(directory, rivals, seasons, results, tz):
+def write_exports(directory, rivals, seasons, results, tz, colors=None):
     """
     Write the website files:
-    index.html, scores.csv (the current season, in the uno-scores format),
+    index.html (with the data inlined), scores.csv (the current season, in the uno-scores format),
     old/scores_<season>.csv for the earlier seasons and scores.json with every detail.
     """
     current = seasons[-1] if seasons else None
@@ -248,11 +255,12 @@ def write_exports(directory, rivals, seasons, results, tz):
         _write_atomic(os.path.join(directory, name), rs.scores_csv(rivals, season_results, tz))
     if current is None:
         _write_atomic(os.path.join(directory, 'scores.csv'), rs.scores_csv(rivals, [], tz))
-    _write_atomic(os.path.join(directory, 'scores.json'), rs.scores_json(rivals, seasons, results, tz))
+    data = rs.scores_data(rivals, seasons, results, tz, colors)
+    _write_atomic(os.path.join(directory, 'scores.json'), json.dumps(data, ensure_ascii=False, indent=1))
     if os.path.exists(INDEX_HTML):
-        temp = os.path.join(directory, 'index.html.tmp')
-        shutil.copyfile(INDEX_HTML, temp)
-        os.replace(temp, os.path.join(directory, 'index.html'))
+        with open(INDEX_HTML, encoding='utf-8') as f:
+            page = f.read()
+        _write_atomic(os.path.join(directory, 'index.html'), rs.inline_data(page, data))
 
 
 def export():
@@ -263,7 +271,7 @@ def export():
         with _export_lock:
             with orm.db_session:
                 seasons, results = _load()
-            write_exports(directory, _rivals(), seasons, results, _timezone())
+            write_exports(directory, _rivals(), seasons, results, _timezone(), RIVALRY_COLORS)
     except Exception:
         logger.exception("Could not write the rivalry exports to %s", directory)
 
@@ -304,7 +312,7 @@ def score(update: Update, context: CallbackContext):
 
     now = datetime.now(timezone.utc)
     if args and args[0].lower() == 'all':
-        _reply(update, context, rs.score_text(rivals, "All time", results, tz, now))
+        _reply(update, context, _with_link(rs.score_text(rivals, "All time", results, tz, now)))
         return
 
     if args:
@@ -327,7 +335,7 @@ def score(update: Update, context: CallbackContext):
     if current and len(seasons) > 1:
         first, second = rivals.ordered(results)
         text += "\n\nAll time: %s (/score all)" % rivals.scoreline(results, first, second)
-    _reply(update, context, text)
+    _reply(update, context, _with_link(text))
 
 
 def score_add(update: Update, context: CallbackContext):

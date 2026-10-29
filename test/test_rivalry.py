@@ -141,26 +141,29 @@ class TestStats(unittest.TestCase):
         self.assertIn("A A A I", text)
         self.assertIn("Average length: 5m 00s", text)
         self.assertIn("Periods", text)
-        self.assertIn("Best win share: Alice 100.0% (3 games) · Ivan 25.0% (4 games)", text)
-        self.assertIn("Best ratio: Alice/Ivan ∞ (3 games) · Ivan/Alice 0.33 (4 games)", text)
+        self.assertIn("Best win share: from game 20 (4 so far)", text)
+        self.assertIn("Best ratio: from game 20 (4 so far)", text)
 
     def test_best_win_shares_and_ratios(self):
         rows = results([A, A, I, I, I, A])
-        bests = rs.best_win_shares(rows, A, I)
+        bests = rs.best_win_shares(rows, A, I, min_games=0)
         self.assertEqual(bests[A], (2, 2))
         self.assertEqual(bests[I], (3, 5))
+        bests = rs.best_win_shares(rows, A, I, min_games=3)
+        self.assertEqual(bests[A], (2, 3))
+        self.assertEqual(bests[I], (3, 5))
+        self.assertEqual(rs.best_win_shares(rows, A, I), {A: None, I: None})
 
-        # Single game: singular "(1 game)"
-        single = results([A])
-        single_text = rs.score_text(self.rivals, "Season 2026", single, BEIRUT, datetime.now(timezone.utc))
-        self.assertIn("Best win share: Alice 100.0% (1 game) · Ivan 0.0% (1 game)", single_text)
-        self.assertIn("Best ratio: Alice/Ivan ∞ (1 game) · Ivan/Alice 0.00 (1 game)", single_text)
+        # Ivan wins the first 15 games, so his best share only counts from game 20
+        early = results([I] * 15 + [A] * 10)
+        bests = rs.best_win_shares(early, A, I)
+        self.assertEqual(bests[I], (15, 20))
+        self.assertEqual(bests[A], (10, 25))
 
         # Leader first when Ivan is ahead
-        ivan_ahead = results([I, I, A])
-        ahead_text = rs.score_text(self.rivals, "Season 2026", ivan_ahead, BEIRUT, datetime.now(timezone.utc))
-        self.assertIn("Best win share: Ivan 100.0% (2 games) · Alice 33.3% (3 games)", ahead_text)
-        self.assertIn("Best ratio: Ivan/Alice ∞ (2 games) · Alice/Ivan 0.50 (3 games)", ahead_text)
+        ahead_text = rs.score_text(self.rivals, "Season 2026", early, BEIRUT, datetime.now(timezone.utc))
+        self.assertIn("Best win share: Ivan 75.0% (20 games) · Alice 40.0% (25 games)", ahead_text)
+        self.assertIn("Best ratio: Ivan/Alice 3.00 (20 games) · Alice/Ivan 0.67 (25 games)", ahead_text)
 
     def test_score_text_without_games(self):
         self.assertIn("No games recorded yet", rs.score_text(self.rivals, "S", [], BEIRUT, datetime.now(timezone.utc)))
@@ -186,6 +189,23 @@ class TestStats(unittest.TestCase):
         self.assertEqual([m['winner'] for m in data['matches']], ['a', 'b'])
         self.assertEqual(data['matches'][0]['season'], '2026')
 
+    def test_json_numbers_games_and_keeps_valid_colors_only(self):
+        data = rs.scores_data(self.rivals, [rs.Season(1, "2026", T0)], results([A, I]), BEIRUT,
+                              ['#12ab34', 'red;}'])
+        self.assertEqual(data['version'], rs.JSON_VERSION)
+        self.assertEqual(data['timezone'], 'Asia/Beirut')
+        self.assertEqual(data['colors'], {'a': '#12ab34', 'b': None})
+        self.assertEqual([m['n'] for m in data['matches']], [1, 2])
+        self.assertEqual(rs.scores_data(self.rivals, [], [], BEIRUT)['colors'], {'a': None, 'b': None})
+
+    def test_inline_data_cannot_close_the_script(self):
+        rivals = rs.Rivals([(A, "</script><b>"), (I, "Ivan")])
+        page = "<html>%s</html>" % rs.DATA_PLACEHOLDER
+        html = rs.inline_data(page, rs.scores_data(rivals, [], results([A]), BEIRUT))
+        body = html[html.index('application/json">') + len('application/json">'):html.rindex('</script>')]
+        self.assertNotIn('<', body)
+        self.assertEqual(json.loads(body)['players']['a'], "</script><b>")
+
     def test_between_drops_results_of_other_pairs(self):
         other = rs.Result(9, 1, T0, A, X, 'manual')
         self.assertEqual([r.id for r in rs.between([other] + results([A]), A, I)], [1])
@@ -205,9 +225,22 @@ class TestExports(unittest.TestCase):
                 self.assertEqual(f.read().splitlines()[-1], '2026-10-28,14:03,1,1')
             with open(os.path.join(directory, 'old', 'scores_2025.csv')) as f:
                 self.assertEqual(f.read().splitlines()[-1], '2026-10-28,14:01,1,0')
-            self.assertTrue(os.path.exists(os.path.join(directory, 'index.html')))
+            with open(os.path.join(directory, 'index.html'), encoding='utf-8') as f:
+                page = f.read()
+            self.assertIn('"players":{"a":"Alice","b":"Ivan"}', page)
+            self.assertNotIn(rs.DATA_PLACEHOLDER, page)
             self.assertTrue(os.path.exists(os.path.join(directory, 'scores.json')))
             self.assertFalse([name for name in os.listdir(directory) if name.endswith('.tmp')])
+
+
+class TestWebLink(unittest.TestCase):
+
+    def test_link_only_when_configured(self):
+        with patch.object(rivalry, 'RIVALRY_WEB_URL', None):
+            self.assertEqual(rivalry._with_link("score"), "score")
+        with patch.object(rivalry, 'RIVALRY_WEB_URL', 'https://example.org/uno?a=1&b="2"'):
+            self.assertEqual(rivalry._with_link("score"),
+                             'score\n\n<a href="https://example.org/uno?a=1&amp;b=&quot;2&quot;">📈 Full stats</a>')
 
 
 class TestImport(unittest.TestCase):

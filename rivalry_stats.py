@@ -8,6 +8,7 @@
 import csv
 import io
 import json
+import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -18,6 +19,13 @@ WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 # (label, first hour, last hour + 1) in local time; Night wraps past midnight
 DAYPARTS = (('Morning', 5, 12), ('Afternoon', 12, 17), ('Evening', 17, 22), ('Night', 22, 29))
 OUTCOME_NOTES = {'forfeit': 'by forfeit', 'manual': 'added by hand'}
+JSON_VERSION = 2
+# Best win share and ratio count from this many games, so an early 1–0 is not 100%.
+# web/index.html uses the same number (MIN_GAMES).
+RECORD_MIN_GAMES = 20
+COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+# The empty element of web/index.html that the export fills with the data
+DATA_PLACEHOLDER = '<script id="rivalry-data" type="application/json"></script>'
 
 
 @dataclass
@@ -92,12 +100,17 @@ def biggest_leads(results, a_id, b_id):
     return leads
 
 
-def best_win_shares(results, a_id, b_id):
-    """{player id: (best_wins, total_games)}"""
-    best = {a_id: (0, 1), b_id: (0, 1)}
+def best_win_shares(results, a_id, b_id, min_games=RECORD_MIN_GAMES):
+    """{player id: (best_wins, total_games)} counting from `min_games` games, or None before that"""
+    best = {a_id: None, b_id: None}
     for _, a, b in running_scores(results, a_id, b_id):
         total = a + b
+        if total < min_games:
+            continue
         for pid, wins in ((a_id, a), (b_id, b)):
+            if best[pid] is None:
+                best[pid] = (wins, total)
+                continue
             best_w, best_n = best[pid]
             if wins * best_n > best_w * total or (wins > 0 and wins * best_n == best_w * total):
                 best[pid] = (wins, total)
@@ -252,22 +265,23 @@ def score_text(rivals, title, results, tz, now, all_results=None, show_periods=F
     bests = best_win_shares(results, rivals.a_id, rivals.b_id)
     best_days = most_wins_in_a_day(results, tz)
     forfeits = Counter(r.winner_id for r in results if r.outcome == 'forfeit')
-    share_values = {pid: ("%.1f%% (%d game%s)" %
-                          (percent(bests[pid][0], bests[pid][1]),
-                           bests[pid][1], "" if bests[pid][1] == 1 else "s"))
-                    for pid in (first, second)}
-    ratio_first = ratio(bests[first][0], bests[first][1] - bests[first][0])
-    ratio_second = ratio(bests[second][0], bests[second][1] - bests[second][0])
-    ratio_line = ("Best ratio: %s/%s %s (%d game%s) · %s/%s %s (%d game%s)" %
-                  (rivals.name(first), rivals.name(second), ratio_first,
-                   bests[first][1], "" if bests[first][1] == 1 else "s",
-                   rivals.name(second), rivals.name(first), ratio_second,
-                   bests[second][1], "" if bests[second][1] == 1 else "s"))
+    if bests[first] is None:
+        pending = "from game %d (%d so far)" % (RECORD_MIN_GAMES, total)
+        share_line, ratio_line = "Best win share: " + pending, "Best ratio: " + pending
+    else:
+        share_values = {pid: "%.1f%% (%d games)" % (percent(bests[pid][0], bests[pid][1]), bests[pid][1])
+                        for pid in (first, second)}
+        share_line = "Best win share: " + rivals.pair(share_values, first, second)
+        ratio_first = ratio(bests[first][0], bests[first][1] - bests[first][0])
+        ratio_second = ratio(bests[second][0], bests[second][1] - bests[second][0])
+        ratio_line = ("Best ratio: %s/%s %s (%d games) · %s/%s %s (%d games)" %
+                      (rivals.name(first), rivals.name(second), ratio_first, bests[first][1],
+                       rivals.name(second), rivals.name(first), ratio_second, bests[second][1]))
     day_values = {pid: ("%d (%s)" % (best_days[pid][0], best_days[pid][1].strftime('%d %b %Y'))
                         if pid in best_days else "0") for pid in (first, second)}
     lines += ["", "<b>Records</b>",
               "Biggest lead: " + rivals.pair(leads, first, second, "+{}"),
-              "Best win share: " + rivals.pair(share_values, first, second),
+              share_line,
               ratio_line,
               "Most wins in a day: " + rivals.pair(day_values, first, second),
               "Forfeit wins: " + rivals.pair(forfeits, first, second)]
@@ -336,18 +350,27 @@ def scores_csv(rivals, results, tz):
     return out.getvalue()
 
 
-def scores_json(rivals, seasons: List[Season], results, tz):
+def valid_color(value):
+    return value if isinstance(value, str) and COLOR_RE.match(value) else None
+
+
+def scores_data(rivals, seasons: List[Season], results, tz, colors=None):
     """Every result with its details, for a richer website. Telegram IDs are left out."""
     keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
     names = {s.id: s.name for s in seasons}
+    colors = list(colors or ()) + [None, None]
 
     def stamp(dt):
         return to_local(dt, tz).isoformat(timespec='seconds') if dt else None
 
-    data = {
+    return {
+        'version': JSON_VERSION,
+        'timezone': str(getattr(tz, 'key', tz)),
         'players': {'a': rivals.a_name, 'b': rivals.b_name},
+        'colors': {'a': valid_color(colors[0]), 'b': valid_color(colors[1])},
         'seasons': [{'name': s.name, 'started_at': stamp(s.started_at)} for s in seasons],
         'matches': [{
+            'n': number,
             'season': names.get(r.season_id),
             'ended_at': stamp(r.ended_at),
             'started_at': stamp(r.started_at),
@@ -357,7 +380,18 @@ def scores_json(rivals, seasons: List[Season], results, tz):
             'players': r.players,
             'turns': r.turns,
             'loser_cards_left': r.loser_cards_left,
-        } for r in results],
+        } for number, r in enumerate(results, 1)],
     }
-    return json.dumps(data, ensure_ascii=False, indent=1)
+
+
+def scores_json(rivals, seasons: List[Season], results, tz, colors=None):
+    return json.dumps(scores_data(rivals, seasons, results, tz, colors), ensure_ascii=False, indent=1)
+
+
+def inline_data(page, data):
+    """The website page with `data` embedded in its data placeholder, so it renders without a request"""
+    text = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    # Keep "</script>" and HTML comments in names from closing the script element
+    text = text.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+    return page.replace(DATA_PLACEHOLDER, DATA_PLACEHOLDER.replace('></', '>%s</' % text), 1)
 

@@ -87,3 +87,7 @@ RIVALRY_TIMEZONE = RIVALRY.get("timezone") or "UTC"
 # None: a "web" folder next to the database; false: no export
 RIVALRY_EXPORT_DIR = RIVALRY.get("export_dir")
 RIVALRY_PIN = bool(RIVALRY.get("pin", True))
+# Optional chart colors of the two players, in the order of "players" ("#rrggbb" or None)
+RIVALRY_COLORS = [p.get("color") or None for p in RIVALRY.get("players") or []]
+# Linked from /score and the score messages when set
+RIVALRY_WEB_URL = RIVALRY.get("web_url") or None

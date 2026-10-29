@@ -20,12 +20,13 @@
     "rivalry": {
         "enabled": false,
         "players": [
-            {"id": 0, "name": "A"},
-            {"id": 0, "name": "I"}
+            {"id": 0, "name": "A", "color": null},
+            {"id": 0, "name": "I", "color": null}
         ],
         "chat_id": null,
         "timezone": "UTC",
         "export_dir": null,
+        "web_url": null,
         "pin": true
     }
 }

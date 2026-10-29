@@ -1,244 +1,2246 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uno Scores Visualization</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .tooltip {
-            position: absolute;
-            text-align: center;
-            padding: 8px;
-            font: 12px sans-serif;
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            border: 0px;
-            border-radius: 8px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 10;
-        }
-        .chart-container {
-            width: 100%;
-            margin-bottom: 2rem;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 4px solid #3498db;
-            width: 40px;
-            height: 40px;
-            animation: spin 2s linear infinite;
-            margin: 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>UNO Rivalry</title>
+<!--
+  The rivalry website. Self-contained: no framework, no CDN, no web font.
+  The bot copies this file into its export folder with the data inlined in
+  #rivalry-data; opened without inlined data it reads scores.json next to it.
+  It re-reads scores.json while open, so it updates after every game.
+-->
+<style>
+:root {
+  color-scheme: light;
+  --page: #f4f4f1;
+  --surface: #fcfcfb;
+  --raise: #ffffff;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #7c7a74;
+  --grid: #e7e6e0;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --wash: rgba(11, 11, 11, 0.045);
+  --neutral: #ecebe6;
+  --a: #2a78d6;
+  --b: #eb6834;
+  --act: #6250d6;
+  --good: #006300;
+  --bad: #c03030;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --raise: #222220;
+    --ink: #f0efec;
+    --ink2: #c3c2b7;
+    --muted: #8f8d86;
+    --grid: #2c2c2a;
+    --axis: #45453f;
+    --border: rgba(255, 255, 255, 0.10);
+    --wash: rgba(255, 255, 255, 0.06);
+    --neutral: #33332f;
+    --a: #3987e5;
+    --b: #d95926;
+    --act: #9085e9;
+    --good: #0ca30c;
+    --bad: #e66767;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --raise: #222220;
+  --ink: #f0efec;
+  --ink2: #c3c2b7;
+  --muted: #8f8d86;
+  --grid: #2c2c2a;
+  --axis: #45453f;
+  --border: rgba(255, 255, 255, 0.10);
+  --wash: rgba(255, 255, 255, 0.06);
+  --neutral: #33332f;
+  --a: #3987e5;
+  --b: #d95926;
+  --act: #9085e9;
+  --good: #0ca30c;
+  --bad: #e66767;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+a { color: inherit; }
+button, select, input { font: inherit; color: inherit; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+
+/* Header and sticky bar */
+header.top { padding: 24px 0 8px; }
+.brand { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.brand h1 { font-size: 22px; margin: 0 16px 4px 0; }
+.brand .sub { color: var(--muted); font-size: 13px; }
+.live { display: inline-flex; align-items: center; color: var(--muted); font-size: 12px; margin-right: 12px; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-right: 6px; display: inline-block; }
+.live.stale i { background: var(--muted); }
+.btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 10px; cursor: pointer; font-size: 13px; line-height: 1.3;
+}
+.btn:hover { background: var(--raise); }
+.btn.on { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; vertical-align: middle; }
+.seg button { border: 0; background: var(--surface); padding: 3px 9px; cursor: pointer; font-size: 12px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--ink); color: var(--page); }
+
+.bar {
+  position: -webkit-sticky; position: sticky; top: 0; z-index: 20;
+  background: var(--page); border-bottom: 1px solid var(--border);
+}
+.filters { display: flex; flex-wrap: wrap; align-items: center; padding: 8px 0 4px; }
+.filters > * { margin: 0 8px 6px 0; }
+.filters label { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; }
+.filters label > select, .filters label > input { margin-left: 6px; }
+select, input[type="date"], input[type="search"] {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px 8px; font-size: 13px; min-height: 30px;
+}
+.chips { display: inline-flex; flex-wrap: wrap; }
+.chip { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; margin: 0 4px 0 0; cursor: pointer; background: var(--surface); user-select: none; }
+.chip.off { opacity: 0.45; text-decoration: line-through; }
+.range-note { font-size: 12px; color: var(--ink2); }
+nav.sections { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 2px 0 8px; scrollbar-width: none; }
+nav.sections::-webkit-scrollbar { display: none; }
+nav.sections a {
+  white-space: nowrap; text-decoration: none; font-size: 13px; color: var(--ink2);
+  padding: 4px 10px; border-radius: 999px; margin-right: 4px;
+}
+nav.sections a:hover, nav.sections a.on { background: var(--wash); color: var(--ink); }
+
+/* Sections and cards */
+section { padding: 28px 0 4px; scroll-margin-top: 110px; }
+section > h2 { font-size: 18px; margin-bottom: 4px; }
+section > .lede { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.grid { display: grid; grid-gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid.wide { grid-template-columns: 1fr; }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+@media (max-width: 480px) { .grid.two { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 16px 12px; box-shadow: var(--shadow); min-width: 0;
+}
+.card.span2 { grid-column: 1 / -1; }
+.ch { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 6px; }
+.ch h3 { font-size: 14px; margin-right: 8px; }
+.ch .ctl > * { margin-left: 4px; }
+.cap { color: var(--muted); font-size: 12px; margin: -2px 0 8px; }
+.chart { position: relative; width: 100%; min-height: 40px; }
+.chart svg { display: block; overflow: visible; }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; font-size: 12px; color: var(--ink2); margin-top: 6px; }
+.legend > span { display: inline-flex; align-items: center; margin-right: 14px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.sw.a { background: var(--a); } .sw.b { background: var(--b); } .sw.act { background: var(--act); } .sw.n { background: var(--neutral); }
+.sw.line { height: 3px; width: 14px; border-radius: 2px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.dot.a { background: var(--a); } .dot.b { background: var(--b); }
+
+.hint {
+  display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  border-radius: 50%; border: 1px solid var(--axis); color: var(--muted); font-size: 10px;
+  margin-left: 6px; cursor: help; vertical-align: 1px; font-weight: 600; flex: none;
+}
+
+/* Scoreboard */
+.hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 8px 0 4px; }
+.hero .side { display: flex; flex-direction: column; }
+.hero .side.a { align-items: flex-end; text-align: right; }
+.hero .side.b { align-items: flex-start; }
+.hero .nm { font-size: 15px; color: var(--ink2); font-weight: 500; }
+.hero .big { font-size: 64px; font-weight: 650; line-height: 1.05; letter-spacing: -0.03em; }
+.hero .dash { font-size: 40px; color: var(--muted); padding: 0 20px; font-weight: 300; }
+.lead-text { text-align: center; font-size: 15px; color: var(--ink2); margin: 2px 0 12px; }
+.split { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--neutral); }
+.split div:first-child { background: var(--a); }
+.split div:last-child { background: var(--b); margin-left: 2px; }
+.split-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); margin-top: 4px; }
+.tiles { display: grid; grid-gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 14px; }
+.tile { background: var(--raise); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.tl { font-size: 12px; color: var(--muted); display: flex; align-items: center; }
+.tv { font-size: 20px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv.sm { font-size: 15px; }
+.ts { font-size: 12px; color: var(--ink2); margin-top: 1px; }
+.pv { font-size: 16px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+.pv small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 4px; }
+.form { display: flex; flex-wrap: wrap; margin-top: 4px; }
+.form i { width: 16px; height: 16px; border-radius: 50%; margin: 0 4px 4px 0; display: inline-block; cursor: default; box-shadow: 0 0 0 2px var(--surface); }
+.form i.a { background: var(--a); } .form i.b { background: var(--b); }
+.form i:last-child { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink2); }
+.note { font-size: 13px; color: var(--ink2); margin-top: 10px; }
+.note b { color: var(--ink); }
+.up { color: var(--good); } .down { color: var(--bad); }
+
+/* Tables */
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 12px; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+.tbl { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.meta { display: block; color: var(--muted); font-size: 11px; }
+.win { font-weight: 600; }
+.best { font-weight: 600; }
+.best::after { content: " \2605"; color: var(--muted); font-size: 10px; }
+th.sort { cursor: pointer; }
+th.sort.on::after { content: " \25BE"; }
+th.sort.on.asc::after { content: " \25B4"; }
+.pager { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.pager > * { margin-top: 4px; }
+.pager .btn { margin-left: 4px; }
+.log-tools { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.log-tools > * { margin: 0 8px 6px 0; }
+
+/* Comparison */
+.cmp-row { display: grid; grid-template-columns: 1fr minmax(110px, 170px) 1fr; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--grid); }
+.cmp-row:last-child { border-bottom: 0; }
+.cmp-l { font-size: 12px; color: var(--ink2); text-align: center; padding: 0 8px; }
+.cmp-side { display: flex; align-items: center; }
+.cmp-side.a { flex-direction: row-reverse; }
+.cmp-bar { height: 10px; border-radius: 4px; min-width: 2px; }
+.cmp-side.a .cmp-bar { background: var(--a); border-radius: 4px 0 0 4px; }
+.cmp-side.b .cmp-bar { background: var(--b); border-radius: 0 4px 4px 0; }
+.cmp-v { font-size: 13px; padding: 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmp-v.w { font-weight: 650; }
+.cmp-head { display: grid; grid-template-columns: 1fr minmax(110px, 170px) 1fr; font-weight: 600; padding-bottom: 6px; }
+.cmp-head div:first-child { text-align: right; padding-right: 8px; }
+.cmp-head div:last-child { padding-left: 8px; }
+
+/* Season recap */
+.recap {
+  border-radius: 16px; padding: 22px; color: #fff; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--rc1), var(--rc2));
+}
+.recap h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; font-weight: 600; }
+.recap .champ { font-size: 30px; font-weight: 700; margin: 6px 0 2px; letter-spacing: -0.02em; }
+.recap .sc { font-size: 16px; opacity: 0.92; }
+.recap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-gap: 12px; margin-top: 18px; }
+.recap-grid div { background: rgba(255, 255, 255, 0.14); border-radius: 10px; padding: 8px 10px; }
+.recap-grid b { display: block; font-size: 17px; }
+.recap-grid span { font-size: 11px; opacity: 0.85; }
+
+/* Tooltip */
+#tip {
+  position: fixed; z-index: 50; pointer-events: none; display: none; max-width: 280px;
+  background: var(--raise); color: var(--ink); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 10px; font-size: 12px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+}
+#tip b { font-weight: 600; }
+#tip .r { display: flex; align-items: center; justify-content: space-between; }
+#tip .r span:last-child { margin-left: 12px; font-variant-numeric: tabular-nums; font-weight: 600; }
+#tip .m { color: var(--muted); }
+
+svg text { font-family: inherit; }
+.ax text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ax line { stroke: var(--grid); shape-rendering: crispEdges; }
+.ax .base { stroke: var(--axis); }
+.lbl { fill: var(--ink2); font-size: 11px; }
+.crosshair { stroke: var(--axis); shape-rendering: crispEdges; }
+.brush { fill: var(--wash); stroke: var(--axis); }
+
+footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
+#loading { padding: 80px 0; text-align: center; color: var(--muted); }
+@media (max-width: 600px) {
+  .hero .big { font-size: 46px; }
+  .hero .dash { padding: 0 10px; font-size: 30px; }
+  section { scroll-margin-top: 150px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .chip, nav.sections a { transition: background-color 0.15s; }
+}
+@media print {
+  .bar, #theme { display: none; }
+  .card { break-inside: avoid; box-shadow: none; }
+}
+</style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
-        <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8">
-            <div class="mb-8 text-center">
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Uno Scores Visualization</h1>
-                <p class="text-gray-500 mt-2">An interactive dashboard analyzing the game from multiple perspectives.</p>
-            </div>
+<body>
+<script id="rivalry-data" type="application/json"></script>
+<script>
+// Apply the saved theme before the first paint
+(function () {
+  try {
+    var t = localStorage.getItem('rivalry-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
 
-            <div id="loading-indicator">
-                <div class="loader"></div>
-                <p class="text-center text-gray-500">Loading score data from scores.csv...</p>
-            </div>
-            
-            <div id="charts-wrapper" class="hidden">
-                <!-- Chart 1: Score Progression -->
-                <div class="chart-container">
-                    <h2 class="text-xl font-bold text-gray-700 mb-1">1. Score Progression</h2>
-                    <p class="text-sm text-gray-500 mb-4">The raw scores of Player A and Player I over time.</p>
-                    <div id="chart-progression"></div>
-                </div>
-                
-                <!-- Chart 2: Score Ratio -->
-                <div class="chart-container">
-                    <h2 class="text-xl font-bold text-gray-700 mb-1">2. Score Ratio (Player A / Player I)</h2>
-                    <p class="text-sm text-gray-500 mb-4">Shows the proportional lead. The y-axis is capped for readability.</p>
-                    <div id="chart-ratio"></div>
-                </div>
-
-                <!-- Chart 3: Percentage of Total Points -->
-                <div class="chart-container">
-                    <h2 class="text-xl font-bold text-gray-700 mb-1">3. Percentage of Total Points (Player A)</h2>
-                    <p class="text-sm text-gray-500 mb-4">A stable metric showing Player A's share of the total points, indicating overall game control.</p>
-                    <div id="chart-percentage"></div>
-                </div>
-            </div>
-        </div>
+<header class="top">
+  <div class="wrap brand">
+    <div>
+      <h1 id="title">UNO Rivalry</h1>
+      <div class="sub" id="subtitle">Head-to-head statistics</div>
     </div>
-    
-    <script>
-        // --- 1. Fetch and Parse Data ---
-        async function loadData() {
-            try {
-                const data = await d3.csv("scores.csv");
-                
-                // Define a parser for the combined date and time string
-                const parseTime = d3.timeParse("%Y-%m-%d %H:%M");
+    <div>
+      <span class="live stale" id="live"><i></i><span>Static</span></span>
+      <button class="btn" id="theme" type="button" title="Switch between automatic, light and dark">Theme: auto</button>
+    </div>
+  </div>
+</header>
 
-                // Process each row
-                const processedData = data.map(d => {
-                    const scoreA = +d.score_a;
-                    const scoreI = +d.score_i;
-                    const dateTimeStr = `${d.date} ${d.time}`;
-                    const date = parseTime(dateTimeStr);
+<div class="bar">
+  <div class="wrap">
+    <div class="filters" id="filters">
+      <label>Season <select id="f-season"></select></label>
+      <label>Mode <select id="f-mode"></select></label>
+      <label>Players <select id="f-players">
+        <option value="all">Any</option><option value="2">2 players</option><option value="3">3+ players</option>
+      </select></label>
+      <span class="chips" id="f-out" title="Which kinds of results count"></span>
+      <label>From <input type="date" id="f-from"></label>
+      <label>To <input type="date" id="f-to"></label>
+      <button class="btn" type="button" id="f-reset">Reset</button>
+      <span class="range-note" id="f-note"></span>
+    </div>
+    <nav class="sections" id="nav">
+      <a href="#overview">Overview</a>
+      <a href="#progress">Score over time</a>
+      <a href="#streaks">Streaks</a>
+      <a href="#time">When</a>
+      <a href="#sessions">Sessions</a>
+      <a href="#games">Games</a>
+      <a href="#records">Records</a>
+      <a href="#compare">Head to head</a>
+      <a href="#seasons">Seasons</a>
+      <a href="#log">Match log</a>
+    </nav>
+  </div>
+</div>
 
-                    if (!date || isNaN(scoreA) || isNaN(scoreI)) {
-                        console.warn("Skipping malformed row:", d);
-                        return null;
-                    }
+<main class="wrap" id="main">
+  <div id="loading">Loading the scores…</div>
+  <div id="app" style="display:none">
 
-                    const ratio = scoreI === 0 ? null : scoreA / scoreI;
-                    const totalPoints = scoreA + scoreI;
-                    const percentage = totalPoints === 0 ? 0 : (scoreA / totalPoints) * 100;
-                    
-                    return { date, scoreA, scoreI, ratio, percentage };
-                }).filter(d => d !== null); // Filter out any null (malformed) rows
+  <section id="overview">
+    <div class="grid two">
+      <div class="card">
+        <div class="ch"><h3 id="ov-title">Score</h3><span id="ov-games" class="cap" style="margin:0"></span></div>
+        <div class="hero">
+          <div class="side a"><span class="nm na"></span><span class="big" id="sc-a">0</span></div>
+          <span class="dash">–</span>
+          <div class="side b"><span class="nm nb"></span><span class="big" id="sc-b">0</span></div>
+        </div>
+        <div class="lead-text" id="lead-text"></div>
+        <div class="split" id="split"><div></div><div></div></div>
+        <div class="split-l" id="split-l"></div>
+        <div class="tiles" id="ov-tiles"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Form</h3><span class="hint" data-tip="The last 20 results, oldest on the left and the newest ringed.">?</span></div>
+        <div class="form" id="form"></div>
+        <div class="ch" style="margin-top:14px"><h3>Momentum</h3><span class="hint" data-tip="Win share over the most recent games compared with the whole selection. An arrow shows a player doing better or worse lately than overall.">?</span></div>
+        <div class="tbl"><table id="momentum"></table></div>
+        <div class="ch" style="margin-top:14px"><h3>Periods</h3><span class="hint" data-tip="Results by calendar period in the bot's time zone, within the current season and filters (the date range is ignored here).">?</span></div>
+        <div class="tbl"><table id="periods"></table></div>
+        <div class="note" id="projection"></div>
+      </div>
+    </div>
+  </section>
 
-                if (processedData.length === 0) {
-                    throw new Error("No valid data could be parsed from scores.csv.");
-                }
-                
-                document.getElementById('loading-indicator').classList.add('hidden');
-                document.getElementById('charts-wrapper').classList.remove('hidden');
+  <section id="progress">
+    <h2>Score over time</h2>
+    <p class="lede">Drag across the running-score chart to zoom into those dates. <span class="seg" id="x-mode"><button type="button" data-v="game" class="on">By game</button><button type="button" data-v="time">By date</button></span></p>
+    <div class="grid wide">
+      <div class="card">
+        <div class="ch"><h3>Running score</h3><span class="hint" data-tip="Total wins of each player after every game. Dots mark milestones: every 100th game, round numbers of wins, season starts and new record leads.">?</span></div>
+        <div class="chart" id="c-run"></div>
+        <div class="legend"><span><i class="sw line a"></i><span class="na"></span></span><span><i class="sw line b"></i><span class="nb"></span></span></div>
+      </div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Lead</h3><span class="hint" data-tip="Wins of one player minus wins of the other after every game. Above the line one leads, below it the other does.">?</span></div>
+        <div class="chart" id="c-lead"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> ahead</span><span><i class="sw b"></i><span class="nb"></span> ahead</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Win share</h3><span class="hint" data-tip="The share of all games so far won by the first player. The shaded band is the 95% Wilson confidence interval: while it still covers 50%, the gap could be luck.">?</span></div>
+        <div class="chart" id="c-share"></div>
+        <div class="legend"><span><i class="sw line a"></i><span class="na"></span>'s share</span><span><i class="sw n"></i>95% interval</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Rolling form</h3><span class="ctl"><span class="seg" id="roll-win"><button type="button" data-v="10">10</button><button type="button" data-v="25" class="on">25</button><button type="button" data-v="50">50</button></span><span class="hint" data-tip="The first player's win share over the last N games at every point: the short-term form, without the weight of history.">?</span></span></div>
+        <div class="chart" id="c-roll"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Win ratio</h3><span class="hint" data-tip="The first player's wins divided by the second player's, on a log scale so 2× and ½× sit equally far from 1×.">?</span></div>
+        <div class="chart" id="c-ratio"></div>
+      </div>
+      <div class="card span2">
+        <div class="ch"><h3>Elo rating</h3><span class="hint" data-tip="A chess-style strength rating. Both start at 1500 and each game moves points (K = 24) from loser to winner, more for an upset. Recent results weigh more than old ones.">?</span></div>
+        <div class="chart" id="c-elo"></div>
+        <div class="legend"><span><i class="sw line a"></i><span class="na"></span></span><span><i class="sw line b"></i><span class="nb"></span></span></div>
+      </div>
+    </div>
+  </section>
 
-                return processedData;
+  <section id="streaks">
+    <h2>Streaks &amp; momentum</h2>
+    <p class="lede">Runs of consecutive wins and how results follow each other.</p>
+    <div class="card"><div class="tiles" id="st-tiles" style="margin-top:0"></div></div>
+    <div class="grid wide" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Winning runs</h3><span class="hint" data-tip="Every game in order, grouped into runs of consecutive wins. Wide blocks are long streaks.">?</span></div>
+        <div class="chart" id="c-barcode"></div>
+      </div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Streak lengths</h3><span class="hint" data-tip="How many winning runs of each length each player has had.">?</span></div>
+        <div class="chart" id="c-sthist"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>What follows a result</h3><span class="hint" data-tip="Bounce-back: how often a player wins the game right after losing one. Hot hand: how often they win again right after a win. Sessions do not matter here, only the order of games.">?</span></div>
+        <div class="tbl"><table id="st-cond"></table></div>
+      </div>
+    </div>
+  </section>
 
-            } catch (error) {
-                document.getElementById('loading-indicator').innerHTML = `<p class="text-center text-red-500 font-semibold">Error: Could not load or parse scores.csv. Make sure the file exists, is in the same directory, and has the correct header (date,time,score_a,score_i).</p>`;
-                console.error("Failed to process scores.csv:", error);
-                return null;
-            }
+  <section id="time">
+    <h2>When they play</h2>
+    <p class="lede">Times are the bot's local time.</p>
+    <div class="grid wide">
+      <div class="card">
+        <div class="ch"><h3>Calendar</h3><span class="ctl"><span class="seg" id="cal-mode"><button type="button" data-v="net" class="on">Day winner</button><button type="button" data-v="games">Games</button></span><span class="hint" data-tip="One square per day. Day winner: the color of whoever won more games that day, stronger for a bigger margin. Games: darker for more games.">?</span></span></div>
+        <div class="chart scroll-x" id="c-cal"></div>
+        <div class="legend" id="cal-legend"></div>
+      </div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card span2">
+        <div class="ch"><h3>Hour × weekday</h3><span class="ctl"><span class="seg" id="heat-mode"><button type="button" data-v="games" class="on">Games</button><button type="button" data-v="share">Win share</button></span><span class="hint" data-tip="Games: how many games ended in each hour of each weekday. Win share: who wins more in that slot (slots with fewer than 3 games stay grey).">?</span></span></div>
+        <div class="chart scroll-x" id="c-heat"></div>
+        <div class="legend" id="heat-legend"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>By hour</h3><span class="hint" data-tip="Wins by the hour the game ended.">?</span></div>
+        <div class="chart" id="c-hour"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>By weekday</h3></div>
+        <div class="chart" id="c-wday"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>By part of the day</h3><span class="hint" data-tip="Morning 5–12, afternoon 12–17, evening 17–22, night 22–5, as in /score.">?</span></div>
+        <div class="chart" id="c-dpart"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>By month</h3></div>
+        <div class="chart" id="c-month"></div>
+      </div>
+      <div class="card span2">
+        <div class="ch"><h3>Games per week</h3><span class="hint" data-tip="Games played in each week (Monday to Sunday).">?</span></div>
+        <div class="chart" id="c-week"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="ch"><h3>Days</h3></div><div class="tiles" id="day-tiles" style="margin-top:4px"></div></div>
+  </section>
+
+  <section id="sessions">
+    <h2>Sessions</h2>
+    <p class="lede">A session is a run of games with no more than 30 minutes between one game ending and the next.</p>
+    <div class="card"><div class="tiles" id="se-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card span2">
+        <div class="ch"><h3>Session results</h3><span class="hint" data-tip="One bar per session: how many more games one player won than the other in it.">?</span></div>
+        <div class="chart" id="c-sess"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won the session</span><span><i class="sw b"></i><span class="nb"></span> won the session</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Session length</h3><span class="hint" data-tip="How many sessions had 1, 2, 3… games.">?</span></div>
+        <div class="chart" id="c-sesslen"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Within a session</h3><span class="hint" data-tip="Win share by the position of a game in its session: does someone start strong or finish strong?">?</span></div>
+        <div class="chart" id="c-sesspos"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="games">
+    <h2>Games</h2>
+    <p class="lede" id="games-lede">Details the bot records for the games it hosts.</p>
+    <div class="card"><div class="tiles" id="g-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Game length</h3><span class="hint" data-tip="How long games lasted from the first card to the win, split by winner.">?</span></div>
+        <div class="chart" id="c-dur"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won</span><span><i class="sw b"></i><span class="nb"></span> won</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Length over time</h3><span class="hint" data-tip="Each dot is a game, colored by its winner.">?</span></div>
+        <div class="chart" id="c-durtime"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Turns</h3><span class="hint" data-tip="How many turns games took, split by winner.">?</span></div>
+        <div class="chart" id="c-turns"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Turns vs length</h3></div>
+        <div class="chart" id="c-turnsdur"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Margin of victory</h3><span class="hint" data-tip="Cards left in the loser's hand when the game ended. 1–2 cards is a close game, 7 or more a blowout.">?</span></div>
+        <div class="chart" id="c-cards"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won</span><span><i class="sw b"></i><span class="nb"></span> won</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Outcomes</h3><span class="hint" data-tip="How results were recorded: played with the bot, by forfeit (the loser left), added by hand with /score_add, or imported from the old score files.">?</span></div>
+        <div class="chart" id="c-out"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Short and long games</h3><span class="hint" data-tip="Tracked games split into thirds by length: does someone win the quick ones and someone else the long ones?">?</span></div>
+        <div class="tbl"><table id="g-len"></table></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Modes and table size</h3></div>
+        <div class="tbl"><table id="g-modes"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="records">
+    <h2>Records</h2>
+    <p class="lede">The best of each player within the current filters. Percentage records count only from the 20th game, so an early 1–0 is not 100%.</p>
+    <div class="card"><div class="tbl"><table id="rec"></table></div></div>
+  </section>
+
+  <section id="compare">
+    <h2>Head to head</h2>
+    <p class="lede">The two players side by side; the bolder value is the better one.</p>
+    <div class="card"><div class="cmp-head"><div class="na"></div><div></div><div class="nb"></div></div><div id="cmp"></div></div>
+  </section>
+
+  <section id="seasons">
+    <h2>Seasons</h2>
+    <p class="lede">Every season under the current mode, player and outcome filters.</p>
+    <div class="grid two">
+      <div class="card span2"><div class="tbl"><table id="se-table"></table></div><div class="note" id="se-titles"></div></div>
+    </div>
+    <div class="grid" id="se-multi" style="margin-top:14px"></div>
+    <div style="margin-top:14px" id="recap"></div>
+  </section>
+
+  <section id="log">
+    <h2>Match log</h2>
+    <div class="card">
+      <div class="log-tools">
+        <input type="search" id="log-q" placeholder="Search: date, winner, mode…" aria-label="Search the match log">
+        <button class="btn" type="button" id="log-csv">Download CSV</button>
+        <span class="cap" id="log-count" style="margin:0"></span>
+      </div>
+      <div class="tbl"><table id="log-table"></table></div>
+      <div class="pager" id="log-pager"></div>
+    </div>
+  </section>
+
+  </div>
+  <footer id="footer"></footer>
+</main>
+
+<div id="tip" role="tooltip"></div>
+
+<script>
+(function () {
+'use strict';
+
+// --- Settings ---------------------------------------------------------------
+var SESSION_GAP = 30 * 60e3;   // A longer break starts a new session
+var MIN_GAMES = 20;            // Percentage records count from this many games (RECORD_MIN_GAMES in rivalry_stats.py)
+var ELO_START = 1500, ELO_K = 24;
+var CLOSE_CARDS = 2, BLOWOUT_CARDS = 7;
+var REFRESH_MS = 60e3;
+var PAGE_SIZE = 25;
+var DAY = 864e5;
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+var DAYPARTS = [['Morning', 5, 12], ['Afternoon', 12, 17], ['Evening', 17, 22], ['Night', 22, 29]];
+var OUTCOMES = { win: 'Played', forfeit: 'Forfeit', manual: 'Added by hand', imported: 'Imported' };
+var P = ['a', 'b'];
+
+var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], TZ = 'UTC', SIG = '';
+var COL = {};
+var S = {
+  season: null, mode: 'all', pl: 'all', out: { win: true, forfeit: true, manual: true, imported: true },
+  from: '', to: '', x: 'game', roll: 25, heat: 'games', cal: 'net', q: '', sort: 'n', dir: -1, page: 0
+};
+
+// --- Small helpers ----------------------------------------------------------
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function other(p) { return p === 'a' ? 'b' : 'a'; }
+function nm(p) { return esc(NAMES[p]); }
+function f1(v) { return Math.round(v * 10) / 10; }
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function pct(v, d) { return v == null || isNaN(v) ? '–' : (v * 100).toFixed(d == null ? 1 : d) + '%'; }
+function share(part, whole) { return whole ? part / whole : null; }
+function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+function sum(arr) { var s = 0; for (var i = 0; i < arr.length; i++) s += arr[i]; return s; }
+function median(arr) {
+  if (!arr.length) return null;
+  var s = arr.slice().sort(function (x, y) { return x - y; }), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function ratioText(x, y) { return y ? (x / y).toFixed(2) : x ? '∞' : '–'; }
+function fmtDur(sec) {
+  if (sec == null) return '–';
+  sec = Math.round(sec);
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return h ? h + 'h ' + pad(m) + 'm' : m + 'm ' + pad(s) + 's';
+}
+function fmtSpan(ms) {
+  var min = Math.round(ms / 60e3);
+  if (min < 60) return plural(min, 'minute');
+  var h = Math.round(min / 60);
+  if (h < 48) return plural(h, 'hour');
+  return plural(Math.round(h / 24), 'day');
+}
+function keyDate(key) { return Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)); }
+function dateKey(t) { var d = new Date(t); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+function fmtKey(key) { return +key.slice(8, 10) + ' ' + MONTHS[+key.slice(5, 7) - 1] + ' ' + key.slice(0, 4); }
+function fmtWhen(m) { return fmtKey(m.key) + ' ' + pad(m.h) + ':' + pad(m.mi); }
+function gameRef(m) { return 'game #' + m.n + ' · ' + fmtKey(m.key); }
+function hexRgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; var v = parseInt(h, 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
+function mix(c1, c2, t) {
+  var x = hexRgb(c1), y = hexRgb(c2);
+  t = Math.max(0, Math.min(1, t));
+  return 'rgb(' + Math.round(x[0] + (y[0] - x[0]) * t) + ',' + Math.round(x[1] + (y[1] - x[1]) * t) + ',' + Math.round(x[2] + (y[2] - x[2]) * t) + ')';
+}
+function sw(p) { return '<i class="sw ' + p + '"></i>'; }
+function hint(text) { return '<span class="hint" tabindex="0" data-tip="' + esc(text) + '">?</span>'; }
+function empty(node, text) { node.innerHTML = '<div class="empty">' + (text || 'Not enough games yet.') + '</div>'; }
+function width(node) { return Math.max(260, node.clientWidth || (node.parentNode && node.parentNode.clientWidth) || 600); }
+var uidN = 0;
+function uid() { return 'u' + (++uidN); }
+
+// Normal CDF, for the significance of the lead
+function phi(z) {
+  var t = 1 / (1 + 0.2316419 * Math.abs(z));
+  var d = 0.3989423 * Math.exp(-z * z / 2);
+  var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+function wilson(k, n) {
+  if (!n) return [0, 1];
+  var z = 1.96, ph = k / n, den = 1 + z * z / n;
+  var c = (ph + z * z / (2 * n)) / den, h = z * Math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n)) / den;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+
+// --- Tooltip ----------------------------------------------------------------
+var tipEl = $('tip');
+function showTip(html, x, y) {
+  tipEl.innerHTML = html;
+  tipEl.style.display = 'block';
+  var w = tipEl.offsetWidth, h = tipEl.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+  var left = x + 14, top = y + 14;
+  if (left + w > vw - 8) left = Math.max(8, x - w - 14);
+  if (top + h > vh - 8) top = Math.max(8, y - h - 14);
+  tipEl.style.left = left + 'px';
+  tipEl.style.top = top + 'px';
+}
+function hideTip() { tipEl.style.display = 'none'; }
+function row(label, value) { return '<div class="r"><span>' + label + '</span><span>' + value + '</span></div>'; }
+function pointer(ev) {
+  var t = ev.touches && ev.touches[0] ? ev.touches[0] : ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0] : ev;
+  return { x: t.clientX, y: t.clientY };
+}
+// Hints (the "?" marks) and anything else carrying data-tip
+document.addEventListener('mouseover', function (ev) {
+  var t = ev.target.closest ? ev.target.closest('[data-tip]') : null;
+  if (t) showTip(esc(t.getAttribute('data-tip')), ev.clientX, ev.clientY);
+});
+document.addEventListener('mouseout', function (ev) {
+  var t = ev.target.closest ? ev.target.closest('[data-tip]') : null;
+  if (t) hideTip();
+});
+document.addEventListener('focusin', function (ev) {
+  var t = ev.target;
+  if (t.getAttribute && t.getAttribute('data-tip')) {
+    var r = t.getBoundingClientRect();
+    showTip(esc(t.getAttribute('data-tip')), r.right, r.bottom);
+  }
+});
+document.addEventListener('focusout', hideTip);
+window.addEventListener('scroll', hideTip, { passive: true });
+
+// --- Axis ticks -------------------------------------------------------------
+function niceTicks(min, max, count) {
+  if (min === max) { max = min + 1; }
+  var span = max - min, step = Math.pow(10, Math.floor(Math.log(span / count) / Math.LN10)), err = span / count / step;
+  if (err >= 7.5) step *= 10; else if (err >= 3.5) step *= 5; else if (err >= 1.5) step *= 2;
+  var out = [];
+  for (var v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+// Ticks that reach past the largest value
+function coverTicks(min, max, count) {
+  var t = niceTicks(min, max, count), step = t.length > 1 ? t[1] - t[0] : 1;
+  if (t[t.length - 1] < max) t.push(+(t[t.length - 1] + step).toFixed(10));
+  return t;
+}
+function intTicks(min, max, count) {
+  return niceTicks(min, max, count).filter(function (v) { return Math.round(v) === v; });
+}
+function timeTicks(t0, t1, maxCount) {
+  var days = (t1 - t0) / DAY, out = [], d, t;
+  if (days / 7 <= maxCount) {
+    var step = days <= maxCount ? 1 : 7;
+    d = new Date(t0); d.setUTCHours(0, 0, 0, 0);
+    if (step === 7) while (d.getUTCDay() !== 1) d.setUTCDate(d.getUTCDate() + 1);
+    for (t = d.getTime(); t <= t1; t += step * DAY) {
+      if (t >= t0) { var x = new Date(t); out.push({ t: t, l: x.getUTCDate() + ' ' + MONTHS[x.getUTCMonth()] }); }
+    }
+    return out;
+  }
+  var months = days / 30.4, steps = [1, 2, 3, 6, 12, 24], s = 1;
+  for (var i = 0; i < steps.length; i++) { s = steps[i]; if (months / s <= maxCount) break; }
+  d = new Date(t0);
+  var y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+  if (m > 11) { m = 0; y++; }
+  while (m % s) { m++; if (m > 11) { m = 0; y++; } }
+  for (;;) {
+    t = Date.UTC(y, m, 1);
+    if (t > t1) break;
+    out.push({ t: t, l: s >= 12 ? String(y) : (m === 0 || !out.length ? MONTHS[m] + ' ' + String(y).slice(2) : MONTHS[m]) });
+    m += s;
+    while (m > 11) { m -= 12; y++; }
+  }
+  return out;
+}
+
+// --- Charts -----------------------------------------------------------------
+// Rounded data end (4px), square at the baseline
+function barPath(x, y, w, h, r, up) {
+  if (h <= 0.5 || w <= 0) return '';
+  r = Math.min(r, h, w / 2);
+  x = f1(x); y = f1(y); w = f1(w); h = f1(h);
+  if (!r) return 'M' + x + ',' + y + 'h' + w + 'v' + h + 'h' + (-w) + 'Z';
+  if (up) return 'M' + x + ',' + (y + h) + 'V' + (y + r) + 'Q' + x + ',' + y + ' ' + (x + r) + ',' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h) + 'Z';
+  return 'M' + x + ',' + y + 'V' + (y + h - r) + 'Q' + x + ',' + (y + h) + ' ' + (x + r) + ',' + (y + h) + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + (y + h) + ' ' + (x + w) + ',' + (y + h - r) + 'V' + y + 'Z';
+}
+
+/*
+ * Line chart.
+ * o.xs: x of every point (game index or time), o.series: [{color, values (null = gap), area}],
+ * o.band: {lo, hi} values, o.diverge: values filled up/down from 0 in o.posColor / o.negColor,
+ * o.refs: [{y, label}], o.markers: [{i, s (series index)}], o.tip(i), o.onBrush(i0, i1),
+ * o.yFmt, o.xFmt, o.time (x is a time), o.yMin/o.yMax, o.yTicks.
+ */
+function lineChart(node, o) {
+  var xs = o.xs, n = xs.length;
+  if (n < 2) { empty(node); return; }
+  var W = width(node), H = o.height || 240;
+  var m = { l: o.ml || 38, r: 14, t: 10, b: 24 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  var yMin = o.yMin, yMax = o.yMax, all = [];
+  o.series.forEach(function (s) { s.values.forEach(function (v) { if (v != null) all.push(v); }); });
+  if (o.diverge) all = all.concat(o.diverge, [0]);
+  if (o.band) all = all.concat(o.band.lo, o.band.hi);
+  if (yMin == null) yMin = Math.min.apply(null, all);
+  if (yMax == null) yMax = Math.max.apply(null, all);
+  if (yMin === yMax) { yMin -= 1; yMax += 1; }
+  var ticks = o.yTicks || niceTicks(yMin, yMax, Math.max(3, Math.round(ih / 50)));
+  if (!o.yTicks && o.yMin == null) yMin = Math.min(yMin, ticks[0]);
+  if (!o.yTicks && o.yMax == null) yMax = Math.max(yMax, ticks[ticks.length - 1]);
+  var x0 = xs[0], x1 = xs[n - 1];
+  if (x1 === x0) x1 = x0 + 1;
+  function X(v) { return m.l + (v - x0) / (x1 - x0) * iw; }
+  function Y(v) { return m.t + ih - (v - yMin) / (yMax - yMin) * ih; }
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><g class="ax">'];
+  ticks.forEach(function (t) {
+    if (t < yMin - 1e-9 || t > yMax + 1e-9) return;
+    var y = f1(Y(t));
+    out.push('<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '"' + (t === 0 ? ' class="base"' : '') + '/>');
+    out.push('<text x="' + (m.l - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (o.yFmt ? o.yFmt(t) : t) + '</text>');
+  });
+  var xt = o.time ? timeTicks(x0, x1, Math.max(2, Math.floor(iw / 70))) :
+    intTicks(x0, x1, Math.max(2, Math.floor(iw / 70))).map(function (v) { return { t: v, l: o.xFmt ? o.xFmt(v) : v }; });
+  xt.forEach(function (t) {
+    var x = X(t.t);
+    if (x < m.l - 1 || x > W - m.r + 1) return;
+    out.push('<text x="' + f1(x) + '" y="' + (H - 6) + '" text-anchor="middle">' + t.l + '</text>');
+  });
+  out.push('<line class="base" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + (m.t + ih) + '" y2="' + (m.t + ih) + '"/></g>');
+
+  function path(values) {
+    var d = '', pen = false;
+    for (var i = 0; i < n; i++) {
+      if (values[i] == null) { pen = false; continue; }
+      d += (pen ? 'L' : 'M') + f1(X(xs[i])) + ',' + f1(Y(values[i]));
+      pen = true;
+    }
+    return d;
+  }
+  if (o.band) {
+    var d = '';
+    for (var i = 0; i < n; i++) d += (i ? 'L' : 'M') + f1(X(xs[i])) + ',' + f1(Y(o.band.hi[i]));
+    for (i = n - 1; i >= 0; i--) d += 'L' + f1(X(xs[i])) + ',' + f1(Y(o.band.lo[i]));
+    out.push('<path d="' + d + 'Z" fill="' + COL.neutral + '" opacity="0.9"/>');
+  }
+  (o.refs || []).forEach(function (r) {
+    var y = f1(Y(r.y));
+    out.push('<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '" stroke="' + COL.axis + '" stroke-width="1"/>');
+    if (r.label) out.push('<text class="lbl" x="' + (W - m.r) + '" y="' + (y - 4) + '" text-anchor="end">' + r.label + '</text>');
+  });
+  if (o.diverge) {
+    var id = uid(), zy = f1(Y(0)), dv = o.diverge;
+    var ad = 'M' + f1(X(xs[0])) + ',' + zy;
+    for (i = 0; i < n; i++) ad += 'L' + f1(X(xs[i])) + ',' + f1(Y(dv[i]));
+    ad += 'L' + f1(X(xs[n - 1])) + ',' + zy + 'Z';
+    out.push('<clipPath id="' + id + 'p"><rect x="0" y="0" width="' + W + '" height="' + zy + '"/></clipPath>');
+    out.push('<clipPath id="' + id + 'n"><rect x="0" y="' + zy + '" width="' + W + '" height="' + (H - zy) + '"/></clipPath>');
+    out.push('<path d="' + ad + '" fill="' + o.posColor + '" opacity="0.22" clip-path="url(#' + id + 'p)"/>');
+    out.push('<path d="' + ad + '" fill="' + o.negColor + '" opacity="0.22" clip-path="url(#' + id + 'n)"/>');
+    var ld = path(dv);
+    out.push('<path d="' + ld + '" fill="none" stroke="' + o.posColor + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" clip-path="url(#' + id + 'p)"/>');
+    out.push('<path d="' + ld + '" fill="none" stroke="' + o.negColor + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" clip-path="url(#' + id + 'n)"/>');
+  }
+  o.series.forEach(function (s) {
+    var d = path(s.values);
+    if (s.area) {
+      var first = s.values.findIndex(function (v) { return v != null; });
+      out.push('<path d="' + d + 'L' + f1(X(xs[n - 1])) + ',' + f1(Y(Math.max(yMin, 0))) + 'L' + f1(X(xs[first])) + ',' + f1(Y(Math.max(yMin, 0))) + 'Z" fill="' + s.color + '" opacity="0.1"/>');
+    }
+    out.push('<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.width || 2) + '" stroke-linejoin="round" stroke-linecap="round"/>');
+  });
+  (o.markers || []).forEach(function (mk) {
+    var v = mk.y != null ? mk.y : o.series[mk.s || 0].values[mk.i];
+    if (v == null) return;
+    out.push('<circle cx="' + f1(X(xs[mk.i])) + '" cy="' + f1(Y(v)) + '" r="4" fill="' + (mk.color || COL.ink) + '" stroke="' + COL.surface + '" stroke-width="2"/>');
+  });
+  out.push('<line class="crosshair" x1="0" x2="0" y1="' + m.t + '" y2="' + (m.t + ih) + '" style="display:none"/>');
+  var hoverSeries = o.series.concat(o.diverge ? [{ values: o.diverge, color: null }] : []);
+  hoverSeries.forEach(function (s, k) {
+    out.push('<circle class="hd" data-k="' + k + '" r="4" stroke="' + COL.surface + '" stroke-width="2" fill="' + (s.color || COL.ink) + '" style="display:none"/>');
+  });
+  out.push('<rect class="brush" y="' + m.t + '" height="' + ih + '" width="0" style="display:none"/>');
+  out.push('<rect class="hit" x="' + m.l + '" y="0" width="' + iw + '" height="' + (m.t + ih) + '" fill="transparent"/></svg>');
+  node.innerHTML = out.join('');
+
+  var svg = node.firstChild, cross = svg.querySelector('.crosshair'), dots = svg.querySelectorAll('.hd');
+  var brush = svg.querySelector('.brush'), hit = svg.querySelector('.hit'), drag = null;
+  function nearest(px) {
+    var lo = 0, hi = n - 1, v = x0 + (px - m.l) / iw * (x1 - x0);
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (xs[mid] < v) lo = mid; else hi = mid; }
+    return Math.abs(xs[lo] - v) <= Math.abs(xs[hi] - v) ? lo : hi;
+  }
+  function localX(ev) { var p = pointer(ev), r = svg.getBoundingClientRect(); return { px: p.x - r.left, p: p }; }
+  function move(ev) {
+    var l = localX(ev), i = nearest(l.px), cx = f1(X(xs[i]));
+    cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.style.display = '';
+    for (var k = 0; k < dots.length; k++) {
+      var v = hoverSeries[k].values[i];
+      if (v == null) { dots[k].style.display = 'none'; continue; }
+      dots[k].setAttribute('cx', cx); dots[k].setAttribute('cy', f1(Y(v))); dots[k].style.display = '';
+      if (!hoverSeries[k].color) dots[k].setAttribute('fill', v >= 0 ? o.posColor : o.negColor);
+    }
+    if (drag) {
+      var a = Math.max(m.l, Math.min(drag, l.px)), b = Math.min(m.l + iw, Math.max(drag, l.px));
+      brush.setAttribute('x', a); brush.setAttribute('width', b - a); brush.style.display = '';
+    }
+    if (o.tip) showTip(o.tip(i), l.p.x, l.p.y);
+  }
+  function leave() {
+    cross.style.display = 'none';
+    for (var k = 0; k < dots.length; k++) dots[k].style.display = 'none';
+    hideTip();
+  }
+  hit.addEventListener('mousemove', move);
+  hit.addEventListener('mouseleave', function () { if (!drag) leave(); });
+  hit.addEventListener('touchstart', move, { passive: true });
+  hit.addEventListener('touchmove', move, { passive: true });
+  hit.addEventListener('touchend', function () { setTimeout(leave, 1200); });
+  if (o.onBrush) {
+    hit.style.cursor = 'crosshair';
+    hit.addEventListener('mousedown', function (ev) { drag = localX(ev).px; ev.preventDefault(); });
+    var up = function (ev) {
+      if (drag == null) return;
+      var start = drag, end = localX(ev).px;
+      drag = null; brush.style.display = 'none';
+      window.removeEventListener('mouseup', up);
+      if (Math.abs(end - start) > 8) {
+        var i0 = nearest(Math.min(start, end)), i1 = nearest(Math.max(start, end));
+        if (i1 > i0) o.onBrush(i0, i1);
+      }
+      leave();
+    };
+    hit.addEventListener('mousedown', function () { window.addEventListener('mouseup', up); });
+  }
+}
+
+/*
+ * Bar chart over categories.
+ * o.cats: labels, o.stacks: [{color, values}], o.grouped: side by side instead of stacked,
+ * o.colorOf(ci, si, v), o.tip(ci), o.xLabel(ci) ('' hides it), o.height, o.yFmt.
+ */
+function barChart(node, o) {
+  var nc = o.cats.length;
+  if (!nc) { empty(node); return; }
+  var W = width(node), H = o.height || 200;
+  var m = { l: o.ml || 34, r: 8, t: 10, b: 24 }, iw = W - m.l - m.r, ih = H - m.t - m.b, band = iw / nc;
+  var max = 0, min = 0, k = o.stacks.length;
+  for (var ci = 0; ci < nc; ci++) {
+    var pos = 0, neg = 0;
+    for (var si = 0; si < k; si++) {
+      var v = o.stacks[si].values[ci] || 0;
+      if (o.grouped) { max = Math.max(max, v); min = Math.min(min, v); } else if (v > 0) pos += v; else neg += v;
+    }
+    if (!o.grouped) { max = Math.max(max, pos); min = Math.min(min, neg); }
+  }
+  if (max === min) max = 1;
+  var ticks = (o.frac ? niceTicks : intTicks)(min, max, Math.max(2, Math.round(ih / 45)));
+  if (!ticks.length) ticks = [0, max];
+  max = Math.max(max, ticks[ticks.length - 1]); min = Math.min(min, ticks[0]);
+  function Y(v) { return m.t + ih - (v - min) / (max - min) * ih; }
+  var groups = o.grouped ? k : 1, gap = 2;
+  var bw = Math.max(1, Math.min(24, (band * 0.76 - (groups - 1) * gap) / groups));
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><g class="ax">'];
+  ticks.forEach(function (t) {
+    var y = f1(Y(t));
+    out.push('<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '"' + (t === 0 ? ' class="base"' : '') + '/>');
+    out.push('<text x="' + (m.l - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (o.yFmt ? o.yFmt(t) : t) + '</text>');
+  });
+  var every = Math.max(1, Math.ceil(nc / Math.max(1, Math.floor(iw / 34))));
+  for (ci = 0; ci < nc; ci++) {
+    var label = o.xLabel ? o.xLabel(ci) : (ci % every ? '' : o.cats[ci]);
+    if (label !== '') out.push('<text x="' + f1(m.l + band * ci + band / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + label + '</text>');
+  }
+  out.push('</g><rect class="hl" y="' + m.t + '" height="' + ih + '" width="' + f1(band) + '" fill="' + COL.wash + '" style="display:none"/>');
+  for (ci = 0; ci < nc; ci++) {
+    var cx = m.l + band * ci + band / 2;
+    if (o.grouped) {
+      var gx = cx - (groups * bw + (groups - 1) * gap) / 2;
+      for (si = 0; si < k; si++) {
+        v = o.stacks[si].values[ci] || 0;
+        var col = o.colorOf ? o.colorOf(ci, si, v) : o.stacks[si].color;
+        if (v > 0) out.push('<path d="' + barPath(gx + si * (bw + gap), Y(v), bw, Y(0) - Y(v), 4, true) + '" fill="' + col + '"/>');
+        else if (v < 0) out.push('<path d="' + barPath(gx + si * (bw + gap), Y(0), bw, Y(v) - Y(0), 4, false) + '" fill="' + col + '"/>');
+      }
+    } else {
+      var up = 0, down = 0, top = -1, bottom = -1;
+      for (si = 0; si < k; si++) { v = o.stacks[si].values[ci] || 0; if (v > 0) top = si; if (v < 0) bottom = si; }
+      for (si = 0; si < k; si++) {
+        v = o.stacks[si].values[ci] || 0;
+        col = o.colorOf ? o.colorOf(ci, si, v) : o.stacks[si].color;
+        if (v > 0) {
+          var y1 = Y(up + v), h = Y(up) - y1 - (up > 0 ? gap : 0);
+          out.push('<path d="' + barPath(cx - bw / 2, y1, bw, h, si === top ? 4 : 0, true) + '" fill="' + col + '"/>');
+          up += v;
+        } else if (v < 0) {
+          var y0 = Y(down) + (down < 0 ? gap : 0);
+          out.push('<path d="' + barPath(cx - bw / 2, y0, bw, Y(down + v) - y0, si === bottom ? 4 : 0, false) + '" fill="' + col + '"/>');
+          down += v;
         }
+      }
+    }
+  }
+  for (ci = 0; ci < nc; ci++) out.push('<rect data-ci="' + ci + '" x="' + f1(m.l + band * ci) + '" y="0" width="' + f1(band) + '" height="' + (m.t + ih) + '" fill="transparent"/>');
+  out.push('</svg>');
+  node.innerHTML = out.join('');
+  var svg = node.firstChild, hl = svg.querySelector('.hl');
+  function move(ev) {
+    var p = pointer(ev), t = document.elementFromPoint(p.x, p.y);
+    var c = t && t.getAttribute && t.getAttribute('data-ci');
+    if (c == null) return;
+    hl.setAttribute('x', f1(m.l + band * c)); hl.style.display = '';
+    if (o.tip) showTip(o.tip(+c), p.x, p.y);
+  }
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('touchstart', move, { passive: true });
+  svg.addEventListener('mouseleave', function () { hl.style.display = 'none'; hideTip(); });
+}
 
-        // --- 2. Chart Drawing Logic ---
-        const margin = { top: 20, right: 50, bottom: 50, left: 60 };
-        const tooltip = d3.select("body").append("div").attr("class", "tooltip");
-        const bisectDate = d3.bisector(d => d.date).left;
+/* Scatter plot. o.points: [{x, y, color, tip}], o.xFmt, o.yFmt, o.time */
+function scatter(node, o) {
+  var pts = o.points;
+  if (pts.length < 2) { empty(node, pts.length ? 'Only one game so far.' : null); return; }
+  var W = width(node), H = o.height || 220, m = { l: o.ml || 40, r: 12, t: 10, b: 24 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  var xv = pts.map(function (p) { return p.x; }), yv = pts.map(function (p) { return p.y; });
+  var x0 = Math.min.apply(null, xv), x1 = Math.max.apply(null, xv), y0 = Math.min(0, Math.min.apply(null, yv)), y1 = Math.max.apply(null, yv);
+  if (x0 === x1) { x0 -= 1; x1 += 1; }
+  var yt = coverTicks(y0, y1 || 1, 4); y1 = yt[yt.length - 1];
+  if (!o.time) { var xtn = niceTicks(x0, x1, Math.max(2, Math.floor(iw / 70))); x0 = Math.min(x0, xtn[0]); x1 = Math.max(x1, xtn[xtn.length - 1]); }
+  function X(v) { return m.l + (v - x0) / (x1 - x0) * iw; }
+  function Y(v) { return m.t + ih - (v - y0) / (y1 - y0) * ih; }
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><g class="ax">'];
+  yt.forEach(function (t) {
+    var y = f1(Y(t));
+    out.push('<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '"' + (t === 0 ? ' class="base"' : '') + '/>');
+    out.push('<text x="' + (m.l - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (o.yFmt ? o.yFmt(t) : t) + '</text>');
+  });
+  var xt = o.time ? timeTicks(x0, x1, Math.max(2, Math.floor(iw / 70))) :
+    niceTicks(x0, x1, Math.max(2, Math.floor(iw / 70))).map(function (v) { return { t: v, l: o.xFmt ? o.xFmt(v) : v }; });
+  xt.forEach(function (t) { out.push('<text x="' + f1(X(t.t)) + '" y="' + (H - 6) + '" text-anchor="middle">' + t.l + '</text>'); });
+  out.push('</g>');
+  pts.forEach(function (p, i) {
+    out.push('<circle data-i="' + i + '" cx="' + f1(X(p.x)) + '" cy="' + f1(Y(p.y)) + '" r="4.5" fill="' + p.color + '" stroke="' + COL.surface + '" stroke-width="2"/>');
+  });
+  out.push('</svg>');
+  node.innerHTML = out.join('');
+  var svg = node.firstChild;
+  function move(ev) {
+    var p = pointer(ev), r = svg.getBoundingClientRect(), px = p.x - r.left, py = p.y - r.top, best = -1, bd = 400;
+    for (var i = 0; i < pts.length; i++) {
+      var dx = X(pts[i].x) - px, dy = Y(pts[i].y) - py, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best < 0) hideTip(); else showTip(pts[best].tip, p.x, p.y);
+  }
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('touchstart', move, { passive: true });
+  svg.addEventListener('mouseleave', hideTip);
+}
 
-        function createChart(containerId, data, yValue, yLabel, yDomain, yFormat, color) {
-            const container = document.getElementById(containerId);
-            let chartData = data;
-            if (containerId === 'chart-ratio') {
-                chartData = data.filter(d => d.ratio !== null);
-            }
+/* Grid heatmap. o.rows/o.cols labels, o.cell(r, c) -> {fill, tip}, o.colLabel(c), o.size */
+function heatGrid(node, o) {
+  var nr = o.rows.length, nc = o.cols.length, lw = o.lw || 34;
+  var avail = width(node) - lw - 4;
+  var size = o.size || Math.max(o.minSize || 10, Math.min(o.maxSize || 28, Math.floor(avail / nc)));
+  var W = lw + nc * size + 4, H = 18 + nr * size + 2;
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><g class="ax">'];
+  o.rows.forEach(function (l, r) { if (l) out.push('<text x="' + (lw - 6) + '" y="' + (18 + r * size + size / 2 + 4) + '" text-anchor="end">' + l + '</text>'); });
+  for (var c = 0; c < nc; c++) {
+    var l = o.colLabel ? o.colLabel(c) : o.cols[c];
+    if (l) out.push('<text x="' + (lw + c * size) + '" y="12">' + l + '</text>');
+  }
+  out.push('</g>');
+  for (var r = 0; r < nr; r++) {
+    for (c = 0; c < nc; c++) {
+      var cell = o.cell(r, c);
+      if (!cell) continue;
+      out.push('<rect data-r="' + r + '" data-c="' + c + '" x="' + (lw + c * size + 1) + '" y="' + (18 + r * size + 1) + '" width="' + (size - 2) + '" height="' + (size - 2) + '" rx="' + Math.min(3, size / 5) + '" fill="' + cell.fill + '"/>');
+    }
+  }
+  out.push('</svg>');
+  node.innerHTML = out.join('');
+  var svg = node.firstChild;
+  function move(ev) {
+    var p = pointer(ev), t = document.elementFromPoint(p.x, p.y), rr = t && t.getAttribute && t.getAttribute('data-r');
+    if (rr == null) { hideTip(); return; }
+    var cell = o.cell(+rr, +t.getAttribute('data-c'));
+    if (cell && cell.tip) showTip(cell.tip, p.x, p.y);
+  }
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('touchstart', move, { passive: true });
+  svg.addEventListener('mouseleave', hideTip);
+}
 
-            function draw() {
-                d3.select(container).selectAll("*").remove();
-                
-                const width = container.clientWidth - margin.left - margin.right;
-                const height = 400 - margin.top - margin.bottom;
+/* Donut. o.parts: [{label, value, color}] */
+function donut(node, o) {
+  var parts = o.parts.filter(function (p) { return p.value > 0; }), total = sum(parts.map(function (p) { return p.value; }));
+  if (!total) { empty(node); return; }
+  var size = 160, R = 72, r = 50, cx = size / 2, cy = size / 2, a = -Math.PI / 2;
+  var out = ['<div style="display:flex;align-items:center;flex-wrap:wrap"><svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">'];
+  parts.forEach(function (p, i) {
+    var sweep = p.value / total * Math.PI * 2, a2 = a + sweep, padA = parts.length > 1 ? 0.025 : 0;
+    if (parts.length === 1) {
+      out.push('<circle data-i="' + i + '" cx="' + cx + '" cy="' + cy + '" r="' + (R + r) / 2 + '" fill="none" stroke="' + p.color + '" stroke-width="' + (R - r) + '"/>');
+    } else {
+      var s = a + padA, e = a2 - padA, large = e - s > Math.PI ? 1 : 0;
+      out.push('<path data-i="' + i + '" fill="' + p.color + '" d="M' + f1(cx + R * Math.cos(s)) + ',' + f1(cy + R * Math.sin(s)) +
+        'A' + R + ',' + R + ' 0 ' + large + ' 1 ' + f1(cx + R * Math.cos(e)) + ',' + f1(cy + R * Math.sin(e)) +
+        'L' + f1(cx + r * Math.cos(e)) + ',' + f1(cy + r * Math.sin(e)) +
+        'A' + r + ',' + r + ' 0 ' + large + ' 0 ' + f1(cx + r * Math.cos(s)) + ',' + f1(cy + r * Math.sin(s)) + 'Z"/>');
+    }
+    a = a2;
+  });
+  out.push('<text x="' + cx + '" y="' + (cy + 2) + '" text-anchor="middle" style="font-size:20px;font-weight:600;fill:' + COL.ink + '">' + total + '</text>');
+  out.push('<text x="' + cx + '" y="' + (cy + 18) + '" text-anchor="middle" class="lbl">' + (o.unit || 'results') + '</text></svg>');
+  out.push('<div class="legend" style="flex-direction:column;margin-left:12px">');
+  parts.forEach(function (p) {
+    out.push('<span style="margin:2px 0"><i class="sw" style="background:' + p.color + '"></i>' + esc(p.label) + ' · ' + p.value + ' (' + pct(p.value / total, 0) + ')</span>');
+  });
+  out.push('</div></div>');
+  node.innerHTML = out.join('');
+  var svg = node.querySelector('svg');
+  svg.addEventListener('mousemove', function (ev) {
+    var i = ev.target.getAttribute('data-i');
+    if (i == null) { hideTip(); return; }
+    var p = parts[+i];
+    showTip('<b>' + esc(p.label) + '</b><br>' + p.value + ' · ' + pct(p.value / total), ev.clientX, ev.clientY);
+  });
+  svg.addEventListener('mouseleave', hideTip);
+}
 
-                const svg = d3.select(container).append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+// --- Data -------------------------------------------------------------------
+function parse(d) {
+  DATA = d;
+  NAMES = { a: d.players.a, b: d.players.b };
+  TZ = d.timezone || 'UTC';
+  SEASONS = d.seasons || [];
+  ALL = (d.matches || []).map(function (m, i) {
+    var s = m.ended_at, y = +s.slice(0, 4), mo = +s.slice(5, 7), dd = +s.slice(8, 10);
+    var t = Date.parse(s), st = m.started_at ? Date.parse(m.started_at) : null;
+    return {
+      n: m.n || i + 1, season: m.season, t: t, key: s.slice(0, 10),
+      wt: Date.UTC(y, mo - 1, dd, +s.slice(11, 13), +s.slice(14, 16), +s.slice(17, 19) || 0),
+      y: y, mo: mo, d: dd, h: +s.slice(11, 13), mi: +s.slice(14, 16),
+      wd: (new Date(Date.UTC(y, mo - 1, dd)).getUTCDay() + 6) % 7,
+      w: m.winner, l: m.winner === 'a' ? 'b' : 'a', out: m.outcome, mode: m.mode, pl: m.players,
+      turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null
+    };
+  });
+  SIG = ALL.length + '|' + (ALL.length ? d.matches[ALL.length - 1].ended_at : '') + '|' + SEASONS.length;
+  if (S.season === null || (S.season !== 'all' && !SEASONS.some(function (x) { return x.name === S.season; }))) {
+    S.season = SEASONS.length ? SEASONS[SEASONS.length - 1].name : 'all';
+  }
+}
 
-                const x = d3.scaleTime().domain(d3.extent(data, d => d.date)).range([0, width]);
-                const y = d3.scaleLinear().domain(yDomain(chartData)).range([height, 0]);
+function keep(m, opts) {
+  opts = opts || {};
+  if (!opts.anySeason && S.season !== 'all' && m.season !== S.season) return false;
+  if (S.mode !== 'all' && (m.mode || '') !== S.mode) return false;
+  if (S.pl === '2' && m.pl !== 2) return false;
+  if (S.pl === '3' && !(m.pl > 2)) return false;
+  if (S.out[m.out] === false) return false;
+  if (!opts.anyDate && ((S.from && m.key < S.from) || (S.to && m.key > S.to))) return false;
+  return true;
+}
+function filtered(opts) { return ALL.filter(function (m) { return keep(m, opts); }); }
 
-                svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat("%b %Y")));
-                svg.append("g").call(d3.axisLeft(y).tickFormat(yFormat));
+function analyze(ms) {
+  var n = ms.length, R = { n: n, ms: ms, wins: { a: 0, b: 0 } }, W = R.wins;
+  var pts = [], ea = ELO_START, eb = ELO_START, lastLeader = null;
+  R.lead = { a: { v: 0, i: -1 }, b: { v: 0, i: -1 } };
+  R.changes = 0; R.ties = 0;
+  R.comeback = { a: { v: 0, i: -1 }, b: { v: 0, i: -1 } };
+  R.bestShare = { a: null, b: null };
+  R.eloPeak = { a: { v: ELO_START, i: -1 }, b: { v: ELO_START, i: -1 } };
+  R.milestones = [];
+  var deficit = { a: 0, b: 0 };
+  ms.forEach(function (m, i) {
+    var exA = 1 / (1 + Math.pow(10, (eb - ea) / 400)), sa = m.w === 'a' ? 1 : 0, delta = ELO_K * (sa - exA);
+    ea += delta; eb -= delta;
+    W[m.w]++;
+    var k = i + 1, diff = W.a - W.b, leader = diff > 0 ? 'a' : diff < 0 ? 'b' : null;
+    if (diff > R.lead.a.v) { R.lead.a = { v: diff, i: i }; if (diff >= 5 && diff % 5 === 0) R.milestones.push({ i: i, p: 'a', text: nm('a') + ' leads by ' + diff + ' for the first time' }); }
+    if (-diff > R.lead.b.v) { R.lead.b = { v: -diff, i: i }; if (-diff >= 5 && -diff % 5 === 0) R.milestones.push({ i: i, p: 'b', text: nm('b') + ' leads by ' + (-diff) + ' for the first time' }); }
+    if (diff === 0) R.ties++;
+    if (leader && lastLeader && leader !== lastLeader) R.changes++;
+    P.forEach(function (p) {
+      var d = p === 'a' ? -diff : diff;
+      if (d > deficit[p]) deficit[p] = d;
+      if (leader === p) {
+        if (deficit[p] > R.comeback[p].v) R.comeback[p] = { v: deficit[p], i: i };
+        deficit[p] = 0;
+      }
+      if (k >= MIN_GAMES) {
+        var sh = W[p] / k, b = R.bestShare[p];
+        if (!b || sh > b.v) R.bestShare[p] = { v: sh, k: k, w: W[p], i: i };
+      }
+    });
+    if (ea > R.eloPeak.a.v) R.eloPeak.a = { v: ea, i: i };
+    if (eb > R.eloPeak.b.v) R.eloPeak.b = { v: eb, i: i };
+    if (leader) lastLeader = leader;
+    if (W[m.w] % 50 === 0) R.milestones.push({ i: i, p: m.w, text: nm(m.w) + "'s " + W[m.w] + 'th win' });
+    if (k % 100 === 0) R.milestones.push({ i: i, p: null, text: 'Game ' + k });
+    if (i && ms[i - 1].season !== m.season) R.milestones.push({ i: i, p: null, text: 'Season ' + esc(m.season) + ' starts' });
+    var ci = wilson(W.a, k);
+    pts.push({ a: W.a, b: W.b, diff: diff, shareA: W.a / k, lo: ci[0], hi: ci[1], ea: ea, eb: eb, exA: exA });
+  });
+  R.pts = pts;
+  R.elo = { a: ea, b: eb, nextA: 1 / (1 + Math.pow(10, (eb - ea) / 400)) };
 
-                const line = d3.line().x(d => x(d.date)).y(d => y(yValue(d)));
-                
-                svg.append("path").datum(chartData).attr("fill", "none").attr("stroke", color).attr("stroke-width", 2.5).attr("d", line);
-                
-                const focus = svg.append("g").style("display", "none");
-                focus.append("circle").attr("r", 5).style("fill", color).style("stroke", "white");
-                
-                svg.append("rect")
-                    .attr("width", width).attr("height", height)
-                    .style("fill", "none").style("pointer-events", "all")
-                    .on("mouseover", () => { focus.style("display", null); tooltip.style("opacity", 1); })
-                    .on("mouseout", () => { focus.style("display", "none"); tooltip.style("opacity", 0); })
-                    .on("mousemove", event => {
-                        const x0 = x.invert(d3.pointer(event)[0]);
-                        const i = bisectDate(data, x0, 1);
-                        const d = (data[i] && (x0 - data[i-1].date > data[i].date - x0)) ? data[i] : data[i-1];
-                        
-                        if (yValue(d) !== null) focus.attr("transform", `translate(${x(d.date)},${y(yValue(d))})`);
+  // Streaks
+  var runs = [];
+  ms.forEach(function (m, i) {
+    var r = runs[runs.length - 1];
+    if (r && r.p === m.w) { r.len++; r.end = i; } else runs.push({ p: m.w, len: 1, start: i, end: i });
+  });
+  R.runs = runs;
+  R.current = runs.length ? runs[runs.length - 1] : null;
+  R.longest = { a: null, b: null };
+  R.runCount = { a: 0, b: 0 };
+  R.runHist = {};
+  runs.forEach(function (r) {
+    if (!R.longest[r.p] || r.len > R.longest[r.p].len) R.longest[r.p] = r;
+    R.runCount[r.p]++;
+    R.runHist[r.len] = R.runHist[r.len] || { a: 0, b: 0 };
+    R.runHist[r.len][r.p]++;
+  });
+  R.drought = { a: R.longest.b, b: R.longest.a };
+  // What follows a win or a loss
+  R.cond = { a: { aw: 0, an: 0, lw: 0, ln: 0 }, b: { aw: 0, an: 0, lw: 0, ln: 0 } };
+  for (var i = 1; i < n; i++) {
+    P.forEach(function (p) {
+      var c = R.cond[p], won = ms[i].w === p;
+      if (ms[i - 1].w === p) { c.an++; if (won) c.aw++; } else { c.ln++; if (won) c.lw++; }
+    });
+  }
 
-                        tooltip.html(`<strong>${d3.timeFormat("%b %d, %Y - %H:%M")(d.date)}</strong><br/>A: ${d.scoreA} | I: ${d.scoreI}<br/>Ratio: ${d.ratio ? d.ratio.toFixed(2) : 'N/A'}<br/>A's Pct: ${d.percentage.toFixed(1)}%`)
-                        .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px");
-                    });
-            }
-            draw();
-            window.addEventListener('resize', draw);
-        }
+  // Days
+  var days = [], byKey = {};
+  ms.forEach(function (m, i) {
+    var d = byKey[m.key];
+    if (!d) { d = byKey[m.key] = { key: m.key, a: 0, b: 0, n: 0, first: i }; days.push(d); }
+    d[m.w]++; d.n++;
+  });
+  R.days = days; R.byKey = byKey;
+  R.daysWon = { a: 0, b: 0 }; R.dayTies = 0; R.perfect = { a: 0, b: 0 };
+  R.bestDay = { a: null, b: null }; R.busiest = null;
+  days.forEach(function (d) {
+    if (d.a > d.b) R.daysWon.a++; else if (d.b > d.a) R.daysWon.b++; else R.dayTies++;
+    P.forEach(function (p) {
+      if (d.n >= 2 && d[p] === d.n) R.perfect[p]++;
+      if (d[p] && (!R.bestDay[p] || d[p] > R.bestDay[p].v)) R.bestDay[p] = { v: d[p], key: d.key };
+    });
+    if (!R.busiest || d.n > R.busiest.n) R.busiest = d;
+  });
+  R.gap = null;
+  for (i = 1; i < n; i++) {
+    var g = ms[i].t - ms[i - 1].t;
+    if (!R.gap || g > R.gap.v) R.gap = { v: g, i: i };
+  }
+  R.spanDays = n ? Math.round((keyDate(ms[n - 1].key) - keyDate(ms[0].key)) / DAY) + 1 : 0;
 
-        function drawProgressionChart(data) {
-            const containerId = 'chart-progression';
-            const container = document.getElementById(containerId);
-            
-            function draw() {
-                d3.select(container).selectAll("*").remove();
-                const width = container.clientWidth - margin.left - margin.right;
-                const height = 400 - margin.top - margin.bottom;
+  // Sessions
+  var sessions = [];
+  ms.forEach(function (m, i) {
+    var prev = ms[i - 1], s = sessions[sessions.length - 1];
+    if (!prev || m.t - prev.t > SESSION_GAP) { s = { start: i, end: i, a: 0, b: 0, n: 0 }; sessions.push(s); }
+    s.end = i; s[m.w]++; s.n++;
+  });
+  sessions.forEach(function (s) {
+    s.winner = s.a > s.b ? 'a' : s.b > s.a ? 'b' : null;
+    var first = ms[s.start];
+    s.begin = first.dur != null ? first.t - first.dur * 1000 : first.t;
+    s.length = ms[s.end].t - s.begin;
+  });
+  R.sessions = sessions;
+  R.sessWon = { a: 0, b: 0 }; R.sessTies = 0; R.firstWin = { a: 0, b: 0 }; R.lastWin = { a: 0, b: 0 }; R.multi = 0;
+  R.sessBest = { a: null, b: null }; R.sessLongest = null;
+  R.pos = [];   // Win counts by position within a session
+  sessions.forEach(function (s) {
+    if (s.winner) R.sessWon[s.winner]++; else R.sessTies++;
+    R.firstWin[ms[s.start].w]++;
+    if (s.n >= 2) { R.multi++; R.lastWin[ms[s.end].w]++; }
+    if (s.winner) {
+      var margin = s[s.winner] - s[other(s.winner)], b = R.sessBest[s.winner];
+      if (!b || margin > b.margin) R.sessBest[s.winner] = { margin: margin, s: s };
+    }
+    if (!R.sessLongest || s.n > R.sessLongest.n) R.sessLongest = s;
+    for (var j = s.start; j <= s.end; j++) {
+      var pos = Math.min(j - s.start, 5);
+      R.pos[pos] = R.pos[pos] || { a: 0, b: 0 };
+      R.pos[pos][ms[j].w]++;
+    }
+  });
 
-                const svg = d3.select(container).append("svg").attr("width", width + margin.left + margin.right).attr("height", height + margin.top + margin.bottom).append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-                const x = d3.scaleTime().domain(d3.extent(data, d => d.date)).range([0, width]);
-                const y = d3.scaleLinear().domain([0, d3.max(data, d => Math.max(d.scoreA, d.scoreI)) * 1.05]).range([height, 0]);
+  // When
+  R.hours = []; R.wdays = []; R.hw = []; R.parts = DAYPARTS.map(function () { return { a: 0, b: 0 }; });
+  for (i = 0; i < 24; i++) R.hours.push({ a: 0, b: 0 });
+  for (i = 0; i < 7; i++) { R.wdays.push({ a: 0, b: 0 }); R.hw.push([]); for (var h = 0; h < 24; h++) R.hw[i].push({ a: 0, b: 0 }); }
+  ms.forEach(function (m) {
+    R.hours[m.h][m.w]++; R.wdays[m.wd][m.w]++; R.hw[m.wd][m.h][m.w]++;
+    var hh = m.h >= 5 ? m.h : m.h + 24;
+    for (var j = 0; j < DAYPARTS.length; j++) if (hh >= DAYPARTS[j][1] && hh < DAYPARTS[j][2]) R.parts[j][m.w]++;
+  });
+  R.months = []; R.weeks = [];
+  if (n) {
+    var y = ms[0].y, mo = ms[0].mo, mIdx = {};
+    while (y < ms[n - 1].y || (y === ms[n - 1].y && mo <= ms[n - 1].mo)) {
+      var mk = y + '-' + pad(mo);
+      mIdx[mk] = R.months.length;
+      R.months.push({ key: mk, label: MONTHS[mo - 1] + ' ' + String(y).slice(2), a: 0, b: 0 });
+      mo++; if (mo > 12) { mo = 1; y++; }
+    }
+    var w0 = keyDate(ms[0].key) - ms[0].wd * DAY, wN = keyDate(ms[n - 1].key);
+    for (var t = w0; t <= wN; t += 7 * DAY) R.weeks.push({ t: t, a: 0, b: 0, n: 0 });
+    ms.forEach(function (m) {
+      R.months[mIdx[m.key.slice(0, 7)]][m.w]++;
+      var wk = R.weeks[Math.floor((keyDate(m.key) - m.wd * DAY - w0) / (7 * DAY) + 0.5)];
+      if (wk) { wk[m.w]++; wk.n++; }
+    });
+  }
 
-                svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat("%b %Y")));
-                svg.append("g").call(d3.axisLeft(y));
+  // Game details
+  var tracked = ms.filter(function (m) { return m.dur != null; });
+  R.tracked = tracked;
+  R.fastest = { a: null, b: null }; R.fewest = { a: null, b: null }; R.blowout = { a: null, b: null };
+  R.cardsLost = { a: [], b: [] }; R.close = { a: 0, b: 0 }; R.blow = { a: 0, b: 0 };
+  R.longestGame = null; R.mostTurns = null;
+  ms.forEach(function (m) {
+    if (m.dur != null) {
+      if (!R.fastest[m.w] || m.dur < R.fastest[m.w].dur) R.fastest[m.w] = m;
+      if (!R.longestGame || m.dur > R.longestGame.dur) R.longestGame = m;
+    }
+    if (m.turns) {
+      if (!R.fewest[m.w] || m.turns < R.fewest[m.w].turns) R.fewest[m.w] = m;
+      if (!R.mostTurns || m.turns > R.mostTurns.turns) R.mostTurns = m;
+    }
+    if (m.cards != null && m.out === 'win') {
+      R.cardsLost[m.l].push(m.cards);
+      if (!R.blowout[m.w] || m.cards > R.blowout[m.w].cards) R.blowout[m.w] = m;
+      if (m.cards <= CLOSE_CARDS) R.close[m.w]++;
+      if (m.cards >= BLOWOUT_CARDS) R.blow[m.w]++;
+    }
+  });
+  R.forfeits = { a: 0, b: 0 };
+  ms.forEach(function (m) { if (m.out === 'forfeit') R.forfeits[m.w]++; });
+  return R;
+}
 
-                svg.append("path").datum(data).attr("fill", "none").attr("stroke", "royalblue").attr("stroke-width", 2.5).attr("d", d3.line().x(d => x(d.date)).y(d => y(d.scoreA)));
-                svg.append("path").datum(data).attr("fill", "none").attr("stroke", "crimson").attr("stroke-width", 2.5).attr("d", d3.line().x(d => x(d.date)).y(d => y(d.scoreI)));
-                
-                const legend = svg.append("g").attr("transform", `translate(${width - 100}, 0)`);
-                legend.append("rect").attr("x", -10).attr("y", -10).attr("width", 110).attr("height", 50).attr("fill", "white").attr("stroke", "#ddd").attr("rx", 5).style("opacity", 0.8);
-                legend.append("circle").attr("cx",0).attr("cy",0).attr("r", 6).style("fill", "royalblue");
-                legend.append("circle").attr("cx",0).attr("cy",20).attr("r", 6).style("fill", "crimson");
-                legend.append("text").attr("x", 15).attr("y", 0).text("Player A").style("font-size", "12px").attr("alignment-baseline","middle");
-                legend.append("text").attr("x", 15).attr("y", 20).text("Player I").style("font-size", "12px").attr("alignment-baseline","middle");
+// --- Rendering --------------------------------------------------------------
+function readColors() {
+  var cs = getComputedStyle(document.documentElement);
+  ['a', 'b', 'act', 'ink', 'ink2', 'muted', 'surface', 'neutral', 'grid', 'axis', 'wash', 'page'].forEach(function (k) {
+    COL[k] = cs.getPropertyValue('--' + k).trim();
+  });
+}
+function xsFor(R) { return S.x === 'time' ? R.ms.map(function (m) { return m.wt; }) : R.ms.map(function (m, i) { return i + 1; }); }
+function gameTip(R, i, extra) {
+  var m = R.ms[i], p = R.pts[i];
+  return '<b>Game ' + (i + 1) + '</b> <span class="m">· #' + m.n + ' · ' + fmtWhen(m) + '</span><br>' +
+    sw(m.w) + nm(m.w) + ' won' + (m.out !== 'win' && m.out !== 'imported' ? ' (' + OUTCOMES[m.out].toLowerCase() + ')' : '') +
+    (extra || row(sw('a') + nm('a'), p.a) + row(sw('b') + nm('b'), p.b));
+}
 
-                const focusA = svg.append("g").style("display", "none");
-                const focusI = svg.append("g").style("display", "none");
-                focusA.append("circle").attr("r", 5).style("fill", "royalblue").style("stroke", "white");
-                focusI.append("circle").attr("r", 5).style("fill", "crimson").style("stroke", "white");
-                svg.append("rect")
-                    .attr("width", width).attr("height", height).style("fill", "none").style("pointer-events", "all")
-                    .on("mouseover", () => { focusA.style("display", null); focusI.style("display", null); tooltip.style("opacity", 1); })
-                    .on("mouseout", () => { focusA.style("display", "none"); focusI.style("display", "none"); tooltip.style("opacity", 0); })
-                    .on("mousemove", event => {
-                        const x0 = x.invert(d3.pointer(event)[0]);
-                        const i = bisectDate(data, x0, 1);
-                        const d = (data[i] && (x0 - data[i-1].date > data[i].date - x0)) ? data[i] : data[i-1];
-                        focusA.attr("transform", `translate(${x(d.date)},${y(d.scoreA)})`);
-                        focusI.attr("transform", `translate(${x(d.date)},${y(d.scoreI)})`);
-                        tooltip.html(`<strong>${d3.timeFormat("%b %d, %Y - %H:%M")(d.date)}</strong><br/><span style="color: royalblue;">Player A: ${d.scoreA}</span><br/><span style="color: crimson;">Player I: ${d.scoreI}</span>`)
-                        .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px");
-                    });
-            }
-            draw();
-            window.addEventListener('resize', draw);
-        }
+function renderOverview(R) {
+  var W = R.wins, n = R.n;
+  $('ov-title').textContent = S.season === 'all' ? 'All time' : 'Season ' + S.season;
+  $('ov-games').textContent = plural(n, 'game') + (S.from || S.to ? ' in the selected dates' : '');
+  $('sc-a').textContent = W.a; $('sc-b').textContent = W.b;
+  var diff = W.a - W.b, leader = diff > 0 ? 'a' : diff < 0 ? 'b' : null;
+  $('lead-text').innerHTML = !n ? 'No games yet' : leader ? '<b>' + nm(leader) + '</b> leads by ' + Math.abs(diff) : 'All square';
+  var sa = share(W.a, n);
+  var parts = $('split').children;
+  parts[0].style.width = n ? (sa * 100) + '%' : '50%';
+  parts[1].style.width = n ? ((1 - sa) * 100) + '%' : '50%';
+  parts[0].style.display = W.a || !n ? '' : 'none';
+  parts[1].style.display = W.b || !n ? '' : 'none';
+  $('split-l').innerHTML = '<span>' + pct(sa) + '</span><span>Win share</span><span>' + pct(n ? 1 - sa : null) + '</span>';
 
-        // --- 3. Main Execution ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            const data = await loadData();
-            if (data) {
-                drawProgressionChart(data);
-                createChart('chart-ratio', data, d => d.ratio, 'Ratio (A/I)', chartData => [0, Math.min(10, d3.max(chartData, d => d.ratio))], d3.format(".1f"), '#22c55e');
-                createChart('chart-percentage', data, d => d.percentage, "Player A's Point Share", () => [0, 100], d => `${d}%`, '#f97316');
-            }
-        });
-    </script>
+  var tiles = [];
+  tiles.push(tile('Win ratio', ratioText(W.a, W.b), nm('a') + ' / ' + nm('b') + ' · inverse ' + ratioText(W.b, W.a), 'Wins of the first player for every win of the second.'));
+  if (R.current) tiles.push(tile('Current streak', sw(R.current.p) + R.current.len, nm(R.current.p) + ' since game ' + (R.current.start + 1)));
+  var last = R.ms[n - 1];
+  if (last) tiles.push(tile('Last game', ago(last.t), sw(last.w) + nm(last.w) + ' won · ' + fmtWhen(last)));
+  if (n) {
+    var fav = R.elo.nextA >= 0.5 ? 'a' : 'b', fp = fav === 'a' ? R.elo.nextA : 1 - R.elo.nextA;
+    tiles.push(tile('Next game (Elo)', sw(fav) + pct(fp, 0), nm(fav) + ' favored · ' + Math.round(R.elo.a) + ' vs ' + Math.round(R.elo.b), 'The chance of winning the next game that the Elo ratings give.'));
+    var z = n ? (Math.abs(W.a - n / 2) - 0.5) / Math.sqrt(n / 4) : 0, pval = Math.min(1, 2 * (1 - phi(Math.max(0, z))));
+    var ci = wilson(W.a, n);
+    tiles.push(tile('Is the lead real?', pval < 0.05 ? 'Yes' : 'Not yet', 'p ≈ ' + (pval < 0.001 ? '<0.001' : pval.toFixed(3)) + ' · ' + nm('a') + ' ' + pct(ci[0], 0) + '–' + pct(ci[1], 0),
+      'A two-sided binomial test of the score against a 50–50 coin. Below p = 0.05 the gap is unlikely to be luck. The range is the 95% interval of the first player\'s true win share.'));
+    tiles.push(tile('Games', n, plural(R.days.length, 'day') + ' · ' + plural(R.sessions.length, 'session')));
+  }
+  $('ov-tiles').innerHTML = tiles.join('');
+
+  $('form').innerHTML = R.ms.slice(-20).map(function (m) {
+    return '<i class="' + m.w + '" data-tip="' + esc('Game ' + (R.ms.indexOf(m) + 1) + ' · ' + fmtWhen(m) + ' · ' + NAMES[m.w] + ' won') + '"></i>';
+  }).join('') || '<span class="cap">No games yet.</span>';
+
+  var rows = ['<tr><th>Last</th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th><th class="num">' + nm('a') + ' share</th></tr>'];
+  var overall = share(W.a, n);
+  [10, 25, 50, 100].forEach(function (k) {
+    if (n < k) return;
+    var sl = R.ms.slice(-k), wa = sl.filter(function (m) { return m.w === 'a'; }).length, s = wa / k;
+    var arrow = s > overall + 0.03 ? ' <span class="up">▲</span>' : s < overall - 0.03 ? ' <span class="down">▼</span>' : '';
+    rows.push('<tr><td>' + k + ' games</td><td class="num">' + wa + '</td><td class="num">' + (k - wa) + '</td><td class="num">' + pct(s) + arrow + '</td></tr>');
+  });
+  rows.push('<tr><td>All ' + n + '</td><td class="num">' + W.a + '</td><td class="num">' + W.b + '</td><td class="num">' + pct(overall) + '</td></tr>');
+  $('momentum').innerHTML = rows.join('');
+
+  var today = todayKey(), td = keyDate(today), wd = (new Date(td).getUTCDay() + 6) % 7;
+  var weekStart = dateKey(td - wd * DAY), last7 = dateKey(td - 6 * DAY), last30 = dateKey(td - 29 * DAY);
+  var periods = [
+    ['Today', function (k) { return k === today; }],
+    ['This week', function (k) { return k >= weekStart && k <= today; }],
+    ['Last 7 days', function (k) { return k >= last7 && k <= today; }],
+    ['This month', function (k) { return k.slice(0, 7) === today.slice(0, 7); }],
+    ['Last 30 days', function (k) { return k >= last30 && k <= today; }],
+    ['This year', function (k) { return k.slice(0, 4) === today.slice(0, 4); }]
+  ];
+  var base = filtered({ anyDate: true });
+  rows = ['<tr><th>Period</th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th><th class="num">Games</th></tr>'];
+  periods.forEach(function (p) {
+    var c = { a: 0, b: 0 };
+    base.forEach(function (m) { if (p[1](m.key)) c[m.w]++; });
+    rows.push('<tr><td>' + p[0] + '</td><td class="num' + (c.a > c.b ? ' win' : '') + '">' + c.a + '</td><td class="num' + (c.b > c.a ? ' win' : '') + '">' + c.b + '</td><td class="num">' + (c.a + c.b) + '</td></tr>');
+  });
+  $('periods').innerHTML = rows.join('');
+  $('projection').innerHTML = projection(R);
+}
+
+function tile(label, value, sub, hintText) {
+  return '<div class="tile"><div class="tl">' + label + (hintText ? hint(hintText) : '') + '</div><div class="tv">' + value + '</div>' + (sub ? '<div class="ts">' + sub + '</div>' : '') + '</div>';
+}
+function pairTile(label, va, vb, hintText, subA, subB) {
+  return '<div class="tile"><div class="tl">' + label + (hintText ? hint(hintText) : '') + '</div>' +
+    '<div class="pv"><span class="dot a"></span>' + va + (subA ? '<small>' + subA + '</small>' : '') + '</div>' +
+    '<div class="pv"><span class="dot b"></span>' + vb + (subB ? '<small>' + subB + '</small>' : '') + '</div></div>';
+}
+function ago(t) {
+  var d = Date.now() - t;
+  if (d < 60e3) return 'just now';
+  return fmtSpan(d) + ' ago';
+}
+// Today's date in the bot's time zone
+function todayKey() {
+  try {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    var get = function (type) { return parts.filter(function (p) { return p.type === type; })[0].value; };
+    return get('year') + '-' + get('month') + '-' + get('day');
+  } catch (e) {
+    var last = DATA.matches[DATA.matches.length - 1], off = 0;
+    if (last) { var mm = /([+-])(\d\d):(\d\d)$/.exec(last.ended_at); if (mm) off = (mm[1] === '-' ? -1 : 1) * (+mm[2] * 60 + +mm[3]) * 60e3; }
+    return dateKey(Date.now() + off);
+  }
+}
+
+// When the trailing player would draw level at their recent form
+function projection(R) {
+  var n = R.n, diff = R.wins.a - R.wins.b;
+  if (n < MIN_GAMES) return '';
+  var k = Math.min(50, n), recent = R.ms.slice(-k), out = [];
+  if (diff) {
+    var trail = diff > 0 ? 'b' : 'a', lead = other(trail), gap = Math.abs(diff);
+    var p = recent.filter(function (m) { return m.w === trail; }).length / k;
+    if (p > 0.5) {
+      out.push('<b>Projection:</b> at ' + nm(trail) + "'s form over the last " + k + ' games (' + pct(p, 0) + '), they would draw level in about <b>' + Math.ceil(gap / (2 * p - 1)) + ' games</b>.');
+    } else if (p < 0.5) {
+      out.push('<b>Projection:</b> at the form of the last ' + k + ' games, ' + nm(lead) + "'s lead grows by about " + Math.round(100 * (1 - 2 * p)) + ' every 100 games.');
+    } else {
+      out.push('<b>Projection:</b> the last ' + k + ' games are even, so the gap of ' + gap + ' holds.');
+    }
+  }
+  var leader = diff >= 0 ? 'a' : 'b', wins = R.wins[leader], target = (Math.floor(wins / 100) + 1) * 100;
+  var rate = recent.filter(function (m) { return m.w === leader; }).length / k;
+  if (rate > 0) out.push(nm(leader) + ' reaches ' + target + ' wins in about ' + Math.ceil((target - wins) / rate) + ' games.');
+  return out.join(' ');
+}
+
+function renderProgress(R) {
+  var xs = xsFor(R), time = S.x === 'time', pts = R.pts, n = R.n;
+  var markers = R.milestones.map(function (mk) { return { i: mk.i, s: mk.p === 'b' ? 1 : 0, color: mk.p ? COL[mk.p] : COL.ink2 }; });
+  var mByI = {};
+  R.milestones.forEach(function (mk) { (mByI[mk.i] = mByI[mk.i] || []).push(mk.text); });
+  lineChart($('c-run'), {
+    xs: xs, time: time, height: 280, yMin: 0,
+    series: [{ color: COL.a, values: pts.map(function (p) { return p.a; }) }, { color: COL.b, values: pts.map(function (p) { return p.b; }) }],
+    markers: markers,
+    tip: function (i) { return gameTip(R, i) + (mByI[i] ? '<div class="m" style="margin-top:4px">★ ' + mByI[i].join('<br>★ ') + '</div>' : ''); },
+    onBrush: function (i0, i1) {
+      S.from = R.ms[i0].key; S.to = R.ms[i1].key; S.page = 0;
+      update();
+    }
+  });
+  lineChart($('c-lead'), {
+    xs: xs, time: time, diverge: pts.map(function (p) { return p.diff; }), posColor: COL.a, negColor: COL.b, series: [],
+    yFmt: function (v) { return v > 0 ? '+' + v : v; },
+    markers: P.filter(function (p) { return R.lead[p].i >= 0; }).map(function (p) { return { i: R.lead[p].i, y: pts[R.lead[p].i].diff, color: COL[p] }; }),
+    tip: function (i) {
+      var d = pts[i].diff;
+      return gameTip(R, i, row('Lead', d ? sw(d > 0 ? 'a' : 'b') + nm(d > 0 ? 'a' : 'b') + ' +' + Math.abs(d) : 'Level'));
+    }
+  });
+  lineChart($('c-share'), {
+    xs: xs, time: time, yMin: 0, yMax: 1, yTicks: [0, 0.25, 0.5, 0.75, 1], yFmt: function (v) { return pct(v, 0); },
+    band: { lo: pts.map(function (p) { return p.lo; }), hi: pts.map(function (p) { return p.hi; }) },
+    refs: [{ y: 0.5 }],
+    series: [{ color: COL.a, values: pts.map(function (p) { return p.shareA; }) }],
+    tip: function (i) { return gameTip(R, i, row(nm('a') + "'s share", pct(pts[i].shareA)) + row('95% interval', pct(pts[i].lo, 0) + '–' + pct(pts[i].hi, 0))); }
+  });
+  var k = S.roll, roll = [], acc = 0;
+  for (var i = 0; i < n; i++) {
+    if (R.ms[i].w === 'a') acc++;
+    if (i >= k && R.ms[i - k].w === 'a') acc--;
+    roll.push(i >= k - 1 ? acc / k : null);
+  }
+  if (n >= k) {
+    lineChart($('c-roll'), {
+      xs: xs, time: time, yMin: 0, yMax: 1, yTicks: [0, 0.25, 0.5, 0.75, 1], yFmt: function (v) { return pct(v, 0); },
+      refs: [{ y: 0.5 }],
+      series: [{ color: COL.a, values: roll }],
+      tip: function (i) {
+        return gameTip(R, i, roll[i] == null ? '<div class="m">Needs ' + k + ' games</div>' :
+          row(nm('a') + ', last ' + k, pct(roll[i])) + row(nm('b') + ', last ' + k, pct(1 - roll[i])));
+      }
+    });
+  } else empty($('c-roll'), 'Needs at least ' + k + ' games.');
+  var lr = pts.map(function (p) { return p.a && p.b ? Math.log(p.a / p.b) / Math.LN2 : null; });
+  var lrv = lr.filter(function (v) { return v != null; });
+  if (lrv.length > 1) {
+    var lim = Math.max(1, Math.ceil(Math.max.apply(null, lrv.map(Math.abs))));
+    var ticks = [];
+    for (var t = -lim; t <= lim; t++) ticks.push(t);
+    if (ticks.length > 7) ticks = ticks.filter(function (v) { return v % 2 === 0; });
+    lineChart($('c-ratio'), {
+      xs: xs, time: time, yMin: -lim, yMax: lim, yTicks: ticks,
+      yFmt: function (v) { return v >= 0 ? Math.pow(2, v) + '×' : '1/' + Math.pow(2, -v); },
+      refs: [{ y: 0 }],
+      series: [{ color: COL.a, values: lr }],
+      tip: function (i) { return gameTip(R, i, row(nm('a') + ' / ' + nm('b'), ratioText(pts[i].a, pts[i].b)) + row(nm('b') + ' / ' + nm('a'), ratioText(pts[i].b, pts[i].a))); }
+    });
+  } else empty($('c-ratio'));
+  lineChart($('c-elo'), {
+    xs: xs, time: time, ml: 44, refs: [{ y: ELO_START }],
+    series: [{ color: COL.a, values: pts.map(function (p) { return p.ea; }) }, { color: COL.b, values: pts.map(function (p) { return p.eb; }) }],
+    tip: function (i) {
+      return gameTip(R, i, row(sw('a') + nm('a'), Math.round(pts[i].ea)) + row(sw('b') + nm('b'), Math.round(pts[i].eb)) +
+        row("Winner's chance before", pct(R.ms[i].w === 'a' ? pts[i].exA : 1 - pts[i].exA, 0)));
+    }
+  });
+}
+
+function renderStreaks(R) {
+  var t = [];
+  if (R.current) t.push(tile('Current streak', sw(R.current.p) + R.current.len, nm(R.current.p)));
+  t.push(pairTile('Longest streak', R.longest.a ? R.longest.a.len : 0, R.longest.b ? R.longest.b.len : 0, 'Most wins in a row.',
+    R.longest.a ? 'games ' + (R.longest.a.start + 1) + '–' + (R.longest.a.end + 1) : '', R.longest.b ? 'games ' + (R.longest.b.start + 1) + '–' + (R.longest.b.end + 1) : ''));
+  t.push(pairTile('Longest drought', R.drought.a ? R.drought.a.len : 0, R.drought.b ? R.drought.b.len : 0, 'Most games in a row without a win.'));
+  t.push(pairTile('Average streak', avgRun(R, 'a'), avgRun(R, 'b'), 'The average length of a player\'s winning runs.'));
+  t.push(pairTile('Best comeback', R.comeback.a.v ? '−' + R.comeback.a.v : '–', R.comeback.b.v ? '−' + R.comeback.b.v : '–', 'The biggest deficit a player turned into a lead.',
+    R.comeback.a.i >= 0 ? 'led at game ' + (R.comeback.a.i + 1) : '', R.comeback.b.i >= 0 ? 'led at game ' + (R.comeback.b.i + 1) : ''));
+  t.push(tile('Lead changes', R.changes, plural(R.ties, 'time') + ' level after a game', 'How often the lead passed from one player to the other.'));
+  t.push(tile('Runs', R.runs.length, 'average ' + (R.runs.length ? f1(R.n / R.runs.length) : '–') + ' games each'));
+  $('st-tiles').innerHTML = t.join('');
+
+  // Barcode of runs
+  var node = $('c-barcode'), n = R.n;
+  if (!n) { empty(node); } else {
+    var Wd = width(node), H = 44, unit = Wd / n, out = ['<svg width="' + Wd + '" height="' + (H + 18) + '" viewBox="0 0 ' + Wd + ' ' + (H + 18) + '">'];
+    R.runs.forEach(function (r, i) {
+      var x = r.start * unit, w = r.len * unit - (unit > 3 ? 1 : 0);
+      out.push('<rect data-i="' + i + '" x="' + f1(x) + '" y="0" width="' + Math.max(0.6, f1(w)) + '" height="' + H + '" rx="' + (w > 6 ? 2 : 0) + '" fill="' + COL[r.p] + '"/>');
+    });
+    out.push('<g class="ax">');
+    intTicks(1, n, Math.max(2, Math.floor(Wd / 80))).forEach(function (v) {
+      out.push('<text x="' + f1((v - 0.5) * unit) + '" y="' + (H + 14) + '" text-anchor="middle">' + v + '</text>');
+    });
+    out.push('</g></svg>');
+    node.innerHTML = out.join('');
+    node.firstChild.addEventListener('mousemove', function (ev) {
+      var i = ev.target.getAttribute('data-i');
+      if (i == null) { hideTip(); return; }
+      var r = R.runs[+i], s = R.ms[r.start], e = R.ms[r.end];
+      showTip('<b>' + nm(r.p) + ': ' + plural(r.len, 'win') + ' in a row</b><br><span class="m">Games ' + (r.start + 1) + '–' + (r.end + 1) + ' · ' + fmtKey(s.key) + (s.key !== e.key ? ' – ' + fmtKey(e.key) : '') + '</span>', ev.clientX, ev.clientY);
+    });
+    node.firstChild.addEventListener('mouseleave', hideTip);
+  }
+
+  var lens = Object.keys(R.runHist).map(Number).sort(function (x, y) { return x - y; });
+  var maxLen = lens.length ? lens[lens.length - 1] : 0, cats = [];
+  for (var l = 1; l <= maxLen; l++) cats.push(l);
+  barChart($('c-sthist'), {
+    cats: cats, grouped: true,
+    stacks: P.map(function (p) { return { color: COL[p], values: cats.map(function (c) { return R.runHist[c] ? R.runHist[c][p] : 0; }) }; }),
+    tip: function (ci) {
+      var c = cats[ci], h = R.runHist[c] || { a: 0, b: 0 };
+      return '<b>Runs of ' + plural(c, 'win') + '</b>' + row(sw('a') + nm('a'), h.a) + row(sw('b') + nm('b'), h.b);
+    }
+  });
+
+  var c = R.cond, rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  rows.push(condRow('Wins after a loss (bounce-back)', c.a.lw, c.a.ln, c.b.lw, c.b.ln));
+  rows.push(condRow('Wins after a win (hot hand)', c.a.aw, c.a.an, c.b.aw, c.b.an));
+  rows.push('<tr><td>Overall win share</td><td class="num">' + pct(share(R.wins.a, R.n)) + '</td><td class="num">' + pct(share(R.wins.b, R.n)) + '</td></tr>');
+  $('st-cond').innerHTML = rows.join('') +
+    '<tr><td colspan="3" class="cap" style="padding-top:10px">A hot-hand rate above the overall share means wins tend to come in streaks.</td></tr>';
+}
+function avgRun(R, p) {
+  var rs = R.runs.filter(function (r) { return r.p === p; });
+  return rs.length ? f1(sum(rs.map(function (r) { return r.len; })) / rs.length) : '–';
+}
+function condRow(label, aw, an, bw, bn) {
+  var sa = share(aw, an), sb = share(bw, bn);
+  return '<tr><td>' + label + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa) + '<span class="meta">' + aw + ' of ' + an + '</span></td><td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb) + '<span class="meta">' + bw + ' of ' + bn + '</span></td></tr>';
+}
+
+function winTip(title, c) {
+  var n = c.a + c.b;
+  return '<b>' + title + '</b>' + row(sw('a') + nm('a'), c.a + (n ? ' <span class="m">' + pct(c.a / n, 0) + '</span>' : '')) + row(sw('b') + nm('b'), c.b + (n ? ' <span class="m">' + pct(c.b / n, 0) + '</span>' : ''));
+}
+function stackBy(node, cats, data, tipTitle, o) {
+  o = o || {};
+  barChart(node, {
+    cats: cats, height: o.height, xLabel: o.xLabel,
+    stacks: P.map(function (p) { return { color: COL[p], values: data.map(function (d) { return d[p]; }) }; }),
+    tip: function (ci) { return winTip(tipTitle(ci), data[ci]); }
+  });
+}
+
+function renderTime(R) {
+  // Calendar
+  var node = $('c-cal');
+  if (!R.n) { empty(node); $('cal-legend').innerHTML = ''; } else {
+    var first = keyDate(R.ms[0].key), lastD = keyDate(R.ms[R.n - 1].key);
+    var start = first - ((new Date(first).getUTCDay() + 6) % 7) * DAY, weeks = Math.floor((lastD - start) / (7 * DAY)) + 1;
+    var maxN = Math.max.apply(null, R.days.map(function (d) { return d.n; }));
+    heatGrid(node, {
+      rows: ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'], cols: new Array(weeks), minSize: 13, maxSize: 22,
+      colLabel: function (c) {
+        var t = start + c * 7 * DAY, d = new Date(t), prev = new Date(t - 7 * DAY);
+        return c === 0 || d.getUTCMonth() !== prev.getUTCMonth() ? MONTHS[d.getUTCMonth()] + (d.getUTCMonth() === 0 || c === 0 ? ' ' + String(d.getUTCFullYear()).slice(2) : '') : '';
+      },
+      cell: function (r, c) {
+        var t = start + (c * 7 + r) * DAY;
+        if (t < first || t > lastD) return null;
+        var key = dateKey(t), d = R.byKey[key];
+        if (!d) return { fill: COL.grid, tip: '<b>' + fmtKey(key) + '</b><br><span class="m">No games</span>' };
+        var fill;
+        if (S.cal === 'games') fill = mix(COL.neutral, COL.act, 0.25 + 0.75 * Math.sqrt(d.n / maxN));
+        else if (d.a === d.b) fill = mix(COL.neutral, COL.ink2, 0.35);
+        else { var p = d.a > d.b ? 'a' : 'b'; fill = mix(COL.neutral, COL[p], 0.35 + 0.65 * Math.abs(d.a - d.b) / d.n); }
+        return { fill: fill, tip: winTip(fmtKey(key) + ' · ' + plural(d.n, 'game'), d) };
+      }
+    });
+    node.scrollLeft = node.scrollWidth;
+    $('cal-legend').innerHTML = S.cal === 'games' ?
+      '<span>Fewer</span>' + [0.25, 0.5, 0.75, 1].map(function (v) { return '<i class="sw" style="background:' + mix(COL.neutral, COL.act, v) + ';margin-right:2px"></i>'; }).join('') + '<span style="margin-left:4px">More games</span>' :
+      '<span><i class="sw a"></i>' + nm('a') + ' won the day</span><span><i class="sw b"></i>' + nm('b') + ' won the day</span><span><i class="sw" style="background:' + mix(COL.neutral, COL.ink2, 0.35) + '"></i>Level</span><span class="cap" style="margin:0">Stronger color = bigger margin</span>';
+  }
+
+  // Hour x weekday
+  var hours = [];
+  for (var h = 0; h < 24; h++) hours.push(h);
+  var maxCell = 1;
+  R.hw.forEach(function (rowv) { rowv.forEach(function (c) { maxCell = Math.max(maxCell, c.a + c.b); }); });
+  heatGrid($('c-heat'), {
+    rows: WEEKDAYS, cols: hours, minSize: 18, maxSize: 40,
+    colLabel: function (c) { return c % 3 === 0 ? pad(c) : ''; },
+    cell: function (r, c) {
+      var v = R.hw[r][c], n = v.a + v.b, fill;
+      if (!n) fill = COL.grid;
+      else if (S.heat === 'games') fill = mix(COL.neutral, COL.act, 0.2 + 0.8 * Math.sqrt(n / maxCell));
+      else if (n < 3) fill = mix(COL.grid, COL.neutral, 0.5);
+      else { var s = v.a / n - 0.5; fill = s === 0 ? COL.neutral : mix(COL.neutral, s > 0 ? COL.a : COL.b, Math.abs(s) * 2); }
+      return { fill: fill, tip: winTip(WEEKDAYS[r] + ' ' + pad(c) + ':00–' + pad(c) + ':59 · ' + plural(n, 'game'), v) };
+    }
+  });
+  $('heat-legend').innerHTML = S.heat === 'games' ?
+    '<span>Fewer</span>' + [0.2, 0.47, 0.73, 1].map(function (v) { return '<i class="sw" style="background:' + mix(COL.neutral, COL.act, v) + ';margin-right:2px"></i>'; }).join('') + '<span style="margin-left:4px">More games</span>' :
+    '<span><i class="sw a"></i>' + nm('a') + ' wins more</span><span><i class="sw n"></i>Even</span><span><i class="sw b"></i>' + nm('b') + ' wins more</span>';
+
+  stackBy($('c-hour'), hours.map(pad), R.hours, function (ci) { return pad(ci) + ':00–' + pad(ci) + ':59'; },
+    { xLabel: function (ci) { return ci % 3 === 0 ? pad(ci) : ''; } });
+  stackBy($('c-wday'), WEEKDAYS, R.wdays, function (ci) { return WEEKDAYS[ci]; });
+  stackBy($('c-dpart'), DAYPARTS.map(function (d) { return d[0]; }), R.parts, function (ci) { return DAYPARTS[ci][0]; });
+  stackBy($('c-month'), R.months.map(function (m) { return m.label; }), R.months, function (ci) { return R.months[ci].label; });
+  barChart($('c-week'), {
+    cats: R.weeks.map(function (w) { return w.t; }), height: 170,
+    stacks: P.map(function (p) { return { color: COL[p], values: R.weeks.map(function (w) { return w[p]; }) }; }),
+    xLabel: function (ci) {
+      var every = Math.max(1, Math.ceil(R.weeks.length / Math.max(1, Math.floor(width($('c-week')) / 70))));
+      if (ci % every) return '';
+      var d = new Date(R.weeks[ci].t);
+      return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+    },
+    tip: function (ci) { return winTip('Week of ' + fmtKey(dateKey(R.weeks[ci].t)), R.weeks[ci]); }
+  });
+
+  var t = [];
+  t.push(tile('Active days', R.days.length, 'of ' + R.spanDays + ' days · ' + pct(share(R.days.length, R.spanDays), 0)));
+  t.push(tile('Games per active day', R.days.length ? f1(R.n / R.days.length) : '–', R.busiest ? 'Busiest: ' + R.busiest.n + ' on ' + fmtKey(R.busiest.key) : ''));
+  t.push(pairTile('Days won', R.daysWon.a, R.daysWon.b, 'Days on which a player won more games than the other.', '', ''));
+  t.push(pairTile('Perfect days', R.perfect.a, R.perfect.b, 'Days with at least 2 games where one player won every game.'));
+  t.push(pairTile('Most wins in a day', R.bestDay.a ? R.bestDay.a.v : 0, R.bestDay.b ? R.bestDay.b.v : 0, '',
+    R.bestDay.a ? fmtKey(R.bestDay.a.key) : '', R.bestDay.b ? fmtKey(R.bestDay.b.key) : ''));
+  t.push(tile('Longest break', R.gap ? fmtSpan(R.gap.v) : '–', R.gap ? 'before game ' + (R.gap.i + 1) + ' · ' + fmtKey(R.ms[R.gap.i].key) : ''));
+  var favH = { a: bestIndex(R.hours, 'a'), b: bestIndex(R.hours, 'b') }, favD = { a: bestIndex(R.wdays, 'a'), b: bestIndex(R.wdays, 'b') };
+  t.push(pairTile('Best hour', favH.a >= 0 ? pad(favH.a) + ':00' : '–', favH.b >= 0 ? pad(favH.b) + ':00' : '–', 'The hour in which a player has the most wins.'));
+  t.push(pairTile('Best weekday', favD.a >= 0 ? WEEKDAYS[favD.a] : '–', favD.b >= 0 ? WEEKDAYS[favD.b] : '–', 'The weekday on which a player has the most wins.'));
+  $('day-tiles').innerHTML = t.join('');
+}
+function bestIndex(arr, p) {
+  var best = -1;
+  arr.forEach(function (c, i) { if (c[p] && (best < 0 || c[p] > arr[best][p])) best = i; });
+  return best;
+}
+
+function renderSessions(R) {
+  var ss = R.sessions, t = [];
+  t.push(tile('Sessions', ss.length, 'average ' + (ss.length ? f1(R.n / ss.length) : '–') + ' games each'));
+  t.push(pairTile('Sessions won', R.sessWon.a, R.sessWon.b, 'Sessions in which a player won more games. Level sessions: ' + R.sessTies + '.'));
+  t.push(pairTile('Won the first game', pct(share(R.firstWin.a, ss.length), 0), pct(share(R.firstWin.b, ss.length), 0), 'How often a player won the opening game of a session.'));
+  t.push(pairTile('Won the last game', pct(share(R.lastWin.a, R.multi), 0), pct(share(R.lastWin.b, R.multi), 0), 'How often a player won the final game of a session with at least 2 games: who gets the last word.'));
+  t.push(pairTile('Biggest session win', sessText(R.sessBest.a), sessText(R.sessBest.b), 'The most lopsided session each player won.',
+    R.sessBest.a ? fmtKey(R.ms[R.sessBest.a.s.start].key) : '', R.sessBest.b ? fmtKey(R.ms[R.sessBest.b.s.start].key) : ''));
+  if (R.sessLongest) t.push(tile('Longest session', plural(R.sessLongest.n, 'game'), fmtKey(R.ms[R.sessLongest.start].key) + ' · ' + fmtDur(R.sessLongest.length / 1000)));
+  $('se-tiles').innerHTML = t.join('');
+
+  barChart($('c-sess'), {
+    cats: ss.map(function (s, i) { return i + 1; }), height: 190,
+    stacks: [{ values: ss.map(function (s) { return s.a - s.b; }) }],
+    colorOf: function (ci, si, v) { return v > 0 ? COL.a : COL.b; },
+    yFmt: function (v) { return v > 0 ? '+' + v : v; },
+    tip: function (ci) {
+      var s = ss[ci], m = R.ms[s.start];
+      return '<b>Session ' + (ci + 1) + '</b> <span class="m">· ' + fmtWhen(m) + '</span>' +
+        row(sw('a') + nm('a'), s.a) + row(sw('b') + nm('b'), s.b) + row('Games', s.n + ' · ' + fmtDur(s.length / 1000));
+    }
+  });
+  var lens = {}, maxL = 0;
+  ss.forEach(function (s) { lens[s.n] = (lens[s.n] || 0) + 1; maxL = Math.max(maxL, s.n); });
+  var cats = [];
+  for (var l = 1; l <= maxL; l++) cats.push(l);
+  barChart($('c-sesslen'), {
+    cats: cats, stacks: [{ color: COL.act, values: cats.map(function (c) { return lens[c] || 0; }) }],
+    tip: function (ci) { return '<b>' + plural(cats[ci], 'game') + '</b>' + row('Sessions', lens[cats[ci]] || 0); }
+  });
+  var labels = ['1st', '2nd', '3rd', '4th', '5th', '6th+'];
+  var posData = R.pos.map(function (p) { return p || { a: 0, b: 0 }; });
+  barChart($('c-sesspos'), {
+    cats: labels.slice(0, posData.length), grouped: true, frac: true, yFmt: function (v) { return pct(v, 0); },
+    stacks: P.map(function (p) { return { color: COL[p], values: posData.map(function (d) { return share(d[p], d.a + d.b) || 0; }) }; }),
+    tip: function (ci) { return winTip(labels[ci] + ' game of a session', posData[ci]); }
+  });
+}
+function sessText(b) { return b ? b.s[b.s.winner] + '–' + b.s[other(b.s.winner)] : '–'; }
+
+function renderGames(R) {
+  var tr = R.tracked, n = tr.length;
+  $('games-lede').innerHTML = n ? plural(n, 'game') + ' of ' + R.n + ' were played with the bot and have length, turns and cards recorded. Imported and hand-added results only have a time and a winner.' :
+    'None of the selected games were played with the bot yet, so there are no lengths, turns or cards to show. Imported and hand-added results only have a time and a winner.';
+  var t = [], durs = tr.map(function (m) { return m.dur; }), turns = tr.filter(function (m) { return m.turns; });
+  if (n) {
+    t.push(tile('Average length', fmtDur(sum(durs) / n), 'median ' + fmtDur(median(durs))));
+    t.push(tile('Fastest game', fmtDur(Math.min.apply(null, durs)), 'longest ' + fmtDur(Math.max.apply(null, durs))));
+    if (turns.length) {
+      var tv = turns.map(function (m) { return m.turns; });
+      t.push(tile('Average turns', f1(sum(tv) / tv.length), 'median ' + median(tv) + ' · most ' + Math.max.apply(null, tv)));
+      var spt = turns.map(function (m) { return m.dur / m.turns; });
+      t.push(tile('Seconds per turn', f1(sum(spt) / spt.length), 'including the bot\'s pacing'));
+    }
+    t.push(pairTile('Fastest win', fmtDur(R.fastest.a && R.fastest.a.dur), fmtDur(R.fastest.b && R.fastest.b.dur)));
+    t.push(pairTile('Cards left when losing', avgText(R.cardsLost.a), avgText(R.cardsLost.b), 'Average cards a player still held when they lost. Lower means closer defeats.'));
+    t.push(pairTile('Close wins', R.close.a, R.close.b, 'Wins with the loser on ' + CLOSE_CARDS + ' cards or fewer.'));
+    t.push(pairTile('Blowouts', R.blow.a, R.blow.b, 'Wins with the loser still holding ' + BLOWOUT_CARDS + ' or more cards.'));
+  }
+  t.push(pairTile('Forfeit wins', R.forfeits.a, R.forfeits.b, 'Wins because the other player left the game.'));
+  $('g-tiles').innerHTML = t.join('');
+
+  // Length histogram, in minute bins
+  if (n) {
+    var maxMin = Math.ceil(Math.max.apply(null, durs) / 60), step = maxMin > 30 ? 5 : maxMin > 12 ? 2 : 1, bins = [];
+    for (var b = 0; b * step < Math.max(maxMin, 1); b++) bins.push({ lo: b * step, a: 0, b: 0 });
+    tr.forEach(function (m) { bins[Math.min(bins.length - 1, Math.floor(m.dur / 60 / step))][m.w]++; });
+    stackBy($('c-dur'), bins.map(function (x) { return x.lo + 'm'; }), bins, function (ci) { return bins[ci].lo + '–' + (bins[ci].lo + step) + ' minutes'; });
+  } else empty($('c-dur'), 'No tracked games yet.');
+  scatter($('c-durtime'), {
+    time: true, yFmt: function (v) { return v + 'm'; },
+    points: tr.map(function (m) { return { x: m.wt, y: m.dur / 60, color: COL[m.w], tip: '<b>Game #' + m.n + '</b> <span class="m">· ' + fmtWhen(m) + '</span><br>' + sw(m.w) + nm(m.w) + ' won in ' + fmtDur(m.dur) }; })
+  });
+  if (turns.length) {
+    var maxT = Math.max.apply(null, turns.map(function (m) { return m.turns; })), ts = maxT > 120 ? 20 : maxT > 50 ? 10 : 5, tb = [];
+    for (b = 0; b * ts <= maxT; b++) tb.push({ lo: b * ts, a: 0, b: 0 });
+    turns.forEach(function (m) { tb[Math.floor(m.turns / ts)][m.w]++; });
+    stackBy($('c-turns'), tb.map(function (x) { return x.lo; }), tb, function (ci) { return tb[ci].lo + '–' + (tb[ci].lo + ts - 1) + ' turns'; });
+  } else empty($('c-turns'), 'No tracked games yet.');
+  scatter($('c-turnsdur'), {
+    xFmt: function (v) { return v; }, yFmt: function (v) { return v + 'm'; },
+    points: turns.map(function (m) { return { x: m.turns, y: m.dur / 60, color: COL[m.w], tip: '<b>Game #' + m.n + '</b><br>' + sw(m.w) + nm(m.w) + ' won · ' + m.turns + ' turns · ' + fmtDur(m.dur) }; })
+  });
+  var withCards = R.ms.filter(function (m) { return m.cards != null && m.out === 'win'; });
+  if (withCards.length) {
+    var maxC = Math.max.apply(null, withCards.map(function (m) { return m.cards; })), cb = [];
+    for (var c = 1; c <= Math.max(maxC, 1); c++) cb.push({ a: 0, b: 0 });
+    withCards.forEach(function (m) { if (m.cards >= 1) cb[m.cards - 1][m.w]++; });
+    stackBy($('c-cards'), cb.map(function (x, i) { return i + 1; }), cb, function (ci) { return 'Loser left with ' + plural(ci + 1, 'card'); });
+  } else empty($('c-cards'), 'No tracked games yet.');
+  var oc = {};
+  R.ms.forEach(function (m) { oc[m.out] = (oc[m.out] || 0) + 1; });
+  donut($('c-out'), { parts: [
+    { label: OUTCOMES.win, value: oc.win || 0, color: COL.act },
+    { label: OUTCOMES.forfeit, value: oc.forfeit || 0, color: mix(COL.neutral, COL.act, 0.45) },
+    { label: OUTCOMES.manual, value: oc.manual || 0, color: COL.ink2 },
+    { label: OUTCOMES.imported, value: oc.imported || 0, color: COL.axis }
+  ] });
+
+  var rows = ['<tr><th>Length</th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  if (n >= 3) {
+    var sorted = tr.slice().sort(function (x, y) { return x.dur - y.dur; });
+    [['Short', 0], ['Medium', 1], ['Long', 2]].forEach(function (g) {
+      var part = sorted.slice(Math.round(g[1] * n / 3), Math.round((g[1] + 1) * n / 3));
+      if (!part.length) return;
+      var c = { a: 0, b: 0 };
+      part.forEach(function (m) { c[m.w]++; });
+      rows.push('<tr><td>' + g[0] + '<span class="meta">' + fmtDur(part[0].dur) + ' – ' + fmtDur(part[part.length - 1].dur) + '</span></td>' + winCells(c) + '</tr>');
+    });
+  } else rows.push('<tr><td colspan="3" class="cap">Needs at least 3 tracked games.</td></tr>');
+  $('g-len').innerHTML = rows.join('');
+
+  rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th><th class="num">Avg length</th></tr>'];
+  var modes = {};
+  R.ms.forEach(function (m) { var k = m.mode || '(not recorded)'; (modes[k] = modes[k] || []).push(m); });
+  Object.keys(modes).sort().forEach(function (k) { rows.push(groupRow('Mode: ' + esc(k), modes[k])); });
+  var two = R.ms.filter(function (m) { return m.pl === 2; }), more = R.ms.filter(function (m) { return m.pl > 2; });
+  if (two.length) rows.push(groupRow('2 players', two));
+  if (more.length) rows.push(groupRow('3+ players', more));
+  $('g-modes').innerHTML = rows.join('');
+}
+function avgText(arr) { return arr.length ? f1(sum(arr) / arr.length) : '–'; }
+function winCells(c) {
+  var n = c.a + c.b;
+  return '<td class="num' + (c.a > c.b ? ' win' : '') + '">' + c.a + '<span class="meta">' + pct(share(c.a, n), 0) + '</span></td>' +
+    '<td class="num' + (c.b > c.a ? ' win' : '') + '">' + c.b + '<span class="meta">' + pct(share(c.b, n), 0) + '</span></td>';
+}
+function groupRow(label, ms) {
+  var c = { a: 0, b: 0 }, d = [];
+  ms.forEach(function (m) { c[m.w]++; if (m.dur != null) d.push(m.dur); });
+  return '<tr><td>' + label + '</td>' + winCells(c) + '<td class="num">' + (d.length ? fmtDur(sum(d) / d.length) : '–') + '</td></tr>';
+}
+
+function renderRecords(R) {
+  var ms = R.ms;
+  function at(i) { return i >= 0 && ms[i] ? gameRef(ms[i]) : ''; }
+  function cell(v, meta, better) { return '<td><span class="' + (better ? 'best' : '') + '">' + v + '</span>' + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</td>'; }
+  // [label, a value, a meta, b value, b meta, comparable a, comparable b, lower is better]
+  var recs = [
+    ['Longest winning streak', R.longest.a && R.longest.a.len, R.longest.a && at(R.longest.a.end), R.longest.b && R.longest.b.len, R.longest.b && at(R.longest.b.end)],
+    ['Biggest lead', R.lead.a.v && '+' + R.lead.a.v, at(R.lead.a.i), R.lead.b.v && '+' + R.lead.b.v, at(R.lead.b.i), R.lead.a.v, R.lead.b.v],
+    ['Best win share', R.bestShare.a && pct(R.bestShare.a.v) + ' (' + R.bestShare.a.w + '/' + R.bestShare.a.k + ')', R.bestShare.a && at(R.bestShare.a.i),
+      R.bestShare.b && pct(R.bestShare.b.v) + ' (' + R.bestShare.b.w + '/' + R.bestShare.b.k + ')', R.bestShare.b && at(R.bestShare.b.i), R.bestShare.a && R.bestShare.a.v, R.bestShare.b && R.bestShare.b.v],
+    ['Best win ratio', R.bestShare.a && ratioText(R.bestShare.a.w, R.bestShare.a.k - R.bestShare.a.w), R.bestShare.a && 'after ' + R.bestShare.a.k + ' games',
+      R.bestShare.b && ratioText(R.bestShare.b.w, R.bestShare.b.k - R.bestShare.b.w), R.bestShare.b && 'after ' + R.bestShare.b.k + ' games', R.bestShare.a && R.bestShare.a.v, R.bestShare.b && R.bestShare.b.v],
+    ['Best comeback', R.comeback.a.v && 'from −' + R.comeback.a.v, at(R.comeback.a.i), R.comeback.b.v && 'from −' + R.comeback.b.v, at(R.comeback.b.i), R.comeback.a.v, R.comeback.b.v],
+    ['Most wins in a day', R.bestDay.a && R.bestDay.a.v, R.bestDay.a && fmtKey(R.bestDay.a.key), R.bestDay.b && R.bestDay.b.v, R.bestDay.b && fmtKey(R.bestDay.b.key)],
+    ['Biggest session win', R.sessBest.a && sessText(R.sessBest.a), R.sessBest.a && fmtKey(ms[R.sessBest.a.s.start].key), R.sessBest.b && sessText(R.sessBest.b), R.sessBest.b && fmtKey(ms[R.sessBest.b.s.start].key),
+      R.sessBest.a && R.sessBest.a.margin, R.sessBest.b && R.sessBest.b.margin],
+    ['Highest Elo', R.eloPeak.a.i >= 0 && Math.round(R.eloPeak.a.v), at(R.eloPeak.a.i), R.eloPeak.b.i >= 0 && Math.round(R.eloPeak.b.v), at(R.eloPeak.b.i), R.eloPeak.a.v, R.eloPeak.b.v],
+    ['Fastest win', R.fastest.a && fmtDur(R.fastest.a.dur), R.fastest.a && gameRef(R.fastest.a), R.fastest.b && fmtDur(R.fastest.b.dur), R.fastest.b && gameRef(R.fastest.b),
+      R.fastest.a && R.fastest.a.dur, R.fastest.b && R.fastest.b.dur, true],
+    ['Fewest turns in a win', R.fewest.a && R.fewest.a.turns, R.fewest.a && gameRef(R.fewest.a), R.fewest.b && R.fewest.b.turns, R.fewest.b && gameRef(R.fewest.b),
+      R.fewest.a && R.fewest.a.turns, R.fewest.b && R.fewest.b.turns, true],
+    ['Biggest blowout', R.blowout.a && plural(R.blowout.a.cards, 'card') + ' left', R.blowout.a && gameRef(R.blowout.a), R.blowout.b && plural(R.blowout.b.cards, 'card') + ' left', R.blowout.b && gameRef(R.blowout.b),
+      R.blowout.a && R.blowout.a.cards, R.blowout.b && R.blowout.b.cards],
+    ['Longest drought (fewer is better)', R.drought.a && R.drought.a.len, R.drought.a && at(R.drought.a.end), R.drought.b && R.drought.b.len, R.drought.b && at(R.drought.b.end), null, null, true]
+  ];
+  var rows = ['<tr><th>Record</th><th>' + sw('a') + nm('a') + '</th><th>' + sw('b') + nm('b') + '</th></tr>'];
+  recs.forEach(function (r) {
+    var va = r[5] !== undefined ? r[5] : r[1], vb = r[6] !== undefined ? r[6] : r[3];
+    if (r[5] === null) { va = r[1]; vb = r[3]; }
+    var aBetter = false, bBetter = false;
+    if (va && vb && va !== vb) { aBetter = r[7] ? va < vb : va > vb; bBetter = !aBetter; } else if (va && !vb && !r[7]) aBetter = true; else if (vb && !va && !r[7]) bBetter = true;
+    rows.push('<tr><td>' + r[0] + '</td>' + cell(r[1] || '–', r[1] ? r[2] : '', aBetter) + cell(r[3] || '–', r[3] ? r[4] : '', bBetter) + '</tr>');
+  });
+  var shared = [];
+  if (R.busiest) shared.push(['Most games in a day', R.busiest.n, fmtKey(R.busiest.key)]);
+  if (R.sessLongest) shared.push(['Longest session', plural(R.sessLongest.n, 'game'), fmtKey(ms[R.sessLongest.start].key)]);
+  if (R.longestGame) shared.push(['Longest game', fmtDur(R.longestGame.dur), gameRef(R.longestGame)]);
+  if (R.mostTurns) shared.push(['Most turns', R.mostTurns.turns, gameRef(R.mostTurns)]);
+  if (R.gap) shared.push(['Longest break', fmtSpan(R.gap.v), 'before ' + gameRef(ms[R.gap.i])]);
+  shared.forEach(function (s) { rows.push('<tr><td>' + s[0] + '</td><td colspan="2">' + s[1] + '<span class="meta">' + s[2] + '</span></td></tr>'); });
+  $('rec').innerHTML = rows.join('');
+}
+
+function renderCompare(R) {
+  var c = R.cond;
+  // [label, a, b, formatter, lower is better]
+  var items = [
+    ['Wins', R.wins.a, R.wins.b],
+    ['Win share', share(R.wins.a, R.n), share(R.wins.b, R.n), pct],
+    ['Longest streak', R.longest.a ? R.longest.a.len : 0, R.longest.b ? R.longest.b.len : 0],
+    ['Biggest lead', R.lead.a.v, R.lead.b.v],
+    ['Best comeback', R.comeback.a.v, R.comeback.b.v],
+    ['Most wins in a day', R.bestDay.a ? R.bestDay.a.v : 0, R.bestDay.b ? R.bestDay.b.v : 0],
+    ['Days won', R.daysWon.a, R.daysWon.b],
+    ['Perfect days', R.perfect.a, R.perfect.b],
+    ['Sessions won', R.sessWon.a, R.sessWon.b],
+    ['Won the first game', share(R.firstWin.a, R.sessions.length), share(R.firstWin.b, R.sessions.length), pct],
+    ['Won the last game', share(R.lastWin.a, R.multi), share(R.lastWin.b, R.multi), pct],
+    ['Bounce-back rate', share(c.a.lw, c.a.ln), share(c.b.lw, c.b.ln), pct],
+    ['Hot-hand rate', share(c.a.aw, c.a.an), share(c.b.aw, c.b.an), pct],
+    ['Elo now', Math.round(R.elo.a), Math.round(R.elo.b)],
+    ['Highest Elo', Math.round(R.eloPeak.a.v), Math.round(R.eloPeak.b.v)],
+    ['Forfeit wins', R.forfeits.a, R.forfeits.b],
+    ['Close wins', R.close.a, R.close.b],
+    ['Cards left when losing', R.cardsLost.a.length ? sum(R.cardsLost.a) / R.cardsLost.a.length : null, R.cardsLost.b.length ? sum(R.cardsLost.b) / R.cardsLost.b.length : null, f1, true],
+    ['Fastest win', R.fastest.a ? R.fastest.a.dur : null, R.fastest.b ? R.fastest.b.dur : null, fmtDur, true]
+  ];
+  $('cmp').innerHTML = items.map(function (it) {
+    var a = it[1], b = it[2], fmt = it[3] || function (v) { return v; }, low = it[4];
+    if (a == null && b == null) return '';
+    var max = Math.max(a || 0, b || 0) || 1;
+    var aw = a != null && b != null && a !== b && (low ? a < b : a > b), bw = a != null && b != null && a !== b && !aw;
+    // For "lower is better" rows the better value gets the longer bar
+    var la = low ? (a != null && b != null ? Math.min(a, b) / (a || 1) : a != null ? 1 : 0) : (a || 0) / max;
+    var lb = low ? (a != null && b != null ? Math.min(a, b) / (b || 1) : b != null ? 1 : 0) : (b || 0) / max;
+    return '<div class="cmp-row"><div class="cmp-side a"><div class="cmp-bar" style="width:' + (la * 70) + '%"></div><span class="cmp-v' + (aw ? ' w' : '') + '">' + (a == null ? '–' : fmt(a)) + '</span></div>' +
+      '<div class="cmp-l">' + it[0] + '</div>' +
+      '<div class="cmp-side b"><div class="cmp-bar" style="width:' + (lb * 70) + '%"></div><span class="cmp-v' + (bw ? ' w' : '') + '">' + (b == null ? '–' : fmt(b)) + '</span></div></div>';
+  }).join('');
+}
+
+function renderSeasons() {
+  var base = filtered({ anySeason: true, anyDate: true }), rows = [], titles = { a: 0, b: 0 };
+  rows.push('<tr><th>Season</th><th>Dates</th><th class="num">Games</th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th><th>Winner</th><th>Longest streak</th><th>Biggest lead</th></tr>');
+  var multi = [];
+  SEASONS.forEach(function (s, idx) {
+    var ms = base.filter(function (m) { return m.season === s.name; });
+    var R = analyze(ms), W = R.wins, live = idx === SEASONS.length - 1;
+    var winner = W.a > W.b ? 'a' : W.b > W.a ? 'b' : null;
+    if (winner && !live) titles[winner]++;
+    var ls = R.longest.a && (!R.longest.b || R.longest.a.len >= R.longest.b.len) ? 'a' : R.longest.b ? 'b' : null;
+    var bl = R.lead.a.v >= R.lead.b.v ? 'a' : 'b';
+    rows.push('<tr><td><b>' + esc(s.name) + '</b>' + (live ? '<span class="meta">in progress</span>' : '') + '</td>' +
+      '<td>' + (ms.length ? fmtKey(ms[0].key) + ' – ' + fmtKey(ms[ms.length - 1].key) : '–') + '</td>' +
+      '<td class="num">' + ms.length + '</td>' +
+      '<td class="num' + (winner === 'a' ? ' win' : '') + '">' + W.a + '</td><td class="num' + (winner === 'b' ? ' win' : '') + '">' + W.b + '</td>' +
+      '<td>' + (winner ? sw(winner) + nm(winner) + (live ? ' leads' : '') : ms.length ? 'Level' : '–') + '</td>' +
+      '<td>' + (ls ? sw(ls) + R.longest[ls].len : '–') + '</td>' +
+      '<td>' + (R.lead[bl].v ? sw(bl) + '+' + R.lead[bl].v : '–') + '</td></tr>');
+    multi.push({ s: s, R: R });
+  });
+  $('se-table').innerHTML = rows.join('');
+  $('se-titles').innerHTML = SEASONS.length > 1 ? '<b>Season titles</b> (finished seasons): ' + sw('a') + nm('a') + ' ' + titles.a + ' · ' + sw('b') + nm('b') + ' ' + titles.b : '';
+
+  var wrap = $('se-multi');
+  wrap.innerHTML = multi.map(function (x, i) {
+    return '<div class="card"><div class="ch"><h3>' + esc(x.s.name) + '</h3><span class="cap" style="margin:0">' + x.R.wins.a + ' – ' + x.R.wins.b + '</span></div><div class="chart" id="se-m' + i + '"></div></div>';
+  }).join('');
+  var lim = 1;
+  multi.forEach(function (x) { x.R.pts.forEach(function (p) { lim = Math.max(lim, Math.abs(p.diff)); }); });
+  multi.forEach(function (x, i) {
+    var R = x.R;
+    lineChart($('se-m' + i), {
+      xs: R.ms.map(function (m, j) { return j + 1; }), height: 140, yMin: -lim, yMax: lim,
+      diverge: R.pts.map(function (p) { return p.diff; }), posColor: COL.a, negColor: COL.b, series: [],
+      yFmt: function (v) { return v > 0 ? '+' + v : v; },
+      tip: function (j) { return gameTip(R, j); }
+    });
+  });
+  renderRecap();
+}
+
+function renderRecap() {
+  var ms = filtered({ anyDate: true }), R = analyze(ms), W = R.wins, node = $('recap');
+  if (!R.n) { node.innerHTML = ''; return; }
+  var champ = W.a > W.b ? 'a' : W.b > W.a ? 'b' : null;
+  var live = S.season !== 'all' && SEASONS.length && S.season === SEASONS[SEASONS.length - 1].name;
+  var base = champ ? COL[champ] : COL.act, c1 = mix(base, '#000000', 0.12), c2 = mix(base, '#000000', 0.5);
+  var title = S.season === 'all' ? 'All-time recap' : 'Season ' + esc(S.season) + ' recap' + (live ? ' · so far' : '');
+  var longest = R.longest.a && (!R.longest.b || R.longest.a.len >= R.longest.b.len) ? 'a' : 'b';
+  var bl = R.lead.a.v >= R.lead.b.v ? 'a' : 'b';
+  var favH = bestIndex(R.hours.map(function (h) { return { n: h.a + h.b }; }), 'n'), favD = bestIndex(R.wdays.map(function (h) { return { n: h.a + h.b }; }), 'n');
+  var stats = [
+    [R.n, 'games played'],
+    [R.days.length, 'days with games'],
+    [R.sessions.length, 'sessions'],
+    [R.longest[longest] ? R.longest[longest].len + ' · ' + nm(longest) : '–', 'longest streak'],
+    [R.lead[bl].v ? '+' + R.lead[bl].v + ' · ' + nm(bl) : '–', 'biggest lead'],
+    [R.busiest ? R.busiest.n + ' games' : '–', 'busiest day' + (R.busiest ? ', ' + fmtKey(R.busiest.key) : '')],
+    [favH >= 0 ? pad(favH) + ':00' : '–', 'favorite hour'],
+    [favD >= 0 ? WEEKDAYS[favD] : '–', 'favorite day'],
+    [R.changes, 'lead changes'],
+    [R.longestGame ? fmtDur(R.longestGame.dur) : '–', 'longest game']
+  ];
+  node.innerHTML = '<div class="recap" style="--rc1:' + c1 + ';--rc2:' + c2 + '"><h3>' + title + '</h3>' +
+    '<div class="champ">' + (champ ? nm(champ) + (live ? ' leads' : ' wins') : 'All square') + '</div>' +
+    '<div class="sc">' + nm('a') + ' ' + W.a + ' – ' + W.b + ' ' + nm('b') + ' · ' + pct(share(Math.max(W.a, W.b), R.n)) + ' win share</div>' +
+    '<div class="recap-grid">' + stats.map(function (s) { return '<div><b>' + s[0] + '</b><span>' + s[1] + '</span></div>'; }).join('') + '</div></div>';
+}
+
+// Match log
+var LOG_COLS = [
+  ['n', '#', true], ['when', 'Ended', false], ['season', 'Season', false], ['winner', 'Winner', false], ['score', 'Score', true],
+  ['out', 'Recorded', false], ['mode', 'Mode', false], ['pl', 'Players', true], ['turns', 'Turns', true], ['dur', 'Length', true], ['cards', 'Cards left', true]
+];
+function logRows(R) {
+  return R.ms.map(function (m, i) {
+    return {
+      n: m.n, i: i, when: fmtWhen(m), t: m.t, season: m.season, winner: NAMES[m.w], w: m.w,
+      score: R.pts[i].a + '–' + R.pts[i].b, out: OUTCOMES[m.out] || m.out, mode: m.mode || '', pl: m.pl, turns: m.turns, dur: m.dur, cards: m.cards
+    };
+  });
+}
+function renderLog(R) {
+  var q = S.q.trim().toLowerCase(), rows = logRows(R);
+  if (q) rows = rows.filter(function (r) { return [r.n, r.when, r.season, r.winner, r.out, r.mode].join(' ').toLowerCase().indexOf(q) >= 0; });
+  var key = S.sort === 'when' || S.sort === 'score' ? 'i' : S.sort;
+  rows.sort(function (x, y) {
+    var a = x[key], b = y[key];
+    if (a == null && b == null) return x.i - y.i;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return (a < b ? -1 : a > b ? 1 : x.i - y.i) * S.dir;
+  });
+  var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  S.page = Math.min(S.page, pages - 1);
+  var view = rows.slice(S.page * PAGE_SIZE, (S.page + 1) * PAGE_SIZE);
+  var head = '<tr>' + LOG_COLS.map(function (c) {
+    return '<th class="sort' + (c[2] ? ' num' : '') + (S.sort === c[0] ? ' on' + (S.dir > 0 ? ' asc' : '') : '') + '" data-k="' + c[0] + '">' + c[1] + '</th>';
+  }).join('') + '</tr>';
+  $('log-table').innerHTML = head + view.map(function (r) {
+    return '<tr><td class="num">' + r.n + '</td><td>' + r.when + '</td><td>' + esc(r.season) + '</td><td>' + sw(r.w) + esc(r.winner) + '</td><td class="num">' + r.score + '</td>' +
+      '<td>' + r.out + '</td><td>' + esc(r.mode) + '</td><td class="num">' + (r.pl || '') + '</td><td class="num">' + (r.turns || '') + '</td>' +
+      '<td class="num">' + (r.dur != null ? fmtDur(r.dur) : '') + '</td><td class="num">' + (r.cards != null ? r.cards : '') + '</td></tr>';
+  }).join('');
+  $('log-count').textContent = rows.length === R.n ? plural(R.n, 'game') : rows.length + ' of ' + plural(R.n, 'game');
+  $('log-pager').innerHTML = '<span>Page ' + (S.page + 1) + ' of ' + pages + '</span><span>' +
+    '<button class="btn" type="button" data-p="0"' + (S.page ? '' : ' disabled') + '>First</button>' +
+    '<button class="btn" type="button" data-p="' + (S.page - 1) + '"' + (S.page ? '' : ' disabled') + '>Previous</button>' +
+    '<button class="btn" type="button" data-p="' + (S.page + 1) + '"' + (S.page < pages - 1 ? '' : ' disabled') + '>Next</button>' +
+    '<button class="btn" type="button" data-p="' + (pages - 1) + '"' + (S.page < pages - 1 ? '' : ' disabled') + '>Last</button></span>';
+  logView = rows;
+}
+var logView = [];
+function downloadCsv() {
+  var lines = [['game', 'ended', 'season', 'winner', 'score_' + NAMES.a, 'score_' + NAMES.b, 'recorded', 'mode', 'players', 'turns', 'length_seconds', 'loser_cards_left'].join(',')];
+  function q(v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  logView.forEach(function (r) {
+    var sc = r.score.split('–');
+    lines.push([r.n, r.when, r.season, r.winner, sc[0], sc[1], r.out, r.mode, r.pl, r.turns, r.dur != null ? Math.round(r.dur) : '', r.cards].map(q).join(','));
+  });
+  var blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rivalry-matches.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+}
+
+// --- Filters and state ------------------------------------------------------
+function fillFilters() {
+  var sel = $('f-season');
+  sel.innerHTML = SEASONS.slice().reverse().map(function (s, i) { return '<option value="' + esc(s.name) + '">' + esc(s.name) + (i === 0 ? ' (current)' : '') + '</option>'; }).join('') + '<option value="all">All time</option>';
+  sel.value = S.season;
+  var modes = {};
+  ALL.forEach(function (m) { if (m.mode) modes[m.mode] = true; });
+  $('f-mode').innerHTML = '<option value="all">Any</option>' + Object.keys(modes).sort().map(function (m) { return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('');
+  $('f-mode').value = modes[S.mode] ? S.mode : 'all';
+  if (!modes[S.mode]) S.mode = 'all';
+  $('f-players').value = S.pl;
+  var seen = {};
+  ALL.forEach(function (m) { seen[m.out] = true; });
+  $('f-out').innerHTML = Object.keys(OUTCOMES).filter(function (k) { return seen[k]; }).map(function (k) {
+    return '<span class="chip' + (S.out[k] === false ? ' off' : '') + '" role="checkbox" tabindex="0" aria-checked="' + (S.out[k] !== false) + '" data-k="' + k + '">' + OUTCOMES[k] + '</span>';
+  }).join('');
+  $('f-from').value = S.from; $('f-to').value = S.to;
+  var range = S.from || S.to;
+  $('f-note').textContent = range ? (S.from ? fmtKey(S.from) : 'start') + ' – ' + (S.to ? fmtKey(S.to) : 'now') : '';
+  setSeg('x-mode', S.x); setSeg('roll-win', String(S.roll)); setSeg('heat-mode', S.heat); setSeg('cal-mode', S.cal);
+}
+function setSeg(id, v) {
+  var bs = $(id).querySelectorAll('button');
+  for (var i = 0; i < bs.length; i++) bs[i].className = bs[i].getAttribute('data-v') === v ? 'on' : '';
+}
+function writeHash() {
+  var p = [];
+  if (S.season !== (SEASONS.length ? SEASONS[SEASONS.length - 1].name : 'all')) p.push('season=' + encodeURIComponent(S.season));
+  if (S.mode !== 'all') p.push('mode=' + encodeURIComponent(S.mode));
+  if (S.pl !== 'all') p.push('players=' + S.pl);
+  var off = Object.keys(S.out).filter(function (k) { return S.out[k] === false; });
+  if (off.length) p.push('hide=' + off.join(','));
+  if (S.from) p.push('from=' + S.from);
+  if (S.to) p.push('to=' + S.to);
+  if (S.x !== 'game') p.push('x=' + S.x);
+  var h = p.length ? '#' + p.join('&') : ' ';
+  try { history.replaceState(null, '', h === ' ' ? location.pathname + location.search : h); } catch (e) {}
+}
+function readHash() {
+  var h = location.hash.replace(/^#/, '');
+  if (!h || h.indexOf('=') < 0) return;
+  h.split('&').forEach(function (kv) {
+    var i = kv.indexOf('='), k = kv.slice(0, i), v = decodeURIComponent(kv.slice(i + 1));
+    if (k === 'season') S.season = v;
+    if (k === 'mode') S.mode = v;
+    if (k === 'players' && (v === '2' || v === '3')) S.pl = v;
+    if (k === 'hide') v.split(',').forEach(function (o) { if (o in S.out) S.out[o] = false; });
+    if (k === 'from' && /^\d{4}-\d\d-\d\d$/.test(v)) S.from = v;
+    if (k === 'to' && /^\d{4}-\d\d-\d\d$/.test(v)) S.to = v;
+    if (k === 'x' && v === 'time') S.x = 'time';
+  });
+}
+
+var current = null;
+function update() {
+  readColors();
+  fillFilters();
+  writeHash();
+  var R = analyze(filtered());
+  current = R;
+  renderOverview(R);
+  renderProgress(R);
+  renderStreaks(R);
+  renderTime(R);
+  renderSessions(R);
+  renderGames(R);
+  renderRecords(R);
+  renderCompare(R);
+  renderSeasons();
+  renderLog(R);
+  spyNow();
+}
+var spyNow = function () {};
+// Re-draw only the charts, e.g. after a resize or a theme change
+function redraw() { if (DATA) update(); }
+
+function bind() {
+  $('f-season').addEventListener('change', function () { S.season = this.value; S.page = 0; update(); });
+  $('f-mode').addEventListener('change', function () { S.mode = this.value; S.page = 0; update(); });
+  $('f-players').addEventListener('change', function () { S.pl = this.value; S.page = 0; update(); });
+  $('f-from').addEventListener('change', function () { S.from = this.value; S.page = 0; update(); });
+  $('f-to').addEventListener('change', function () { S.to = this.value; S.page = 0; update(); });
+  $('f-reset').addEventListener('click', function () {
+    S.season = SEASONS.length ? SEASONS[SEASONS.length - 1].name : 'all';
+    S.mode = 'all'; S.pl = 'all'; S.from = ''; S.to = ''; S.page = 0;
+    Object.keys(S.out).forEach(function (k) { S.out[k] = true; });
+    update();
+  });
+  function toggleChip(ev) {
+    var k = ev.target.getAttribute && ev.target.getAttribute('data-k');
+    if (!k) return;
+    S.out[k] = S.out[k] === false;
+    if (!Object.keys(S.out).some(function (o) { return S.out[o]; })) S.out[k] = true;
+    update();
+  }
+  $('f-out').addEventListener('click', toggleChip);
+  $('f-out').addEventListener('keydown', function (ev) { if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); toggleChip(ev); } });
+  [['x-mode', 'x'], ['roll-win', 'roll'], ['heat-mode', 'heat'], ['cal-mode', 'cal']].forEach(function (pair) {
+    $(pair[0]).addEventListener('click', function (ev) {
+      var v = ev.target.getAttribute('data-v');
+      if (!v) return;
+      S[pair[1]] = pair[1] === 'roll' ? +v : v;
+      update();
+    });
+  });
+  $('log-q').addEventListener('input', function () { S.q = this.value; S.page = 0; renderLog(current); });
+  $('log-table').addEventListener('click', function (ev) {
+    var k = ev.target.getAttribute('data-k');
+    if (!k) return;
+    if (S.sort === k) S.dir = -S.dir; else { S.sort = k; S.dir = k === 'n' || k === 'when' || k === 'score' ? -1 : 1; }
+    renderLog(current);
+  });
+  $('log-pager').addEventListener('click', function (ev) {
+    var p = ev.target.getAttribute('data-p');
+    if (p == null || ev.target.disabled) return;
+    S.page = +p; renderLog(current);
+  });
+  $('log-csv').addEventListener('click', downloadCsv);
+
+  // Theme: automatic, light, dark
+  var themes = ['auto', 'light', 'dark'];
+  function themeNow() { return document.documentElement.getAttribute('data-theme') || 'auto'; }
+  $('theme').textContent = 'Theme: ' + themeNow();
+  $('theme').addEventListener('click', function () {
+    var next = themes[(themes.indexOf(themeNow()) + 1) % 3];
+    if (next === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('rivalry-theme', next); } catch (e) {}
+    this.textContent = 'Theme: ' + next;
+    redraw();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', redraw); else if (mq.addListener) mq.addListener(redraw);
+  }
+
+  var lastW = window.innerWidth, timer = null;
+  window.addEventListener('resize', function () {
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    clearTimeout(timer);
+    timer = setTimeout(redraw, 150);
+  });
+
+  // Highlight the section in view
+  var links = document.querySelectorAll('#nav a');
+  function spy() {
+    var y = window.scrollY || window.pageYOffset, on = links[0];
+    for (var i = 0; i < links.length; i++) {
+      var sec = document.querySelector(links[i].getAttribute('href'));
+      if (sec && sec.offsetTop - 140 <= y) on = links[i];
+    }
+    for (i = 0; i < links.length; i++) links[i].className = links[i] === on ? 'on' : '';
+  }
+  window.addEventListener('scroll', spy, { passive: true });
+  spyNow = spy;
+  $('nav').addEventListener('click', function (ev) {
+    var href = ev.target.getAttribute && ev.target.getAttribute('href');
+    if (!href) return;
+    ev.preventDefault();
+    var sec = document.querySelector(href);
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  spy();
+}
+
+// --- Loading and live updates -----------------------------------------------
+function apply(d) {
+  parse(d);
+  if (d.colors) {
+    ['a', 'b'].forEach(function (p) {
+      if (d.colors[p] && /^#[0-9a-fA-F]{6}$/.test(d.colors[p])) document.documentElement.style.setProperty('--' + p, d.colors[p]);
+    });
+  }
+  var names = document.querySelectorAll('.na'), i;
+  for (i = 0; i < names.length; i++) names[i].textContent = NAMES.a;
+  names = document.querySelectorAll('.nb');
+  for (i = 0; i < names.length; i++) names[i].textContent = NAMES.b;
+  $('title').textContent = NAMES.a + ' vs ' + NAMES.b;
+  document.title = NAMES.a + ' vs ' + NAMES.b + ' · UNO Rivalry';
+  $('subtitle').textContent = 'UNO rivalry · ' + plural(ALL.length, 'game') + ' since ' + (ALL.length ? fmtKey(ALL[0].key) : '–') + ' · times in ' + TZ;
+  $('footer').innerHTML = 'Generated by the UNO bot. Sessions break after 30 minutes without a game; percentage records start at ' + MIN_GAMES + ' games; Elo starts at ' + ELO_START + ' with K = ' + ELO_K + '. <a href="scores.json">scores.json</a>';
+  $('loading').style.display = 'none';
+  $('app').style.display = '';
+  update();
+}
+function setLive(ok) {
+  var el = $('live');
+  el.className = ok ? 'live' : 'live stale';
+  el.lastChild.textContent = ok ? 'Live · checked ' + pad(new Date().getHours()) + ':' + pad(new Date().getMinutes()) : 'Offline copy';
+}
+function fetchData(cb) {
+  if (!window.fetch) { cb(null); return; }
+  fetch('scores.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(cb, function () { cb(null); });
+}
+function refresh() {
+  if (document.visibilityState && document.visibilityState !== 'visible') return;
+  fetchData(function (d) {
+    setLive(!!d);
+    if (!d || !d.matches) return;
+    var sig = d.matches.length + '|' + (d.matches.length ? d.matches[d.matches.length - 1].ended_at : '') + '|' + (d.seasons || []).length;
+    if (sig !== SIG) apply(d);
+  });
+}
+
+readHash();
+bind();
+var inline = null;
+try {
+  var text = $('rivalry-data').textContent.trim();
+  if (text) inline = JSON.parse(text);
+} catch (e) { inline = null; }
+if (inline) { apply(inline); setTimeout(refresh, 1500); } else {
+  fetchData(function (d) {
+    if (d) { apply(d); setLive(true); } else $('loading').textContent = 'Could not load scores.json. The bot writes it next to this page after every game.';
+  });
+}
+setInterval(refresh, REFRESH_MS);
+document.addEventListener('visibilitychange', refresh);
+})();
+</script>
 </body>
 </html>
