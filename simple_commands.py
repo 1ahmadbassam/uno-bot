@@ -20,6 +20,8 @@
 from telegram import ParseMode, Update
 from telegram.ext import CommandHandler, CallbackContext
 
+import rivalry
+from config import MIN_PLAYERS
 from utils import send_async
 from shared_vars import dispatcher
 from internationalization import _, user_locale
@@ -27,32 +29,41 @@ from internationalization import _, user_locale
 @user_locale
 def help_handler(update: Update, context: CallbackContext):
     """Handler for the /help command"""
-    help_text = _("Follow these steps:\n\n"
-      "1. Add this bot to a group\n"
-      "2. In the group, start a new game with /new or join an already"
-      " running game with /join\n"
-      "3. After at least two players have joined, start the game with"
-      " /start\n"
-      "4. Type the bot's username into your chat box and hit "
-      "<b>space</b>, or click the <code>via @the bot's username</code> text "
-      "next to messages. You will see your cards (some greyed out), "
-      "any extra options like drawing, and a <b>?</b> to see the "
-      "current game state. The <b>greyed out cards</b> are those you "
-      "<b>can not play</b> at the moment. Tap an option to execute "
-      "the selected action.\n"
-      "Players can join the game at any time. To leave a game, "
-      "use /leave. Use /notify_me to "
-      "receive a private message when a new game is started.\n\n"
-      "<b>Language</b> and other settings: /settings\n"
-      "Other commands (only game creator):\n"
-      "/close - Close lobby\n"
-      "/open - Open lobby\n"
-      "/kill - Terminate the game\n"
-      "/kick - Select a player to kick "
-      "by replying to him or her\n"
-      "/enable_translations - Translate relevant texts into all "
-      "languages spoken in a game\n"
-      "/disable_translations - Use English for those texts\n\n")
+    help_text = _(
+        "<b>How to play</b>\n"
+        "1. Add this bot to a group.\n"
+        "2. Create a game with /new, or join the group's game with /join.\n"
+        "3. When at least {min_players} players have joined, deal the cards with /start.\n"
+        "4. Type the bot's username and a <b>space</b> in the chat box, or tap the "
+        "<code>via @bot</code> text next to its messages. Your cards appear: the "
+        "<b>greyed out</b> ones can't be played right now. Drawing, passing and a "
+        "<b>?</b> for the game state are in the same list. Tap one to play it.\n\n"
+        "<b>Playing</b>\n"
+        "/new - Create a game in this group\n"
+        "/join - Join this group's game, even after it started\n"
+        "/start - Deal the cards and begin\n"
+        "/leave - Leave the game\n"
+        "/skip - Skip the player whose turn it is once their time is up "
+        "(they draw a card); you can always skip yourself\n"
+        "/notify_me - Get a private message when the next game starts here\n\n"
+        "<b>Game creator</b>\n"
+        "/close - Stop new players from joining\n"
+        "/open - Let new players join again\n"
+        "/enable_translations - Show game messages in every player's language\n"
+        "/disable_translations - Show them in one language again\n"
+        "Game mode: before the game starts, type the bot's username and a space "
+        "and pick a mode (/modes explains them)\n\n"
+        "<b>Game creator or group admins</b>\n"
+        "/kick - Reply to a player's message with /kick to remove them\n"
+        "/kill - End the game\n\n"
+        "<b>Other</b>\n"
+        "/settings - Language and other settings (in a private chat with the bot)\n"
+        "/modes - The game modes\n"
+        "/source - Source code and credits\n"
+        "/help - This message").format(min_players=MIN_PLAYERS)
+    rivalry_help = rivalry.help_text()
+    if rivalry_help:
+        help_text += "\n\n" + rivalry_help
 
     def _send():
       update.message.chat.send_message(

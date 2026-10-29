@@ -11,8 +11,10 @@ import os
 import re
 import threading
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from html import escape
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pony import orm
@@ -20,6 +22,7 @@ from telegram import ParseMode, Update
 from telegram.error import ChatMigrated, RetryAfter
 from telegram.ext import CommandHandler, CallbackContext
 
+import card as c
 import rivalry_log
 import rivalry_stats as rs
 from config import (ADMIN_LIST, RIVALRY_ENABLED, RIVALRY_PLAYERS, RIVALRY_CHAT_ID, RIVALRY_TIMEZONE,
@@ -391,6 +394,88 @@ def score(update: Update, context: CallbackContext):
     _reply(update, context, _with_link(text))
 
 
+def help_text():
+    """The /help section about the score, or "" when rivalry tracking is off"""
+    if not ENABLED:
+        return ""
+    rivals = _rivals()
+    a, b = rivals.name(rivals.a_id), rivals.name(rivals.b_id)
+    lines = ["<b>Score between %s and %s</b>" % (a, b),
+             "/score - This season's score and statistics",
+             "/score all - Every season together",
+             "/score &lt;season&gt; - One season by name, e.g. /score 2025",
+             "/score history - The last %d results; /score history 25 shows more (up to %d)" % (HISTORY_DEFAULT, HISTORY_MAX),
+             "/stats - How the last game played with the bot went: cards, draws, bluffs, thinking time",
+             "/stats &lt;number&gt; - The same for one game, e.g. /stats 12",
+             "",
+             "Only %s, %s and the bot's admins:" % (a, b),
+             "/score_add &lt;name&gt; - Record a win from a game played without the bot, e.g. /score_add %s" % a,
+             "/score_undo - Remove the newest result",
+             "/score_season &lt;name&gt; - Start a new season at 0 – 0, e.g. /score_season 2027"]
+    if RIVALRY_CHAT_ID is not None:
+        lines.append("These work in the rivalry group; %s, %s and the bot's admins can also use them "
+                     "in a private chat with the bot." % (a, b))
+    if RIVALRY_WEB_URL:
+        lines += ["", '<a href="%s">📈 All statistics and replays</a>' % escape(RIVALRY_WEB_URL, quote=True)]
+    return "\n".join(lines)
+
+
+def _replay_link(match_id):
+    """The website's replay page of a result, or None without "web_url" """
+    if not RIVALRY_WEB_URL:
+        return None
+    parts = urlsplit(RIVALRY_WEB_URL)
+    path = parts.path
+    if path.endswith('.html'):
+        path = path.rsplit('/', 1)[0] + '/'
+    elif not path.endswith('/'):
+        path += '/'
+    return urlunsplit((parts.scheme, parts.netloc, path + 'replay.html', '', str(match_id)))
+
+
+def _card_label(card):
+    return c.label(c.from_str(card))
+
+
+def stats(update: Update, context: CallbackContext):
+    """/stats or /stats <game number>: how the last game the bot logged (or that game) went"""
+    if not _allowed(update):
+        return
+    args = context.args or []
+    rivals, tz = _rivals(), _timezone()
+    with orm.db_session:
+        seasons, results = _load()
+        logged = set(orm.select(g.match_id for g in RivalryGameLog)[:])
+        numbered = list(enumerate(results, 1))
+        if args:
+            wanted = args[0].lstrip('#')
+            if not wanted.isdigit():
+                _reply(update, context, "Usage: /stats for the last game, or /stats &lt;game number&gt;, e.g. /stats 12")
+                return
+            found = next((x for x in numbered if x[0] == int(wanted)), None)
+            if found is None:
+                _reply(update, context, "There is no game #%s yet (%d played)." % (wanted, len(results)))
+                return
+            if found[1].id not in logged:
+                _reply(update, context, "Game #%s wasn't played with the bot after game logging started, "
+                                        "so only its result is known. /score history lists the results." % wanted)
+                return
+        else:
+            found = next((x for x in reversed(numbered) if x[1].id in logged), None)
+            if found is None:
+                _reply(update, context, "📋 No game has been logged yet. The bot logs every game between "
+                                        "%s and %s that it hosts." % (rivals.name(rivals.a_id), rivals.name(rivals.b_id)))
+                return
+        number, result = found
+        log = json.loads(RivalryGameLog.get(match_id=result.id).events)
+    season = next(s for s in seasons if s.id == result.season_id)
+    wins = Counter(r.winner_id for r in results[:number] if r.season_id == season.id)
+    score_after = (wins[result.winner_id], wins[result.loser_id], season.name)
+    text = rs.game_stats_text(rivals, number, result, log, tz, _card_label, score_after,
+                              TURN_PACING_DELAY, _replay_link(result.id))
+    _reply(update, context, text)
+
+
 def score_add(update: Update, context: CallbackContext):
     """/score_add <name>: record a win for a game played outside the bot"""
     if not _allowed(update) or not _is_manager(update.effective_user):
@@ -474,4 +559,5 @@ def register():
     dispatcher.add_handler(CommandHandler('score_add', score_add))
     dispatcher.add_handler(CommandHandler('score_undo', score_undo))
     dispatcher.add_handler(CommandHandler('score_season', score_season))
+    dispatcher.add_handler(CommandHandler('stats', stats))
     export()

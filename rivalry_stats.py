@@ -429,6 +429,87 @@ CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4')
 LOG_COLORS = ('r', 'b', 'g', 'y')
 
 
+def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pacing=0, link=None):
+    """
+    The /stats message for one logged game: its result and how each rival played.
+    `label` turns a card string into a readable card; `score_after`: the season's
+    (score of the winner, score of the loser, season name) after this game.
+    """
+    d = summarize_log(log)
+    keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
+    win, lose = result.winner_id, result.loser_id
+    w, l = keys[win], keys[lose]
+    order = ((win, w), (lose, l))
+
+    def pair(values, fmt="{}"):
+        return " · ".join("%s %s" % (rivals.name(pid), fmt.format(values[key])) for pid, key in order)
+
+    def think(key):
+        s = d[key]
+        if not s['th'][1]:
+            return "–"
+        average = max(0.0, s['th'][0] / s['th'][1] / 1000 - (pacing or 0))
+        return "%.1fs (slowest %ds)" % (average, round(max(0, s['th'][2] / 1000 - (pacing or 0))))
+
+    when = to_local(result.ended_at, tz).strftime('%a %d %b %H:%M')
+    lines = ["📋 <b>Game #%d</b> · %s%s" % (number, when, " · %s" % escape(result.mode) if result.mode else "")]
+    how = " by forfeit" if result.outcome == 'forfeit' else ""
+    facts = ["🏆 <b>%s</b> won%s in %s" % (rivals.name(win), how, format_duration(timedelta(milliseconds=d['ms'])))]
+    if result.turns:
+        facts.append("%d turns" % result.turns)
+    lines.append(" · ".join(facts))
+    if result.loser_cards_left is not None:
+        lines.append("%s was left with %d card%s" % (rivals.name(lose), result.loser_cards_left,
+                                                    "" if result.loser_cards_left == 1 else "s"))
+    if score_after:
+        lines.append("Season %s: %s %d – %d %s" % (escape(score_after[2]), rivals.name(win), score_after[0],
+                                                   score_after[1], rivals.name(lose)))
+
+    opening = []
+    if d['first'] in (w, l):
+        opening.append("%s went first" % rivals.name(win if d['first'] == w else lose))
+    if d['fc']:
+        opening.append("first card %s" % escape(label(d['fc'])))
+    deal = d['deal']
+    opening = ", ".join(opening)
+    lines += ["", "<b>Start</b>", opening[:1].upper() + opening[1:] if opening else "–",
+              "Action and wild cards dealt: " + pair({key: sum(deal.get(key, (0, 0))) for key in (w, l)})]
+
+    s = {key: d[key] for key in (w, l)}
+    lines += ["", "<b>Play</b>",
+              "Cards played: " + pair({key: s[key]['pl'] for key in s}),
+              "Action and wild cards: " + pair({key: sum(s[key]['ty'][1:]) for key in s}),
+              "Chosen draws: " + pair({key: "%d (%d playable)" % (s[key]['dv'], s[key]['dk']) for key in s}),
+              "Passes: " + pair({key: s[key]['ps'] for key in s}),
+              "Penalty cards dealt: " + pair({key: s[key]['dealt'] for key in s}),
+              "Penalty cards taken: " + pair({key: s[key]['fd'] for key in s})]
+    if d['stack'] >= 4:
+        lines.append("Longest +2/+4 stack: +%d" % d['stack'])
+    if any(s[key]['ty'][5] for key in s):
+        lines.append("+4s played: " + pair({key: "%d (%d bluff%s)" % (s[key]['ty'][5], s[key]['bl'], "" if s[key]['bl'] == 1 else "s")
+                                            for key in s}))
+    if any(s[key]['ch'] for key in s):
+        lines.append("Challenges won: " + pair({key: "%d of %d" % (s[key]['cw'], s[key]['ch']) for key in s}))
+
+    samples = d['samples'] or 1
+    lines += ["", "<b>Hands</b>",
+              "Largest hand: " + pair({key: s[key]['mx'] for key in s}),
+              "Fewer cards for: " + pair({key: "%.0f%%" % percent(s[key]['ahead'], samples) for key in s}) + " of the game",
+              "Down to one card: " + pair({key: "%d time%s" % (s[key]['uno'], "" if s[key]['uno'] == 1 else "s") for key in s})]
+    if s[w]['back'] > 0:
+        lines.append("Comeback: %s was %d card%s behind at worst" % (rivals.name(win), s[w]['back'],
+                                                                   "" if s[w]['back'] == 1 else "s"))
+    if d['fin']:
+        lines.append("Winning card: %s" % escape(label(d['fin'])))
+
+    lines += ["", "<b>Time</b>", "Thinking per move: " + pair({key: think(key) for key in s})]
+    if any(s[key]['to'] for key in s):
+        lines.append("Timeouts: " + pair({key: s[key]['to'] for key in s}))
+    if link:
+        lines += ["", '<a href="%s">▶ Watch the replay</a>' % escape(link, quote=True)]
+    return "\n".join(lines)
+
+
 def card_type(card):
     """One of CARD_TYPES for a card string such as 'r_5', 'g_draw' or 'draw_four'"""
     if card == 'draw_four':

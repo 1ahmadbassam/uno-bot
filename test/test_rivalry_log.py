@@ -251,6 +251,13 @@ with patch.multiple(rivalry_log, ENABLED=True, KEYS={111: 'a', 222: 'b'}, RIVALR
     with pony.orm.db_session:
         match = RivalryMatch.select().first()
         print(match.winner_id, RivalryGameLog.get(match_id=match.id).events.count('"k":"end"'))
+    # /stats, then /stats for a game that doesn't exist
+    replies = []
+    with patch.object(rivalry, '_reply', lambda update, context, text: replies.append(text)):
+        rivalry.stats(MagicMock(), MagicMock(args=[]))
+        rivalry.stats(MagicMock(), MagicMock(args=['9']))
+    print('GAME1' if replies[0].startswith('📋 <b>Game #1</b>') else replies[0])
+    print('NOGAME9' if 'no game #9' in replies[1] else replies[1])
 '''
 
 
@@ -260,9 +267,63 @@ class TestStoredLog(unittest.TestCase):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with tempfile.TemporaryDirectory() as directory:
             run = subprocess.run([sys.executable, '-c', DB_SCRIPT, root, directory], cwd=root,
-                                 capture_output=True, text=True)
+                                 capture_output=True, text=True, encoding='utf-8',
+                                 env=dict(os.environ, PYTHONIOENCODING='utf-8'))
             self.assertEqual(run.returncode, 0, run.stderr)
-            self.assertEqual(run.stdout.split(), [str(A), '1'])
+            self.assertEqual(run.stdout.split(), [str(A), '1', 'GAME1', 'NOGAME9'])
+
+
+class TestStatsCommand(unittest.TestCase):
+
+    def setUp(self):
+        self.rivals = rs.Rivals([(A, "Alice"), (I, "<Ivan>")])
+        self.log = log_of(
+            {'k': 'play', 'p': 'a', 'c': 'r_draw', 'h': 2, 't': 1000, 'n': 0, 'th': 3500},
+            {'k': 'draw', 'p': 'b', 'r': 'pen', 'cs': ['b_1', 'b_2'], 'src': 'a', 'h': 5, 't': 4000, 'n': 1, 'th': 2000},
+            {'k': 'play', 'p': 'a', 'c': 'draw_four', 'h': 1, 'bl': 1, 't': 9000, 'n': 2, 'th': 5500},
+            {'k': 'chal', 'p': 'b', 'vs': 'a', 't': 12000, 'n': 3, 'th': 1500},
+            {'k': 'play', 'p': 'a', 'c': 'r_1', 'h': 0, 't': 15000, 'n': 4, 'th': 2500},
+            {'k': 'end', 'p': 'a', 'o': 'win', 't': 95000, 'n': 5},
+        )
+        T0 = datetime(2026, 10, 28, 12, 0)
+        self.result = rs.Result(7, 1, T0, A, I, 'win', T0 - timedelta(minutes=2), 'wild', 2, 5, 5)
+
+    def test_message(self):
+        text = rs.game_stats_text(self.rivals, 12, self.result, self.log, rs.timezone.utc, lambda card: '[%s]' % card,
+                                  (4, 3, '2026'), pacing=1.5, link='https://example.org/replay.html#7')
+        self.assertTrue(text.startswith('📋 <b>Game #12</b> · Wed 28 Oct 12:00 · wild'))
+        for line in ('🏆 <b>Alice</b> won in 1m 35s · 5 turns',
+                     '&lt;Ivan&gt; was left with 5 cards',
+                     'Season 2026: Alice 4 – 3 &lt;Ivan&gt;',
+                     'Alice went first, first card [r_5]',
+                     'Penalty cards dealt: Alice 2 · &lt;Ivan&gt; 0',
+                     '+4s played: Alice 1 (1 bluff) · &lt;Ivan&gt; 0 (0 bluffs)',
+                     'Challenges won: Alice 0 of 0 · &lt;Ivan&gt; 0 of 1',
+                     'Winning card: [r_1]',
+                     'Thinking per move: Alice 2.3s (slowest 4s) · &lt;Ivan&gt; 0.2s (slowest 0s)',
+                     '<a href="https://example.org/replay.html#7">▶ Watch the replay</a>'):
+            self.assertIn(line, text.splitlines())
+        self.assertNotIn('Timeouts', text)
+
+    def test_replay_links(self):
+        for url, expected in (('https://uno.example.org', 'https://uno.example.org/replay.html#7'),
+                              ('https://uno.example.org/stats/', 'https://uno.example.org/stats/replay.html#7'),
+                              ('https://uno.example.org/stats/index.html?x=1', 'https://uno.example.org/stats/replay.html#7')):
+            with patch.object(rivalry, 'RIVALRY_WEB_URL', url):
+                self.assertEqual(rivalry._replay_link(7), expected)
+        with patch.object(rivalry, 'RIVALRY_WEB_URL', None):
+            self.assertIsNone(rivalry._replay_link(7))
+
+    def test_help_section(self):
+        with patch.multiple(rivalry, ENABLED=False):
+            self.assertEqual(rivalry.help_text(), '')
+        with patch.multiple(rivalry, ENABLED=True, RIVALRY_PLAYERS=[(A, 'Alice'), (I, 'Ivan')],
+                            RIVALRY_CHAT_ID=None, RIVALRY_WEB_URL=None):
+            text = rivalry.help_text()
+        for command in ('/score all', '/score history', '/stats &lt;number&gt;', '/score_add &lt;name&gt;',
+                        '/score_undo', '/score_season &lt;name&gt;'):
+            self.assertIn(command, text)
+        self.assertIn('<b>Score between Alice and Ivan</b>', text)
 
 
 if __name__ == '__main__':

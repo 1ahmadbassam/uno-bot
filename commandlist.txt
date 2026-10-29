@@ -14,3 +14,5 @@ help - How to use this bot?
 modes - Explanation of game modes
 settings - Language and other settings 
 score - Show the head-to-head score
+stats - Statistics of the last game
+source - Source code and credits
