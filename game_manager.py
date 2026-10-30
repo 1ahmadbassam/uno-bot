@@ -490,6 +490,7 @@ class GameManager(object):
         self.userid_current[user.id] = player
         game.touch()
         self._persist_chat(chat.id)
+        return game
 
     def leave_game(self, user, chat):
         """ Remove a player from its current game """

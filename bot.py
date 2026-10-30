@@ -56,7 +56,10 @@ from simple_commands import help_handler
 from start_bot import start_bot
 from game_threads import game_thread_runner, expected_wait
 from utils import display_name, RetryAfter, _retry_after_delay, copy_button
-from utils import send_async, send_paced, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group, make_color_keyboard, make_turn_keyboard
+from utils import (send_async, send_paced, answer_async, error, TIMEOUT,
+                   user_is_creator_or_admin, user_is_creator, user_can_change_mode,
+                   game_is_running, display_color_group, make_color_keyboard,
+                   make_turn_keyboard, make_mode_keyboard)
 
 
 logging.basicConfig(
@@ -229,7 +232,7 @@ def join_game(update: Update, context: CallbackContext):
         return
 
     try:
-        gm.join_game(update.message.from_user, chat)
+        game = gm.join_game(update.message.from_user, chat)
 
     except GameStartingError:
         send_async(context.bot, chat.id, text=_("The game is starting: every player has to send /seed first."),
@@ -255,10 +258,17 @@ def join_game(update: Update, context: CallbackContext):
                    reply_to_message_id=update.message.message_id)
 
     except AlreadyJoinedError:
+        player = gm.player_for_user_in_chat(update.message.from_user, chat)
+        game = player.game if player else (gm.chatid_games.get(chat.id) or [None])[-1]
+        kwargs = {}
+        if game and user_can_change_mode(update.message.from_user, game):
+            kwargs['reply_markup'] = make_mode_keyboard(game)
+
         send_async(context.bot, chat.id,
                    text=_("You already joined the game. Start the game "
                           "with /start"),
-                   reply_to_message_id=update.message.message_id)
+                   reply_to_message_id=update.message.message_id,
+                   **kwargs)
 
     except DeckEmptyError:
         send_async(context.bot, chat.id,
@@ -267,9 +277,18 @@ def join_game(update: Update, context: CallbackContext):
                    reply_to_message_id=update.message.message_id)
 
     else:
+        if not game:
+            player = gm.player_for_user_in_chat(update.message.from_user, chat)
+            game = player.game if player else (gm.chatid_games.get(chat.id) or [None])[-1]
+
+        kwargs = {}
+        if game and user_can_change_mode(update.message.from_user, game):
+            kwargs['reply_markup'] = make_mode_keyboard(game)
+
         send_async(context.bot, chat.id,
                    text=_("Joined the game"),
-                   reply_to_message_id=update.message.message_id)
+                   reply_to_message_id=update.message.message_id,
+                   **kwargs)
 
 
 @user_locale
@@ -1253,7 +1272,7 @@ def reply_to_query(update: Update, context: CallbackContext):
         # The game has not started.
         # The creator may change the game mode, other users just get a "game has not started" message.
         if not game.started:
-            if user_is_creator(user, game):
+            if user_can_change_mode(user, game):
                 add_mode_classic(results)
                 add_mode_fast(results)
                 add_mode_wild(results)
@@ -1353,7 +1372,7 @@ def process_result(update: Update, context: CallbackContext):
     elif result_id.startswith('mode_'):
         # First 5 characters are 'mode_', the rest is the gamemode.
         mode = result_id[5:]
-        if game.started or mode not in GAME_MODES or not user_is_creator(user, game):
+        if not user_can_change_mode(user, game) or mode not in GAME_MODES:
             logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
             return
         game.set_mode(mode)

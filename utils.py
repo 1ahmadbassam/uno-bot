@@ -282,7 +282,17 @@ def game_is_running(game):
 
 
 def user_is_creator(user, game):
-    return user.id in game.owner
+    owner = getattr(game, 'owner', None)
+    if owner is None or not user:
+        return False
+    return user.id in owner
+
+
+def user_can_change_mode(user, game):
+    """Check whether a user is allowed to change the game mode"""
+    if not user or not game or getattr(game, 'started', False):
+        return False
+    return user_is_creator(user, game)
 
 
 def user_is_admin(user, bot, chat):
@@ -379,3 +389,10 @@ def make_turn_keyboard(game, chat_id):
             keyboard.append(action_row)
 
     return InlineKeyboardMarkup(keyboard)
+
+
+def make_mode_keyboard(game=None):
+    """Create inline keyboard for opening the game mode inline menu"""
+    mode_btn = InlineKeyboardButton(text=_("Change game mode"), switch_inline_query_current_chat='')
+    return InlineKeyboardMarkup([[mode_btn]])
+

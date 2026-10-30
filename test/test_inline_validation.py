@@ -145,6 +145,122 @@ class TestInlineResultValidation(unittest.TestCase):
         self.choose(self.bob, 'mode_wild')
         self.assertEqual(self.game.mode, 'classic')
 
+    def test_user_can_change_mode(self):
+        from utils import user_can_change_mode
+        self.game.owner = {self.alice.user.id}
+        self.game.started = False
+        self.assertTrue(user_can_change_mode(self.alice.user, self.game))
+        self.assertFalse(user_can_change_mode(self.bob.user, self.game))
+
+        self.game.started = True
+        self.assertFalse(user_can_change_mode(self.alice.user, self.game))
+
+        self.assertFalse(user_can_change_mode(None, self.game))
+        self.assertFalse(user_can_change_mode(self.alice.user, None))
+
+    def test_make_mode_keyboard(self):
+        from utils import make_mode_keyboard
+        markup = make_mode_keyboard()
+        self.assertEqual(len(markup.inline_keyboard), 1)
+        row = markup.inline_keyboard[0]
+        self.assertEqual(len(row), 1)
+        btn = row[0]
+        self.assertEqual(btn.text, "Change game mode")
+        self.assertEqual(btn.switch_inline_query_current_chat, '')
+        self.assertIsNone(btn.callback_data)
+
+    def test_join_game_shows_mode_button_for_creator_before_start(self):
+        self.game.started = False
+        self.game.owner = {self.alice.user.id}
+
+        update = MagicMock()
+        update.message.chat = self.game.chat
+        update.message.from_user = self.alice.user
+        update.message.message_id = 42
+        context = MagicMock()
+
+        gm = MagicMock()
+        gm.join_game.return_value = self.game
+
+        raw_join_game = inspect.unwrap(bot.join_game)
+        with patch('bot.gm', gm), patch('bot.send_async') as mock_send:
+            raw_join_game(update, context)
+
+        mock_send.assert_called_once()
+        _, kwargs = mock_send.call_args
+        self.assertIn('reply_markup', kwargs)
+        markup = kwargs['reply_markup']
+        self.assertEqual(markup.inline_keyboard[0][0].text, "Change game mode")
+        self.assertEqual(markup.inline_keyboard[0][0].switch_inline_query_current_chat, '')
+
+    def test_join_game_no_button_for_non_creator(self):
+        self.game.started = False
+        self.game.owner = {self.alice.user.id}
+
+        update = MagicMock()
+        update.message.chat = self.game.chat
+        update.message.from_user = self.bob.user
+        update.message.message_id = 43
+        context = MagicMock()
+
+        gm = MagicMock()
+        gm.join_game.return_value = self.game
+
+        raw_join_game = inspect.unwrap(bot.join_game)
+        with patch('bot.gm', gm), patch('bot.send_async') as mock_send:
+            raw_join_game(update, context)
+
+        mock_send.assert_called_once()
+        _, kwargs = mock_send.call_args
+        self.assertNotIn('reply_markup', kwargs)
+
+    def test_join_game_no_button_after_game_started(self):
+        self.game.started = True
+        self.game.owner = {self.alice.user.id}
+
+        update = MagicMock()
+        update.message.chat = self.game.chat
+        update.message.from_user = self.alice.user
+        update.message.message_id = 44
+        context = MagicMock()
+
+        gm = MagicMock()
+        gm.join_game.return_value = self.game
+
+        raw_join_game = inspect.unwrap(bot.join_game)
+        with patch('bot.gm', gm), patch('bot.send_async') as mock_send:
+            raw_join_game(update, context)
+
+        mock_send.assert_called_once()
+        _, kwargs = mock_send.call_args
+        self.assertNotIn('reply_markup', kwargs)
+
+    def test_join_game_already_joined_shows_button_for_creator_before_start(self):
+        from errors import AlreadyJoinedError
+        self.game.started = False
+        self.game.owner = {self.alice.user.id}
+
+        update = MagicMock()
+        update.message.chat = self.game.chat
+        update.message.from_user = self.alice.user
+        update.message.message_id = 45
+        context = MagicMock()
+
+        gm = MagicMock()
+        gm.join_game.side_effect = AlreadyJoinedError()
+        gm.player_for_user_in_chat.return_value = self.alice
+
+        raw_join_game = inspect.unwrap(bot.join_game)
+        with patch('bot.gm', gm), patch('bot.send_async') as mock_send:
+            raw_join_game(update, context)
+
+        mock_send.assert_called_once()
+        _, kwargs = mock_send.call_args
+        self.assertIn('reply_markup', kwargs)
+        markup = kwargs['reply_markup']
+        self.assertEqual(markup.inline_keyboard[0][0].text, "Change game mode")
+
+
 
 if __name__ == '__main__':
     unittest.main()

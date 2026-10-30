@@ -633,3 +633,8 @@ msgstr ""
 #: utils.py:356
 msgid "🔎 Match stats"
 msgstr ""
+
+#: utils.py:393
+msgid "Change game mode"
+msgstr ""
+
