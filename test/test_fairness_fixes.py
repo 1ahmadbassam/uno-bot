@@ -142,8 +142,9 @@ class TestFairnessFixes(unittest.TestCase):
         with patch('deck.csprng.randrange', return_value=1) as randrange:
             card = deck.draw()
         randrange.assert_called_once_with(3)
-        self.assertEqual(card, c.Card(c.BLUE, '1'))
-        self.assertEqual(sorted(deck.cards), sorted([c.Card(c.RED, '1'), c.Card(c.GREEN, '1')]))
+        # The pick indexes the pile sorted by card name: b_1, g_1, r_1
+        self.assertEqual(card, c.Card(c.GREEN, '1'))
+        self.assertEqual(sorted(deck.cards), sorted([c.Card(c.RED, '1'), c.Card(c.BLUE, '1')]))
 
     def test_1_2_draw_order_is_uniform(self):
         """1.2: Every card is equally likely at every draw position (no positional bias)"""

@@ -4,13 +4,12 @@ import card as c
 import rivalry
 import rivalry_log
 from datetime import datetime
-from deck import csprng
 
 from telegram import Message, Chat
 from telegram.ext import CallbackContext
 from apscheduler.jobstores.base import JobLookupError
 
-from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME
+from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME, RIVALRY_WEB_URL
 from errors import DeckEmptyError, NotEnoughPlayersError
 from game_threads import game_thread_runner
 from internationalization import __, _, locales_for_game
@@ -45,7 +44,7 @@ def do_skip(bot, player, job_queue=None):
     # any draw counter is the next player's penalty, not theirs.
     was_choosing = game.choosing_color or (game.last_card and not game.last_card.color)
     if was_choosing:
-        auto_color = csprng.choice(c.COLORS)
+        auto_color = game.rng.choose_color()
         rivalry_log.color(game, skipped_player, auto_color, auto=True)
         game.last_card.color = auto_color
         game.choosing_color = False
@@ -181,6 +180,37 @@ def forfeit_win(bot, game, leaving_user):
     game.players_won += 1
 
 
+def fairness_commitment(game):
+    """The line announcing a lobby's fairness commitment (fairness.py), or None when fairness is off"""
+    rng = game.rng
+    if not rng.announce:
+        return None
+    return _("🔒 Fairness: the cards will come from a secret seed with fingerprint "
+             "{commit} and drand round {round}. The seed is revealed when the game ends.").format(
+        commit=rng.commitment, round=rng.round)
+
+
+def reveal_fairness(bot, game):
+    """When a game is over: reveal its seed and add the proof to its rivalry replays"""
+    rng = game.rng
+    if rng.revealed or not rng.announce or rng.verifiable is None:
+        return
+    rng.revealed = True
+    if rng.verifiable:
+        text = __("🔓 Fairness seed: {seed}\nIts SHA-256 must match the fingerprint "
+                  "{commit} posted when the lobby opened.", multi=game.translate).format(
+            seed=rng.seed.hex(), commit=rng.commitment)
+        if rng.match_ids and RIVALRY_WEB_URL:
+            text += "\n" + __("Check every card: {url}", multi=game.translate).format(
+                url="%s/replay.html#%d" % (RIVALRY_WEB_URL.rstrip('/'), rng.match_ids[-1]))
+    else:
+        text = __("⚠️ drand couldn't be reached when this game started, so its cards came "
+                  "from the server's own random generator and can't be checked.",
+                  multi=game.translate)
+    send_async(bot, game.chat.id, text=text, disable_notification=True)
+    rivalry.attach_proof(rng.match_ids, rng.proof())
+
+
 def end_game_without_winner(bot, game):
     """
     End a 2-player game without crediting a win, e.g. when one player kicks the other.
@@ -269,7 +299,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
         # If the winning card was a Wild card, automatically assign a color
         # so remaining players can continue without deadlock
         if game.choosing_color:
-            auto_color = csprng.choice(c.COLORS)
+            auto_color = game.rng.choose_color()
             game.choose_color(auto_color, auto=True)
             send_async(bot, chat.id,
                        text=__("Winning card was Wild! Color set to {color}.",

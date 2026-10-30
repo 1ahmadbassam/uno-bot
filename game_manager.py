@@ -25,6 +25,7 @@ from types import SimpleNamespace
 import card as c
 from pony.orm import db_session
 
+from fairness import FairRandom
 from game import Game
 from player import Player
 from config import STALE_GAME_UNLOAD_SECONDS, STALE_GAME_SCAN_EVERY_SECONDS, MAX_PLAYERS
@@ -42,6 +43,8 @@ class GameManager(object):
         self.userid_current = dict()
         self.remind_dict = dict()
         self._last_unload_scan = datetime.now()
+        # Called with a game right before end_game() removes it (bot.py reveals the fairness seed)
+        self.on_game_end = None
 
         self.logger = logging.getLogger(__name__)
 
@@ -118,6 +121,7 @@ class GameManager(object):
             # Who played the last Wild Draw Four, so a challenge after a restart judges the right player
             'last_bluffer_id': game.last_bluffer.user.id if getattr(game, 'last_bluffer', None) else None,
             'left_users': sorted(getattr(game, 'left_users', set())),
+            'fair': game.rng.to_dict(),
             'started_at': game.started_at.isoformat() if getattr(game, 'started_at', None) else None,
             'turns': getattr(game, 'turns', 0),
             'rivalry_log': getattr(game, 'rivalry_log', None),
@@ -143,6 +147,9 @@ class GameManager(object):
         game.deck.graveyard = [self._deserialize_card(card) for card in data.get('deck_graveyard', [])]
         game.last_activity = datetime.fromisoformat(data.get('last_activity', datetime.now().isoformat()))
         game.left_users = set(data.get('left_users') or [])
+        # Games saved before fairness proofs keep OS randomness and announce nothing
+        game.rng = FairRandom.from_dict(data['fair']) if data.get('fair') else FairRandom.unverifiable()
+        game.deck.rng = game.rng
         game.started_at = datetime.fromisoformat(data['started_at']) if data.get('started_at') else None
         game.turns = data.get('turns', 0)
         game.rivalry_log = data.get('rivalry_log')
@@ -547,6 +554,12 @@ class GameManager(object):
             raise NoGameInChatError
 
         game = player.game
+
+        if self.on_game_end is not None:
+            try:
+                self.on_game_end(game)
+            except Exception:
+                self.logger.exception("Game end hook failed in chat %s", chat.id)
 
         # Clear game
         for player_in_game in game.players:

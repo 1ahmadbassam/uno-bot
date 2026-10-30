@@ -30,19 +30,31 @@ from errors import DeckEmptyError
 csprng = secrets.SystemRandom()
 
 
+class SystemSource(object):
+    """Random source for a deck outside a game; games use fairness.FairRandom"""
+
+    def randbelow(self, n):
+        return csprng.randrange(n) if n > 1 else 0
+
+    def note(self, kind, *values):
+        pass
+
+
 class Deck(object):
     """
     This class represents a deck of cards.
 
     The draw pile is an unordered pool: every draw picks a card uniformly at
     random from the cards that are left, at the moment of drawing. The odds are
-    the same as for a shuffled deck, but the order of future draws is never
-    decided in advance, so it can't leak from memory or persisted state.
+    the same as for a shuffled deck, but no draw order is stored anywhere.
+    The pick is an index into the pile sorted by card name, so it only depends
+    on which cards are left (fairness.py replays it to check a game).
     """
 
-    def __init__(self):
+    def __init__(self, rng=None):
         self.cards = list()
         self.graveyard = list()
+        self.rng = rng or SystemSource()
         self.logger = logging.getLogger(__name__)
 
         self.logger.debug("Initialized empty Deck")
@@ -56,10 +68,9 @@ class Deck(object):
             self.cards.extend(self.graveyard)
             self.graveyard.clear()
 
-        index = csprng.randrange(len(self.cards))
-        # Swap with the last card so removal is O(1); pile order carries no meaning
-        self.cards[index], self.cards[-1] = self.cards[-1], self.cards[index]
-        card = self.cards.pop()
+        self.cards.sort(key=str)
+        card = self.cards.pop(self.rng.randbelow(len(self.cards)))
+        self.rng.note('d', str(card))
         self.logger.debug("Drawing card %s", str(card))
         return card
 
@@ -68,9 +79,17 @@ class Deck(object):
         if card.special:
             card.color = None
         self.graveyard.append(card)
+        self.rng.note('x', str(card))
+
+    def put_back(self, cards):
+        """Returns cards straight to the draw pile (e.g. a Wild Draw Four turned up as the first card)"""
+        self.cards.extend(cards)
+        if cards:
+            self.rng.note('b', [str(card) for card in cards])
 
     def _fill_classic_(self):
         # Fill deck with the classic card set
+        self.rng.note('f', 'classic')
         self.cards.clear()
         for color in c.COLORS:
             for value in c.VALUES:
@@ -83,6 +102,7 @@ class Deck(object):
 
     def _fill_wild_(self):
         # Fill deck with a wild card set
+        self.rng.note('f', 'wild')
         self.cards.clear()
         for color in c.COLORS:
             for value in c.WILD_VALUES:

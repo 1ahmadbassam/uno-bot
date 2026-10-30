@@ -118,7 +118,30 @@ def record_first_place(bot, game, winner_user, forfeit=False):
         logger.exception("Could not record the rivalry result of chat %s", game.chat.id)
         return
     _store_log(game, winner_user.id, outcome, match_id)
+    # The game's fairness proof is added to this replay when the whole game is over
+    rng = getattr(game, 'rng', None)
+    if rng is not None:
+        rng.match_ids.append(match_id)
     dispatcher.run_async(_announce, bot, game.chat.id, match_id)
+
+
+def attach_proof(match_ids, proof):
+    """Add a finished game's fairness proof (fairness.py) to the replays of its results"""
+    if not match_ids:
+        return
+    try:
+        with orm.db_session:
+            for match_id in match_ids:
+                row = RivalryGameLog.get(match_id=match_id)
+                if row is None:
+                    continue
+                log = json.loads(row.events)
+                log['proof'] = proof
+                row.events = json.dumps(log, separators=(',', ':'))
+    except Exception:
+        logger.exception("Could not attach the fairness proof to rivalry results %s", match_ids)
+        return
+    dispatcher.run_async(export)
 
 
 def _store_log(game, winner_id, outcome, match_id):
@@ -299,7 +322,8 @@ def write_exports(directory, rivals, seasons, results, tz, colors=None, logs=Non
 
 
 def _write_replays(directory, rivals, results, logs, tz, colors, pacing):
-    """games/<match id>.json for every logged game; a game's file never changes once written"""
+    """games/<match id>.json for every logged game; a file is rewritten only when its content changed
+    (a game's fairness proof is added once the whole game is over)"""
     wanted = set()
     for number, r in enumerate(results, 1):
         if r.id not in logs:
@@ -307,9 +331,13 @@ def _write_replays(directory, rivals, results, logs, tz, colors, pacing):
         name = '%d.json' % r.id
         wanted.add(name)
         path = os.path.join(directory, name)
-        if not os.path.exists(path):
-            replay = rs.replay_data(rivals, r, number, logs[r.id], tz, colors, pacing)
-            _write_atomic(path, json.dumps(replay, ensure_ascii=False, separators=(',', ':')))
+        content = json.dumps(rs.replay_data(rivals, r, number, logs[r.id], tz, colors, pacing),
+                             ensure_ascii=False, separators=(',', ':'))
+        if os.path.exists(path):
+            with open(path, encoding='utf-8') as f:
+                if f.read() == content:
+                    continue
+        _write_atomic(path, content)
     if os.path.isdir(directory):
         # Results removed with /score_undo
         for name in os.listdir(directory):

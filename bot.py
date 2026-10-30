@@ -38,7 +38,8 @@ import settings
 import simple_commands
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
-    settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner
+    settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
+    fairness_commitment, reveal_fairness
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
@@ -168,9 +169,12 @@ def new_game(update: Update, context: CallbackContext):
         game.owner.add(update.message.from_user.id)
         game.mode = DEFAULT_GAMEMODE
         gm.persist_game(game)
-        send_async(context.bot, chat_id,
-                   text=_("Created a new game! Join the game with /join "
-                          "and start the game with /start"))
+        text = _("Created a new game! Join the game with /join "
+                 "and start the game with /start")
+        commitment = fairness_commitment(game)
+        if commitment:
+            text += "\n\n" + commitment
+        send_async(context.bot, chat_id, text=text)
 
 
 @user_locale
@@ -807,9 +811,13 @@ def start_game(update: Update, context: CallbackContext):
             except DeckEmptyError:
                 game.abort_start()
                 gm.persist_game(game)
-                send_async(context.bot, chat.id,
-                           text=_("There are not enough cards in the deck for "
-                                  "this many players."))
+                text = _("There are not enough cards in the deck for "
+                         "this many players.")
+                # abort_start() made a new seed for the next attempt
+                commitment = fairness_commitment(game)
+                if commitment:
+                    text += "\n\n" + commitment
+                send_async(context.bot, chat.id, text=text)
                 return
             rivalry_log.start(game)
             gm.persist_game(game)
@@ -1299,6 +1307,9 @@ threaded_status_update = _threaded_by(_chat_key, require_message=True)(status_up
 threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
 threaded_notify_me = _threaded_by(_chat_key, require_message=True)(notify_me)
+
+# Reveal each game's fairness seed when it ends (fairness.py)
+gm.on_game_end = lambda game: reveal_fairness(updater.bot, game)
 
 # Enforce access restrictions before all other handlers
 dispatcher.add_handler(TypeHandler(Update, access_control), group=-1)

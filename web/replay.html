@@ -58,6 +58,16 @@ select { background: var(--surface); border: 1px solid var(--border); border-rad
 .ch { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
 .ch h3 { font-size: 14px; margin-right: 8px; }
 .cap { color: var(--muted); font-size: 12px; }
+.fair { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.fair li { display: flex; gap: 8px; padding: 5px 0; border-top: 1px solid var(--grid); }
+.fair li:first-child { border-top: 0; }
+.fair .mk { flex: none; width: 1.2em; font-weight: 600; }
+.fair .ok { color: var(--good); }
+.fair .bad { color: #c62828; }
+.fair .wait { color: var(--muted); }
+.fair .dt { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.verdict-ok { color: var(--good); font-weight: 600; }
+.verdict-bad { color: #c62828; font-weight: 600; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .sw.a { background: var(--a); } .sw.b { background: var(--b); }
 .summary { display: flex; flex-wrap: wrap; margin: 0 0 14px; }
@@ -185,6 +195,10 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0 40px; }
         <div class="card" style="margin-top:14px">
           <div class="ch"><h3>This game</h3></div>
           <div class="tbl"><table id="stats"></table></div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="ch"><h3>Fairness check</h3><span class="cap" id="fair-cap"></span></div>
+          <ul class="fair" id="fair"></ul>
         </div>
       </div>
       <div class="card">
@@ -414,6 +428,7 @@ function renderGame(data, id, step) {
   $('moves-cap').textContent = plural(G.events.length, 'move');
   $('slider').max = STATES.length - 1;
   renderStats();
+  checkFairness(G);
   renderNav(id);
   $('msg').style.display = 'none'; $('list').style.display = 'none'; $('game').style.display = '';
   show(step == null ? 0 : step);
@@ -482,6 +497,191 @@ document.addEventListener('keydown', function (ev) {
 });
 var lastW = window.innerWidth;
 window.addEventListener('resize', function () { if (G && window.innerWidth !== lastW) { lastW = window.innerWidth; drawChart(); } });
+
+// --- Fairness check -----------------------------------------------------------
+// Recomputes every random choice of the game from its revealed seed and the
+// public drand round (see fairness.py in the bot). Nothing here trusts the bot:
+// the round is fetched from drand itself and the deck is rebuilt from the rules.
+var DRAND_URLS = ['https://api.drand.sh', 'https://api2.drand.sh', 'https://api3.drand.sh', 'https://drand.cloudflare.com'];
+var DRAND_GENESIS = 1692803367, DRAND_PERIOD = 3;
+var FAIR_COLORS = ['r', 'b', 'g', 'y'];
+
+function hexBytes(hex) {
+  var out = new Uint8Array(hex.length / 2);
+  for (var i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+function bytesHex(buf) {
+  return Array.prototype.map.call(new Uint8Array(buf), function (b) { return (b < 16 ? '0' : '') + b.toString(16); }).join('');
+}
+async function sha256Hex(bytes) { return bytesHex(await crypto.subtle.digest('SHA-256', bytes)); }
+
+function fullDeck(mode) {
+  var cards = [], c, v, i;
+  var values = mode === 'wild' ? ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip']
+    : ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip'];
+  for (c = 0; c < 4; c++) {
+    for (v = 0; v < values.length; v++) {
+      var copies = mode === 'wild' ? 4 : (values[v] === '0' ? 1 : 2);
+      for (i = 0; i < copies; i++) cards.push(FAIR_COLORS[c] + '_' + values[v]);
+    }
+  }
+  ['colorchooser', 'draw_four'].forEach(function (s) { for (i = 0; i < (mode === 'wild' ? 6 : 4); i++) cards.push(s); });
+  return cards;
+}
+
+async function fairStream(seedHex, beaconHex) {
+  var key = await crypto.subtle.importKey('raw', hexBytes(seedHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  var prefix = new Uint8Array([].concat(Array.from(new TextEncoder().encode('uno-fair-v1')), Array.from(hexBytes(beaconHex))));
+  var counter = 0;
+  async function next64() {
+    var msg = new Uint8Array(prefix.length + 8);
+    msg.set(prefix);
+    new DataView(msg.buffer).setBigUint64(prefix.length, BigInt(counter++));
+    return new DataView(await crypto.subtle.sign('HMAC', key, msg)).getBigUint64(0);
+  }
+  return {
+    randbelow: async function (n) {
+      if (n <= 1) return 0;
+      var mask = (1n << BigInt((n - 1).toString(2).length)) - 1n;
+      for (;;) {
+        var v = (await next64()) & mask;
+        if (v < BigInt(n)) return Number(v);
+      }
+    }
+  };
+}
+
+async function fetchBeacon(chain, round) {
+  for (var i = 0; i < DRAND_URLS.length; i++) {
+    try {
+      var r = await fetch(DRAND_URLS[i] + '/' + chain + '/public/' + round, { cache: 'force-cache' });
+      if (!r.ok) continue;
+      var d = await r.json();
+      if (d.round === round && await sha256Hex(hexBytes(d.signature)) === d.randomness) return { randomness: d.randomness, from: DRAND_URLS[i] };
+    } catch (e) { /* try the next mirror */ }
+  }
+  return null;
+}
+
+// Replays the card movements; returns null when everything matches, or what went wrong
+async function replayOps(proof, stream) {
+  var pile = [], grave = [], out = {}, draws = [], i, j;
+  for (i = 0; i < proof.ops.length; i++) {
+    var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ';
+    if (kind === 's') {
+      var seats = op[1].slice();
+      for (j = seats.length - 1; j > 0; j--) {
+        var k = await stream.randbelow(j + 1), t = seats[j]; seats[j] = seats[k]; seats[k] = t;
+      }
+      if (JSON.stringify(seats) !== JSON.stringify(op[2])) return where + 'the seating order is not the one the seed gives';
+    } else if (kind === 'f') {
+      pile = fullDeck(op[1]); grave = []; out = {};
+    } else if (kind === 'd') {
+      if (!pile.length) { pile = grave; grave = []; }
+      if (!pile.length) return where + 'a card was drawn from an empty deck';
+      pile.sort();
+      var card = pile.splice(await stream.randbelow(pile.length), 1)[0];
+      if (card !== op[1]) return where + 'the bot dealt ' + cardName(op[1]) + ' but the seed gives ' + cardName(card);
+      out[card] = (out[card] || 0) + 1;
+      draws.push(card);
+    } else if (kind === 'x' || kind === 'b') {
+      var cards = kind === 'x' ? [op[1]] : op[1];
+      for (j = 0; j < cards.length; j++) {
+        if (!(out[cards[j]] > 0)) return where + cardName(cards[j]) + ' was returned to the deck without ever being dealt';
+        out[cards[j]]--;
+        (kind === 'x' ? grave : pile).push(cards[j]);
+      }
+    } else if (kind === 'c') {
+      var color = FAIR_COLORS[await stream.randbelow(4)];
+      if (color !== op[1]) return where + 'the bot picked a different color than the seed gives';
+    } else {
+      return where + 'unknown entry "' + kind + '"';
+    }
+  }
+  proof._draws = draws;
+  return null;
+}
+
+// Every card the replay shows a rival receiving must be one of the cards the seed dealt
+function replayMatchesProof(events, draws) {
+  var left = {};
+  draws.forEach(function (c) { left[c] = (left[c] || 0) + 1; });
+  var got = [];
+  events.forEach(function (e) {
+    if (e.k === 'deal') { Object.keys(e.h).forEach(function (p) { got = got.concat(e.h[p]); }); if (e.fc) got.push(e.fc); }
+    if (e.k === 'draw' && e.cs) got = got.concat(e.cs);
+  });
+  for (var i = 0; i < got.length; i++) {
+    if (!(left[got[i]] > 0)) return false;
+    left[got[i]]--;
+  }
+  return true;
+}
+
+async function checkFairness(game) {
+  var list = $('fair'), cap = $('fair-cap'), rows = [];
+  function render(verdict, cls) {
+    list.innerHTML = rows.map(function (r) {
+      var mark = r[0] === true ? '<span class="mk ok">✓</span>' : r[0] === false ? '<span class="mk bad">✗</span>' : '<span class="mk wait">…</span>';
+      return '<li>' + mark + '<div>' + r[1] + (r[2] ? '<div class="dt">' + r[2] + '</div>' : '') + '</div></li>';
+    }).join('');
+    cap.innerHTML = verdict ? '<span class="' + cls + '">' + verdict + '</span>' : '';
+  }
+  function add(ok, text, detail) { rows.push([ok, text, detail]); render(); }
+  function done(ok) { render(ok ? 'Every card checks out' : 'Check failed', ok ? 'verdict-ok' : 'verdict-bad'); }
+
+  var p = game.proof;
+  if (!p) {
+    add(null, 'No fairness proof for this game.', 'Games played before the bot published proofs have none; for newer games it appears once the whole game is over.');
+    render('Not available', ''); return;
+  }
+  if (!p.verifiable) {
+    add(false, 'drand couldn\'t be reached when this game started, so its cards came from the server\'s own random generator.', 'This game can\'t be checked.');
+    render('Not verifiable', 'verdict-bad'); return;
+  }
+  if (!window.crypto || !crypto.subtle || typeof BigInt === 'undefined') {
+    add(null, 'This browser can\'t run the check (it needs Web Crypto and BigInt).'); render('Not available', ''); return;
+  }
+  try {
+    var hash = await sha256Hex(hexBytes(p.seed));
+    var committed = hash === p.commit;
+    add(committed, committed ? 'The revealed seed matches the fingerprint posted when the lobby opened.' : 'The revealed seed does not match the posted fingerprint.',
+      'Fingerprint ' + p.commit);
+    if (!committed) { done(false); return; }
+
+    var published = DRAND_GENESIS + (p.round - 1) * DRAND_PERIOD;
+    var before = p.committed_at == null || p.committed_at < published;
+    add(before, before ? 'drand round ' + p.round + ' was published after the commitment, so nobody could know it when the seed was fixed.'
+      : 'The drand round was already published when the seed was fixed.',
+      'Round published ' + new Date(published * 1000).toLocaleString() + (p.committed_at ? ' · committed ' + new Date(p.committed_at * 1000).toLocaleString() : '') +
+      '. The fingerprint message in the chat should be older than the round.');
+    if (!before) { done(false); return; }
+
+    add(null, 'Fetching drand round ' + p.round + '…');
+    var beacon = await fetchBeacon(p.chain, p.round);
+    rows.pop();
+    if (!beacon) { add(null, 'Couldn\'t reach drand to fetch round ' + p.round + '. Try again later.'); render('Incomplete', ''); return; }
+    var same = !p.beacon || p.beacon === beacon.randomness;
+    add(same, same ? 'Fetched drand round ' + p.round + ' directly from drand; it matches what the bot used.' : 'The bot used a different value than drand published for that round.',
+      beacon.randomness + ' · ' + beacon.from);
+    if (!same) { done(false); return; }
+
+    var stream = await fairStream(p.seed, beacon.randomness);
+    var problem = await replayOps(p, stream);
+    var draws = (p._draws || []).length;
+    add(!problem, problem ? 'A card doesn\'t match: ' + esc(problem) + '.' : 'All ' + draws + ' cards dealt and drawn, the seating and every color the bot picked follow from the seed and the drand round.',
+      problem ? null : plural(p.ops.length, 'logged step') + ' replayed.');
+    if (problem) { done(false); return; }
+
+    var consistent = replayMatchesProof(game.events, p._draws);
+    add(consistent, consistent ? 'The cards in this replay are the ones the proof dealt.' : 'This replay shows cards that the proof never dealt.');
+    done(consistent);
+  } catch (e) {
+    rows.push([false, 'The check could not run: ' + esc(e.message || e)]);
+    done(false);
+  }
+}
 
 // --- Loading ----------------------------------------------------------------
 function getJSON(url, cb) {

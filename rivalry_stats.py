@@ -411,6 +411,8 @@ def replay_data(rivals, result, number, log, tz, colors=None, pacing=None):
         'players_count': result.players,
         'pacing': pacing,
         'events': log['ev'],
+        # fairness.py: seed, drand round and card movements, once the game is over
+        'proof': log.get('proof'),
     }
 
 

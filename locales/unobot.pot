@@ -555,3 +555,21 @@ msgstr ""
 #: utils.py:306
 msgid "🃏 Show my cards"
 msgstr ""
+
+#: actions.py:207
+msgid "⚠️ drand couldn't be reached when this game started, so its cards came from the server's own random generator and can't be checked."
+msgstr ""
+
+#: actions.py:188
+msgid "🔒 Fairness: the cards will come from a secret seed with fingerprint {commit} and drand round {round}. The seed is revealed when the game ends."
+msgstr ""
+
+#: actions.py:204
+msgid "Check every card: {url}"
+msgstr ""
+
+#: actions.py:200
+msgid ""
+"🔓 Fairness seed: {seed}\n"
+"Its SHA-256 must match the fingerprint {commit} posted when the lobby opened."
+msgstr ""

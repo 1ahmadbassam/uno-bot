@@ -23,10 +23,16 @@ import secrets
 from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS
 from datetime import datetime, timezone
 
-from deck import Deck, csprng
+from deck import Deck
+from fairness import FairRandom
 import card as c
 import rivalry_log
 from errors import DeckEmptyError
+
+def _seat_name(player):
+    """How a player appears in the fairness log's seating entry"""
+    return getattr(player.user, 'first_name', None) or str(player.user)
+
 
 class Game(object):
     """ This class represents a game of UNO """
@@ -34,7 +40,9 @@ class Game(object):
     def __init__(self, chat):
         self.chat = chat
         self.last_card = None
-        self.deck = Deck()
+        # Every random choice of the game; its commitment is announced with the lobby
+        self.rng = FairRandom()
+        self.deck = Deck(self.rng)
         self.current_player = None
         self.reversed = False
         self.choosing_color = False
@@ -83,13 +91,15 @@ class Game(object):
         return players
 
     def shuffle_players(self):
-        """Randomly shuffles the seating ring and starting player using CSPRNG"""
+        """Randomly shuffles the seating ring and starting player with the game's random source"""
         players = self.players
         if len(players) <= 1:
             return
 
         self.reversed = False
-        csprng.shuffle(players)
+        before = [_seat_name(p) for p in players]
+        self.rng.shuffle(players)
+        self.rng.note('s', before, [_seat_name(p) for p in players])
         n = len(players)
         for i in range(n):
             players[i]._next = players[(i + 1) % n]
@@ -98,6 +108,8 @@ class Game(object):
 
     def start(self):
         self.touch()
+        # Fetch the committed drand round (one request per game)
+        self.rng.activate()
         if SHUFFLE_PLAYERS:
             self.shuffle_players()
 
@@ -116,7 +128,9 @@ class Game(object):
         self.touch()
         for player in self.players:
             player.cards = list()
-        self.deck = Deck()
+        # The used seed can't be reused: a restarted lobby gets a new commitment
+        self.rng = FairRandom()
+        self.deck = Deck(self.rng)
         self.last_card = None
         self.draw_counter = 0
         self.reversed = False
@@ -141,7 +155,7 @@ class Game(object):
         self.turns += 1
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
-            self.last_card.color = csprng.choice(c.COLORS)
+            self.last_card.color = self.rng.choose_color()
             rivalry_log.color(self, self.current_player, self.last_card.color, auto=True)
         self.current_player = self.current_player.next
         self.current_player.drew = False
@@ -169,7 +183,7 @@ class Game(object):
             else:
                 break
 
-        self.deck.cards.extend(temp_draw_fours)
+        self.deck.put_back(temp_draw_fours)
 
         self.last_card = card
 

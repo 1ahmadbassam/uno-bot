@@ -77,6 +77,11 @@ TURN_PACING_DELAY = float(os.getenv("TURN_PACING_DELAY", config.get("turn_pacing
 if isinstance(SHUFFLE_PLAYERS, str):
     SHUFFLE_PLAYERS = SHUFFLE_PLAYERS.lower() in ("yes", "true", "t", "1")
 
+# Provably fair games (fairness.py): commit to a seed, fetch one drand round per game
+FAIR_PLAY = os.getenv("FAIR_PLAY", config.get("fair_play", True))
+if isinstance(FAIR_PLAY, str):
+    FAIR_PLAY = FAIR_PLAY.lower() in ("yes", "true", "t", "1")
+
 # Head-to-head score between two players, recorded automatically when one of them wins
 RIVALRY = config.get("rivalry") or {}
 RIVALRY_ENABLED = bool(RIVALRY.get("enabled", False))
