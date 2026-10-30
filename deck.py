@@ -71,7 +71,6 @@ class Deck(object):
         self.cards.sort(key=str)
         card = self.cards.pop(self.rng.randbelow(len(self.cards)))
         self.rng.note('d', str(card), seat)
-        self.logger.debug("Drawing card %s", str(card))
         return card
 
     def dismiss(self, card):

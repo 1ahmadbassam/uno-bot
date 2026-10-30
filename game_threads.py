@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from collections import deque
+from contextlib import contextmanager
 import logging
 import os
 import threading
@@ -10,6 +11,22 @@ from concurrent.futures import Future, ThreadPoolExecutor
 
 
 logger = logging.getLogger(__name__)
+
+# Time the current task spent waiting on purpose (see expected_wait)
+_task = threading.local()
+
+
+@contextmanager
+def expected_wait():
+    """
+    Mark a deliberate wait inside a game task, e.g. for a drand round to come
+    out: it doesn't count towards the slow-task warning.
+    """
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        _task.waited = getattr(_task, 'waited', 0.0) + time.monotonic() - started
 
 
 class GameThreadRunner:
@@ -93,6 +110,7 @@ class GameThreadRunner:
                 logger.warning("Game thread slow queue key=%s wait=%.3fs depth=%d",
                                key, queue_wait, depth)
 
+            _task.waited = 0.0
             try:
                 result = fn(*args, **kwargs)
             except Exception as err:
@@ -109,9 +127,10 @@ class GameThreadRunner:
                         self._pending_counts[key] = pending - 1
                     self._last_used[key] = time.monotonic()
 
-                if duration >= self._slow_run_warn_seconds:
-                    logger.warning("Game thread slow task key=%s run=%.3fs depth=%d",
-                                   key, duration, depth)
+                waited = getattr(_task, 'waited', 0.0)
+                if duration - waited >= self._slow_run_warn_seconds:
+                    logger.warning("Game thread slow task key=%s run=%.3fs (%.3fs expected waiting) depth=%d",
+                                   key, duration, waited, depth)
 
     def _cleanup_idle_keys(self):
         now = time.monotonic()

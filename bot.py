@@ -54,8 +54,8 @@ from results import (add_call_bluff, add_draw, add_gameinfo,
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
-from game_threads import game_thread_runner
-from utils import display_name, RetryAfter, _retry_after_delay
+from game_threads import game_thread_runner, expected_wait
+from utils import display_name, RetryAfter, _retry_after_delay, copy_button
 from utils import send_async, send_paced, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group, make_color_keyboard, make_turn_keyboard
 
 
@@ -176,8 +176,10 @@ def new_game(update: Update, context: CallbackContext):
                  "and start the game with /start")
         commitment = fairness_commitment(game)
         if commitment:
-            text += "\n\n" + commitment
-        send_async(context.bot, chat_id, text=text)
+            send_async(context.bot, chat_id, text=text + "\n\n" + commitment[0],
+                       parse_mode=ParseMode.HTML, reply_markup=commitment[1])
+        else:
+            send_async(context.bot, chat_id, text=text)
 
 
 @user_locale
@@ -794,11 +796,11 @@ def status_update(update: Update, context: CallbackContext):
                 start_player_countdown(context.bot, game, context.job_queue)
 
 
-def _send_now(bot, chat_id, text):
+def _send_now(bot, chat_id, text, **kwargs):
     """Send a message and wait for Telegram's reply, whose timestamp anchors the drand round; None on failure"""
     for _attempt in range(2):
         try:
-            return bot.send_message(chat_id, text, disable_notification=True, timeout=TIMEOUT)
+            return bot.send_message(chat_id, text, disable_notification=True, timeout=TIMEOUT, **kwargs)
         except RetryAfter as err:
             time.sleep(_retry_after_delay(err) + 0.5)
         except Exception:
@@ -816,12 +818,16 @@ def _announce_round(bot, game):
     for _attempt in range(3):
         planned = fairness.first_round_after(time.time() + 1)
         message = _send_now(bot, game.chat.id, __(
-            "🎲 Starting the game! Its cards come from the seed with fingerprint {commit} "
-            "and drand round {round}, which isn't out yet.", multi=game.translate).format(
-            commit=rng.commitment, round=planned))
+            "🎲 Starting! Fair play: the cards come from the locked-in seed and drand round "
+            "<b>{round}</b>, which isn't out yet.", multi=game.translate).format(round=planned),
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[copy_button(_("📋 Copy fingerprint"), rng.commitment)]]))
         if message is None:
             break
-        stamped = calendar.timegm(message.date.utctimetuple())
+        try:
+            stamped = calendar.timegm(message.date.utctimetuple())
+        except (AttributeError, TypeError, ValueError):
+            break
         if fairness.round_time(planned) > stamped + 1:
             rng.set_round(planned, stamped, message.message_id)
             return
@@ -835,8 +841,11 @@ def _prepare_fair_start(bot, game, job_queue):
     rng = game.rng
     if not rng.enabled:
         return True
-    _announce_round(bot, game)
-    if rng.fetch_planned_round():
+    # Waiting for Telegram's timestamp and for the round to come out is expected
+    with expected_wait():
+        _announce_round(bot, game)
+        drand = rng.fetch_planned_round()
+    if drand:
         return True
 
     rng.wait_for_seeds(fairness.SEED_TIMEOUT)
@@ -944,8 +953,10 @@ def _deal_and_announce(bot, game, chat, job_queue):
         # abort_start() made a new seed for the next attempt
         commitment = fairness_commitment(game)
         if commitment:
-            text += "\n\n" + commitment
-        send_async(bot, chat.id, text=text)
+            send_async(bot, chat.id, text=text + "\n\n" + commitment[0],
+                       parse_mode=ParseMode.HTML, reply_markup=commitment[1])
+        else:
+            send_async(bot, chat.id, text=text)
         return
     rivalry_log.start(game)
     gm.persist_game(game)

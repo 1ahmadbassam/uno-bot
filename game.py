@@ -209,7 +209,6 @@ class Game(object):
         self.deck.dismiss(self.last_card)
         self.last_card = card
 
-        self.logger.info("Playing card " + repr(card))
         if card.value == c.SKIP:
             self.turn()
         elif card.special == c.DRAW_FOUR:

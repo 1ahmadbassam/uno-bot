@@ -327,18 +327,46 @@ class TestFairnessProof(unittest.TestCase):
         self.assertFalse(restored.rng.verifiable)
 
     def test_seed_is_revealed_once_at_game_end(self):
+        """Without a score message to join (other chats, or the game went on), the reveal is its own message"""
         import actions
         game = play_a_game(max_turns=30)
         game.rng.match_ids = [494]
         with patch('actions.send_async') as send, patch('actions.rivalry.attach_proof') as attach, \
-                patch('actions.RIVALRY_WEB_URL', 'https://example.org/uno-scores/'):
+                patch('actions.rivalry.score_pending', return_value=False), \
+                patch('actions.rivalry.match_url', return_value='https://example.org/uno-scores/replay.html#494'):
             actions.reveal_fairness(SimpleNamespace(), game)
             actions.reveal_fairness(SimpleNamespace(), game)
         send.assert_called_once()
-        text = send.call_args[1]['text']
-        self.assertIn(game.rng.seed.hex(), text)
-        self.assertIn('https://example.org/uno-scores/replay.html#494', text)
         attach.assert_called_once_with([494], game.rng.proof())
+        # The long values are behind copy buttons, not in the text
+        text = send.call_args[1]['text']
+        self.assertNotIn(game.rng.seed.hex(), text)
+        buttons = [b.to_dict() for row in send.call_args[1]['reply_markup'].inline_keyboard for b in row]
+        copied = [b['copy_text']['text'] for b in buttons if 'copy_text' in b]
+        self.assertEqual(copied, [game.rng.seed.hex(), game.rng.commitment])
+        self.assertIn('https://example.org/uno-scores/replay.html#494', [b.get('url') for b in buttons])
+
+    def test_reveal_joins_the_pending_score_message(self):
+        import actions
+        game = play_a_game(max_turns=30)
+        game.rng.match_ids = [495]
+        with patch('actions.send_async') as send, patch('actions.rivalry.attach_proof') as attach, \
+                patch('actions.rivalry.score_pending', return_value=True):
+            actions.reveal_fairness(SimpleNamespace(), game)
+        send.assert_not_called()
+        attach.assert_called_once_with([495], game.rng.proof())
+
+    def test_lobby_commitment_is_short_with_a_copy_button(self):
+        import actions
+        game = Game(SimpleNamespace(id=-1, title="Lobby", type="group"))
+        game.rng = FairRandom(enabled=True)
+        text, markup = actions.fairness_commitment(game)
+        self.assertNotIn(game.rng.commitment, text)
+        self.assertIn(game.rng.commitment[:8], text)
+        button = markup.inline_keyboard[0][0].to_dict()
+        self.assertEqual(button['copy_text'], {'text': game.rng.commitment})
+        game.rng = FairRandom(enabled=False)
+        self.assertIsNone(actions.fairness_commitment(game))
 
     def test_nothing_is_revealed_for_a_lobby_that_never_started(self):
         import actions
@@ -371,6 +399,7 @@ class FakeBot(object):
     def send_message(self, chat_id, text, **kwargs):
         lag = self.delays.pop(0) if self.delays else 0
         self.sent.append(text)
+        self.markups = getattr(self, 'markups', []) + [kwargs.get('reply_markup')]
         return SimpleNamespace(date=datetime.fromtimestamp(int(time.time() + lag), timezone.utc),
                                message_id=len(self.sent))
 
@@ -391,7 +420,8 @@ class TestStartFlow(unittest.TestCase):
         self.gm.chatid_games = {self.chat.id: [self.game]}
 
     def tearDown(self):
-        for p in self.patches:
+        # Reverse order: two of the patches replace the same time.sleep
+        for p in reversed(self.patches):
             p.stop()
 
     def test_round_is_announced_then_fetched(self):
@@ -401,7 +431,8 @@ class TestStartFlow(unittest.TestCase):
         rng = self.game.rng
         self.assertEqual(rng.source, fairness.DRAND)
         self.assertIn(str(rng.round), fake.sent[0])
-        self.assertIn(rng.commitment, fake.sent[0])
+        copy = fake.markups[0].inline_keyboard[0][0].to_dict()['copy_text']['text']
+        self.assertEqual(copy, rng.commitment)
         self.assertGreater(fairness.round_time(rng.round), rng.anchor['date'] + 1)
         fetch.assert_called_with(rng.round)
 
@@ -480,6 +511,62 @@ class TestStartFlow(unittest.TestCase):
             self.assertTrue(bot._prepare_fair_start(fake, self.game, MagicMock()))
         fetch.assert_not_called()
         self.assertEqual(fake.sent, [])
+
+
+class TestScoreMessage(unittest.TestCase):
+    """The rivalry score message carries the match link and the seed buttons"""
+
+    def test_score_message_links_the_match(self):
+        import rivalry
+        with patch('rivalry.RIVALRY_WEB_URL', 'https://example.org/uno-scores/'):
+            text = rivalry._with_link("A 45 – 40 I", 495)
+            plain = rivalry._with_link("A 45 – 40 I")
+        self.assertIn('📈 Full stats', text)
+        self.assertIn('href="https://example.org/uno-scores/replay.html#495">🔎 Match stats', text)
+        self.assertNotIn('Match stats', plain)
+
+    def test_announce_adds_the_reveal_to_the_score(self):
+        import rivalry
+        proof = play_a_game(max_turns=30).rng.proof()
+        row = SimpleNamespace(events=json.dumps({'ev': [], 'proof': proof}))
+        result = SimpleNamespace(id=495, season_id=1)
+        with patch('rivalry.time.sleep'), patch('rivalry.export'), \
+                patch('rivalry._load', return_value=([SimpleNamespace(id=1)], [result])), \
+                patch('rivalry.rs.pin_text', return_value="A 45 – 40 I"), patch('rivalry._rivals'), \
+                patch('rivalry.RivalryGameLog.get', return_value=row), \
+                patch('rivalry.RIVALRY_WEB_URL', 'https://example.org/uno-scores/'), \
+                patch('rivalry._post_score') as post:
+            rivalry._pending_scores.add(495)
+            rivalry._announce(SimpleNamespace(), -1, 495)
+        text, markup = post.call_args[0][2], post.call_args[0][4]
+        self.assertIn('🔓', text)
+        self.assertIn('replay.html#495', text)
+        self.assertNotIn(proof['seed'], text)
+        copied = [b.to_dict()['copy_text']['text'] for b in markup.inline_keyboard[0]]
+        self.assertEqual(copied, [proof['seed'], proof['commit']])
+        self.assertFalse(rivalry.score_pending(495))
+
+
+class TestExpectedWait(unittest.TestCase):
+
+    def test_expected_waits_do_not_count_as_slow(self):
+        from game_threads import GameThreadRunner, expected_wait
+        runner = GameThreadRunner(worker_count=1)
+        runner._slow_run_warn_seconds = 0.2
+
+        def waits():
+            with expected_wait():
+                time.sleep(0.3)
+
+        def busy():
+            time.sleep(0.3)
+
+        with self.assertLogs('game_threads', level='WARNING') as logs:
+            runner.submit('k', waits).result(5)
+            runner.submit('k', busy).result(5)
+            time.sleep(0.05)
+        slow = [line for line in logs.output if 'slow task' in line]
+        self.assertEqual(len(slow), 1, slow)
 
 
 @unittest.skipUnless(shutil.which('node'), "Node.js is not installed")

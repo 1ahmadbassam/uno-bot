@@ -5,16 +5,17 @@ import rivalry
 import rivalry_log
 from datetime import datetime
 
-from telegram import Message, Chat
+from telegram import Message, Chat, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from apscheduler.jobstores.base import JobLookupError
 
-from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME, RIVALRY_WEB_URL
+from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME
 from errors import DeckEmptyError, NotEnoughPlayersError
 from game_threads import game_thread_runner
 from internationalization import __, _, locales_for_game
 from shared_vars import gm
-from utils import send_async, send_paced, display_name, display_color_group, game_is_running, make_turn_keyboard
+from utils import send_async, send_paced, display_name, display_color_group, game_is_running, make_turn_keyboard, \
+    copy_button, fairness_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -180,14 +181,19 @@ def forfeit_win(bot, game, leaving_user):
     game.players_won += 1
 
 
+def _short(digest):
+    """A hex digest shortened for display; the copy buttons carry the whole value"""
+    return "<code>%s…%s</code>" % (digest[:8], digest[-8:])
+
+
 def fairness_commitment(game):
-    """The line announcing a lobby's fairness commitment (fairness.py), or None when fairness is off"""
+    """(HTML text, keyboard) announcing a lobby's fairness commitment (fairness.py), or None when it's off"""
     rng = game.rng
     if not rng.announce:
         return None
-    return _("🔒 Fairness: this game's cards will come from a secret seed with fingerprint "
-             "{commit}. It's revealed when the game ends, so every card can be checked.").format(
-        commit=rng.commitment)
+    text = _("🔒 Fair play: the seed of this game's cards is locked in (fingerprint {fingerprint}). "
+             "It's revealed when the game ends.").format(fingerprint=_short(rng.commitment))
+    return text, InlineKeyboardMarkup([[copy_button(_("📋 Copy fingerprint"), rng.commitment)]])
 
 
 def reveal_fairness(bot, game):
@@ -196,18 +202,22 @@ def reveal_fairness(bot, game):
     if rng.revealed or not rng.announce or rng.verifiable is None:
         return
     rng.revealed = True
-    if rng.verifiable:
-        text = __("🔓 Fairness seed: {seed}\nIts SHA-256 must match the fingerprint "
-                  "{commit} posted when the lobby opened.", multi=game.translate).format(
-            seed=rng.seed.hex(), commit=rng.commitment)
-        if rng.match_ids and RIVALRY_WEB_URL:
-            text += "\n" + __("Check every card: {url}", multi=game.translate).format(
-                url="%s/replay.html#%d" % (RIVALRY_WEB_URL.rstrip('/'), rng.match_ids[-1]))
-    else:
-        text = __("⚠️ This game's cards came from the server's own random generator, "
-                  "so they can't be checked.", multi=game.translate)
-    send_async(bot, game.chat.id, text=text, disable_notification=True)
     rivalry.attach_proof(rng.match_ids, rng.proof())
+    if rng.match_ids and rivalry.score_pending(rng.match_ids[-1]):
+        # The score message about to be posted carries the seed and the link
+        return
+    if rng.verifiable:
+        url = rivalry.match_url(rng.match_ids[-1]) if rng.match_ids else None
+        send_async(bot, game.chat.id,
+                   text=__("🔓 Fair play: the seed is revealed, so every card of this game can be checked.",
+                           multi=game.translate),
+                   reply_markup=fairness_keyboard(rng.seed.hex(), rng.commitment, url),
+                   disable_notification=True)
+    else:
+        send_async(bot, game.chat.id,
+                   text=__("⚠️ This game's cards came from the server's own random generator, "
+                           "so they can't be checked.", multi=game.translate),
+                   disable_notification=True)
 
 
 def end_game_without_winner(bot, game):

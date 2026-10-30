@@ -326,6 +326,37 @@ def make_color_keyboard(chat_id, game=None):
     ])
 
 
+class _CopyTextButton(InlineKeyboardButton):
+    """PTB 13 has no copy_text buttons (Bot API 7.11), so this adds the field when sent"""
+    __slots__ = ('_copy_value',)
+
+    def __init__(self, text, value):
+        super().__init__(text=text)
+        self._copy_value = value
+
+    def to_dict(self):
+        data = super().to_dict()
+        data['copy_text'] = {'text': self._copy_value}
+        return data
+
+
+def copy_button(text, value):
+    """A button that copies `value` (at most 256 characters) to the clipboard"""
+    try:
+        from telegram import CopyTextButton
+    except ImportError:
+        return _CopyTextButton(text, value)
+    return InlineKeyboardButton(text=text, copy_text=CopyTextButton(value))
+
+
+def fairness_keyboard(seed_hex, commitment, match_url=None):
+    """Buttons to copy a finished game's seed and fingerprint, and to open its replay"""
+    rows = [[copy_button(_("📋 Copy seed"), seed_hex), copy_button(_("📋 Copy fingerprint"), commitment)]]
+    if match_url:
+        rows.append([InlineKeyboardButton(text=_("🔎 Match stats"), url=match_url)])
+    return InlineKeyboardMarkup(rows)
+
+
 def make_turn_keyboard(game, chat_id):
     """Create inline keyboard for player turn, including play choice and quick draw/pass actions"""
     choice_btn = InlineKeyboardButton(text=_("Make your choice!"), switch_inline_query_current_chat='')

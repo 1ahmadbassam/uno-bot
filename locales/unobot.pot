@@ -556,22 +556,8 @@ msgstr ""
 msgid "🃏 Show my cards"
 msgstr ""
 
-#: actions.py:204
-msgid "Check every card: {url}"
-msgstr ""
-
-#: actions.py:200
-msgid ""
-"🔓 Fairness seed: {seed}\n"
-"Its SHA-256 must match the fingerprint {commit} posted when the lobby opened."
-msgstr ""
-
 #: actions.py:207
 msgid "⚠️ This game's cards came from the server's own random generator, so they can't be checked."
-msgstr ""
-
-#: actions.py:188
-msgid "🔒 Fairness: this game's cards will come from a secret seed with fingerprint {commit}. It's revealed when the game ends, so every card can be checked."
 msgstr ""
 
 #: bot.py:845
@@ -610,10 +596,6 @@ msgstr ""
 msgid "The game is starting: every player has to send /seed first."
 msgstr ""
 
-#: bot.py:818
-msgid "🎲 Starting the game! Its cards come from the seed with fingerprint {commit} and drand round {round}, which isn't out yet."
-msgstr ""
-
 #: bot.py:922
 msgid "🎲 Got a seed from {name} ({have}/{need})."
 msgstr ""
@@ -626,4 +608,28 @@ msgstr ""
 
 #: bot.py:1016
 msgid "Waiting for every player's /seed ({have}/{need})."
+msgstr ""
+
+#: actions.py:194
+msgid "🔒 Fair play: the seed of this game's cards is locked in (fingerprint {fingerprint}). It's revealed when the game ends."
+msgstr ""
+
+#: actions.py:212
+msgid "🔓 Fair play: the seed is revealed, so every card of this game can be checked."
+msgstr ""
+
+#: actions.py:196
+msgid "📋 Copy fingerprint"
+msgstr ""
+
+#: bot.py:820
+msgid "🎲 Starting! Fair play: the cards come from the locked-in seed and drand round <b>{round}</b>, which isn't out yet."
+msgstr ""
+
+#: utils.py:354
+msgid "📋 Copy seed"
+msgstr ""
+
+#: utils.py:356
+msgid "🔎 Match stats"
 msgstr ""

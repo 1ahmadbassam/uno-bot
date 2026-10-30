@@ -164,9 +164,6 @@ class Player(object):
         """Returns a list of the cards this player can play right now"""
 
         playable = list()
-        last = self.game.last_card
-
-        self.logger.debug("Last card was " + str(last))
 
         cards = self.cards
         if self.drew and self.drew_card:
@@ -187,7 +184,6 @@ class Player(object):
 
         is_playable = True
         last = self.game.last_card
-        self.logger.debug("Checking card " + str(card))
 
         if not last.color:
             # Defensive: game.turn() always assigns a color, so this should not happen.

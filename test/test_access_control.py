@@ -1,3 +1,4 @@
+import test  # noqa: F401
 import unittest
 from unittest.mock import MagicMock, patch
 from access_control import access_control, DispatcherHandlerStop

@@ -29,7 +29,7 @@ from config import (ADMIN_LIST, RIVALRY_ENABLED, RIVALRY_PLAYERS, RIVALRY_CHAT_I
                     RIVALRY_EXPORT_DIR, RIVALRY_PIN, RIVALRY_COLORS, RIVALRY_WEB_URL, TURN_PACING_DELAY)
 from rivalry_models import RivalryGameLog, RivalryMatch, RivalrySeason
 from shared_vars import dispatcher, gm
-from utils import send_async, _retry_after_delay
+from utils import send_async, _retry_after_delay, fairness_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,9 @@ INDEX_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'in
 REPLAY_HTML = os.path.join(os.path.dirname(INDEX_HTML), 'replay.html')
 
 _export_lock = threading.Lock()
+# Results whose score message hasn't been posted yet; a game's fairness reveal joins that message
+_pending_scores = set()
+_pending_lock = threading.Lock()
 
 
 def _timezone():
@@ -60,11 +63,27 @@ def _rivals():
     return rs.Rivals(RIVALRY_PLAYERS)
 
 
-def _with_link(text):
-    """`text` with a link to the website when "web_url" is set"""
+def _with_link(text, match_id=None):
+    """`text` with a link to the website when "web_url" is set, and to the replay of `match_id`"""
     if not RIVALRY_WEB_URL:
         return text
-    return '%s\n\n<a href="%s">📈 Full stats</a>' % (text, escape(RIVALRY_WEB_URL, quote=True))
+    links = '<a href="%s">📈 Full stats</a>' % escape(RIVALRY_WEB_URL, quote=True)
+    if match_id is not None:
+        links += ' · <a href="%s">🔎 Match stats</a>' % escape(match_url(match_id), quote=True)
+    return '%s\n\n%s' % (text, links)
+
+
+def match_url(match_id):
+    """The replay page of a result, with its fairness check; None without web_url"""
+    if not RIVALRY_WEB_URL:
+        return None
+    return "%s/replay.html#%d" % (RIVALRY_WEB_URL.rstrip('/'), match_id)
+
+
+def score_pending(match_id):
+    """Whether the score message of `match_id` is still to be posted"""
+    with _pending_lock:
+        return match_id in _pending_scores
 
 
 def match_for(game, winner_id, forfeit=False):
@@ -122,6 +141,8 @@ def record_first_place(bot, game, winner_user, forfeit=False):
     rng = getattr(game, 'rng', None)
     if rng is not None:
         rng.match_ids.append(match_id)
+    with _pending_lock:
+        _pending_scores.add(match_id)
     dispatcher.run_async(_announce, bot, game.chat.id, match_id)
 
 
@@ -202,19 +223,33 @@ def _announce(bot, chat_id, match_id):
             result = next(r for r in results if r.id == match_id)
             season = next(s for s in seasons if s.id == result.season_id)
             season_results = [r for r in results if r.season_id == season.id]
-            text = _with_link(rs.pin_text(_rivals(), season, season_results, result))
-        _post_score(bot, chat_id, text, match_id)
+            text = rs.pin_text(_rivals(), season, season_results, result)
+            row = RivalryGameLog.get(match_id=match_id)
+            proof = json.loads(row.events).get('proof') if row is not None else None
+        with _pending_lock:
+            # A game that ends after this point (more players) reveals its seed on its own
+            _pending_scores.discard(match_id)
+        markup = None
+        if proof and proof.get('verifiable'):
+            text += "\n\n🔓 Fair play: the seed is revealed, so every card of this game can be checked."
+            markup = fairness_keyboard(proof['seed'], proof['commit'])
+        text = _with_link(text, match_id if row is not None else None)
+        _post_score(bot, chat_id, text, match_id, markup)
     except Exception:
         logger.exception("Could not announce rivalry result %s", match_id)
+    finally:
+        with _pending_lock:
+            _pending_scores.discard(match_id)
     export()
 
 
-def _send_score_message(bot, chat_id, text):
+def _send_score_message(bot, chat_id, text, reply_markup=None):
     """Send score message with RetryAfter and ChatMigrated handling, returning (message, effective_chat_id)"""
     effective_chat_id = chat_id
     for _ in range(2):
         try:
-            msg = bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+            msg = bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True,
+                                   reply_markup=reply_markup)
             return msg, effective_chat_id
         except RetryAfter as err:
             logger.warning("Rate limited on rivalry send_message (RetryAfter: %s). Sleeping...", err.retry_after)
@@ -224,12 +259,13 @@ def _send_score_message(bot, chat_id, text):
             if effective_chat_id != new_chat_id:
                 gm.migrate_chat_id(effective_chat_id, new_chat_id)
                 effective_chat_id = new_chat_id
-    return bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True), effective_chat_id
+    return bot.send_message(effective_chat_id, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True,
+                            reply_markup=reply_markup), effective_chat_id
 
 
-def _post_score(bot, chat_id, text, match_id=None):
+def _post_score(bot, chat_id, text, match_id=None, reply_markup=None):
     """Send a score message, pin it in place of the previous one and remember it on `match_id`"""
-    message, chat_id = _send_score_message(bot, chat_id, text)
+    message, chat_id = _send_score_message(bot, chat_id, text, reply_markup)
     if not RIVALRY_PIN:
         return
     try:

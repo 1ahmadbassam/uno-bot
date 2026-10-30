@@ -67,6 +67,15 @@ select { background: var(--surface); border: 1px solid var(--border); border-rad
 .fair .wait { color: var(--muted); }
 .fair .dt { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .verdict-ok { color: var(--good); font-weight: 600; }
+details.math { margin-top: 10px; border-top: 1px solid var(--grid); padding-top: 8px; }
+details.math summary { cursor: pointer; font-size: 13px; color: var(--ink2); }
+details.math .how { color: var(--muted); font-size: 12px; margin: 8px 0; line-height: 1.5; }
+details.math .tbl { max-height: 460px; overflow: auto; }
+details.math table { font-size: 12px; }
+details.math td { vertical-align: middle; white-space: nowrap; }
+details.math code { font-size: 11px; }
+details.math .rej { color: var(--muted); font-size: 11px; }
+details.math .uc { transform: scale(.8); transform-origin: left center; }
 .verdict-bad { color: #c62828; font-weight: 600; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .sw.a { background: var(--a); } .sw.b { background: var(--b); }
@@ -555,7 +564,7 @@ async function playersEntropy(seeds) {
 async function fairStream(seedHex, entropyHex) {
   var key = await crypto.subtle.importKey('raw', hexBytes(seedHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   var prefix = new Uint8Array([].concat(Array.from(new TextEncoder().encode('uno-fair-v1')), Array.from(hexBytes(entropyHex))));
-  var counter = 0;
+  var counter = 0, trace = [];
   async function next64() {
     var msg = new Uint8Array(prefix.length + 8);
     msg.set(prefix);
@@ -563,12 +572,18 @@ async function fairStream(seedHex, entropyHex) {
     return new DataView(await crypto.subtle.sign('HMAC', key, msg)).getBigUint64(0);
   }
   return {
+    // Every pick, for "Show the math": n, mask and each block tried (block number, 64-bit value, masked value)
+    trace: trace,
     randbelow: async function (n) {
+      var pick = { n: n, mask: 0n, tries: [], result: 0 };
+      trace.push(pick);
       if (n <= 1) return 0;
       var mask = (1n << BigInt((n - 1).toString(2).length)) - 1n;
+      pick.mask = mask;
       for (;;) {
-        var v = (await next64()) & mask;
-        if (v < BigInt(n)) return Number(v);
+        var block = counter, raw = await next64(), v = raw & mask;
+        pick.tries.push({ block: block, raw: raw, v: v });
+        if (v < BigInt(n)) { pick.result = Number(v); return pick.result; }
       }
     }
   };
@@ -589,9 +604,12 @@ async function fetchBeacon(chain, round) {
 // Replays the card movements; returns null when everything matches, or what went wrong.
 // Fills proof._draws (every card drawn, in order) and proof._bySeat (seat -> cards drawn, in order).
 async function replayOps(proof, stream) {
-  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, i, j;
+  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], i, j;
+  proof._steps = steps;
   for (i = 0; i < proof.ops.length; i++) {
-    var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ';
+    var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ', from = stream.trace ? stream.trace.length : 0;
+    var step = { i: i, kind: kind, op: op };
+    steps.push(step);
     if (kind === 's') {
       var seats = op[1].slice();
       for (j = seats.length - 1; j > 0; j--) {
@@ -601,9 +619,10 @@ async function replayOps(proof, stream) {
     } else if (kind === 'f') {
       pile = fullDeck(op[1]); grave = []; out = {};
     } else if (kind === 'd') {
-      if (!pile.length) { pile = grave; grave = []; }
+      if (!pile.length) { step.recycled = grave.length; pile = grave; grave = []; }
       if (!pile.length) return where + 'a card was drawn from an empty deck';
       pile.sort();
+      step.pile = pile.length;
       var card = pile.splice(await stream.randbelow(pile.length), 1)[0];
       if (card !== op[1]) return where + 'the bot dealt ' + cardName(op[1]) + ' but the seed gives ' + cardName(card);
       out[card] = (out[card] || 0) + 1;
@@ -623,6 +642,7 @@ async function replayOps(proof, stream) {
     } else {
       return where + 'unknown entry "' + kind + '"';
     }
+    step.picks = stream.trace ? stream.trace.slice(from) : [];
   }
   proof._draws = draws;
   proof._bySeat = bySeat;
@@ -660,8 +680,54 @@ function replayMatchesProof(events, proof) {
   return null;
 }
 
+function hex64(v) { var h = v.toString(16); return '0000000000000000'.slice(h.length) + h; }
+
+// The "Show the math" section: one row per random pick, built when it is opened
+function renderMath(proof, entropyLabel) {
+  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's'; });
+  var el = document.createElement('details');
+  el.className = 'math';
+  el.innerHTML = '<summary>Show the math behind every card (' + plural(steps.length, 'random pick') + ')</summary>' +
+    '<div class="how">Each pick takes the next block of <code>HMAC-SHA256(seed, "uno-fair-v1" ‖ ' + esc(entropyLabel) +
+    ' ‖ block number)</code> and reads its first 8 bytes as a 64-bit number. It keeps only the lowest bits (the smallest ' +
+    'power of two that covers the pile) and tries the next block if the result is too big, so every card is equally likely. ' +
+    'The result is a position in the remaining cards sorted by name.</div><div class="tbl"></div>';
+  el.addEventListener('toggle', function () {
+    if (!el.open || el.getAttribute('data-built')) return;
+    el.setAttribute('data-built', '1');
+    var rows = steps.map(function (s, n) {
+      var what, who, pick, picks = s.picks || [];
+      if (s.kind === 'd') {
+        what = chip(s.op[1]);
+        who = s.op.length > 2 && s.op[2] != null ? esc(seatName(s.op[2])) : '<span class="rej">first card</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.pile + (s.recycled ? ' <span class="rej">(discards reshuffled)</span>' : '');
+      } else if (s.kind === 'c') {
+        what = esc(COLOR_NAMES[s.op[1]] || s.op[1]);
+        who = '<span class="rej">color the bot picked</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of 4';
+      } else {
+        what = 'Seating';
+        who = esc(s.op[2].map(seatName).join(' → '));
+        pick = plural(picks.length, 'swap');
+      }
+      var blocks = picks.map(function (p) {
+        return p.tries.map(function (t, k) {
+          var last = k === p.tries.length - 1;
+          return '<div' + (last ? '' : ' class="rej"') + '>#' + t.block + ' <code title="' + hex64(t.raw) + '">' + hex64(t.raw).slice(0, 8) + '…</code> &amp; ' +
+            p.mask + ' = ' + t.v + (last ? '' : ' ≥ ' + p.n + ', retry') + '</div>';
+        }).join('');
+      }).join('');
+      return '<tr><td class="num">' + (n + 1) + '</td><td>' + what + '</td><td>' + who + '</td><td class="num">' + pick + '</td><td>' + (blocks || '–') + '</td></tr>';
+    });
+    el.querySelector('.tbl').innerHTML = '<table><tr><th class="num">#</th><th>Card</th><th>To</th><th class="num">Position</th><th>Block · value · masked</th></tr>' + rows.join('') + '</table>';
+  });
+  return el;
+}
+
 async function checkFairness(game) {
   var list = $('fair'), cap = $('fair-cap'), rows = [];
+  var old = list.parentNode.querySelector('details.math');
+  if (old) old.remove();
   function render(verdict, cls) {
     list.innerHTML = rows.map(function (r) {
       var mark = r[0] === true ? '<span class="mk ok">✓</span>' : r[0] === false ? '<span class="mk bad">✗</span>'
@@ -738,6 +804,7 @@ async function checkFairness(game) {
     add(!mismatch, mismatch ? 'This replay doesn\'t match the proof: ' + esc(mismatch) + '.'
       : (p.v < 2 ? 'The cards in this replay are among the ones the proof dealt.' : 'Each player got exactly the cards the seed gave their seat, in order.'));
     done(!mismatch);
+    list.parentNode.appendChild(renderMath(p, source === 'drand' ? 'drand round ' + p.round : 'the players\' seeds hash'));
   } catch (e) {
     rows.push([false, 'The check could not run: ' + esc(e.message || e)]);
     done(false);
