@@ -453,14 +453,6 @@ msgstr "🐉 Wild-Modus"
 msgid "Into the Wild~ 🐉"
 msgstr "Ab in die Wildnis~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ Textmodus"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "Text ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -573,35 +565,21 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"Dieser UNO-Bot hat vier Spielmodi: Klassisch, Sanic, Wild und Text.\n"
+"Dieser UNO-Bot hat drei Spielmodi: Klassisch, Sanic und Wild.\n"
 "\n"
-" 🎻 Der klassische Modus verwendet das herkömmliche UNO-Deck, und es gibt "
-"kein automatisches Überspringen.\n"
-" 🚀 Der Sanic-Modus verwendet das herkömmliche UNO-Deck, und der Bot "
-"überspringt automatisch Spieler, die zu lange für ihren Zug brauchen\n"
-" 🐉 Der Wild-Modus verwendet ein Deck mit mehr Sonderkarten, weniger "
-"verschiedenen Zahlen und ohne automatisches Überspringen.\n"
-" ✍️ Der Textmodus verwendet das herkömmliche UNO-Deck, zeigt die Karten "
-"aber als Text statt als Sticker.\n"
+" 🎻 Der klassische Modus verwendet das herkömmliche UNO-Deck, und es gibt kein automatisches Überspringen.\n"
+" 🚀 Der Sanic-Modus verwendet das herkömmliche UNO-Deck, und der Bot überspringt automatisch Spieler, die zu lange für ihren Zug brauchen\n"
+" 🐉 Der Wild-Modus verwendet ein Deck mit mehr Sonderkarten, weniger verschiedenen Zahlen und ohne automatisches Überspringen.\n"
 "\n"
-"Um den Spielmodus zu ändern, muss der ERSTELLER DES SPIELS den Namen des "
-"Bots und ein Leerzeichen eingeben, genau wie beim Spielen einer Karte, dann "
-"erscheinen alle Spielmodus-Optionen."
+"Um den Spielmodus zu ändern, muss der ERSTELLER DES SPIELS den Namen des Bots und ein Leerzeichen eingeben, genau wie beim Spielen einer Karte, dann erscheinen alle Spielmodus-Optionen."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

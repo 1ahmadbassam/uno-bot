@@ -50,7 +50,7 @@ from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_pass,
-                     add_card, add_mode_classic, add_mode_fast, add_mode_wild, add_mode_text)
+                     add_card, add_mode_classic, add_mode_fast, add_mode_wild)
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
 # Game modes offered by the mode_* inline results
-GAME_MODES = ('classic', 'fast', 'wild', 'text')
+GAME_MODES = ('classic', 'fast', 'wild')
 
 
 def _chat_key(update: Update):
@@ -1262,7 +1262,6 @@ def _add_mode_results(results):
     add_mode_classic(results)
     add_mode_fast(results)
     add_mode_wild(results)
-    add_mode_text(results)
 
 
 def _lobby_for_mode(user, bot):

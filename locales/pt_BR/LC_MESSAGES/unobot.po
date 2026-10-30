@@ -446,14 +446,6 @@ msgstr "🐉 Modo selvagem"
 msgid "Into the Wild~ 🐉"
 msgstr "Rumo à selva~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ Modo texto"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "Texto ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -564,36 +556,21 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"Este bot de UNO tem quatro modos de jogo: Clássico, Sanic, Selvagem e "
-"Texto.\n"
+"Este bot de UNO tem três modos de jogo: Clássico, Sanic e Selvagem.\n"
 "\n"
-" 🎻 O modo Clássico usa o baralho de UNO convencional e não há pulo "
-"automático.\n"
-" 🚀 O modo Sanic usa o baralho de UNO convencional e o bot pula "
-"automaticamente um jogador que demore demais para jogar a sua vez\n"
-" 🐉 O modo Selvagem usa um baralho com mais cartas especiais, menos "
-"variedade de números e sem pulo automático.\n"
-" ✍️ O modo Texto usa o baralho de UNO convencional, mas mostra as cartas "
-"como texto em vez de figurinhas.\n"
+" 🎻 O modo Clássico usa o baralho de UNO convencional e não há pulo automático.\n"
+" 🚀 O modo Sanic usa o baralho de UNO convencional e o bot pula automaticamente um jogador que demore demais para jogar a sua vez\n"
+" 🐉 O modo Selvagem usa um baralho com mais cartas especiais, menos variedade de números e sem pulo automático.\n"
 "\n"
-"Para mudar o modo de jogo, o CRIADOR DO JOGO deve digitar o nome do bot e "
-"um espaço, como ao jogar uma carta, e todas as opções de modo de jogo vão "
-"aparecer."
+"Para mudar o modo de jogo, o CRIADOR DO JOGO deve digitar o nome do bot e um espaço, como ao jogar uma carta, e todas as opções de modo de jogo vão aparecer."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

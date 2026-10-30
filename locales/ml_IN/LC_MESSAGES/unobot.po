@@ -446,14 +446,6 @@ msgstr "🐉 വൈൽഡ് മോഡ്"
 msgid "Into the Wild~ 🐉"
 msgstr "കാട്ടിലേക്ക്~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ ടെക്സ്റ്റ് മോഡ്"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "ടെക്സ്റ്റ് ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -564,35 +556,21 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"ഈ UNO ബോട്ടിന് നാല് ഗെയിം മോഡുകളുണ്ട്: ക്ലാസിക്, സാനിക്, വൈൽഡ്, "
-"ടെക്സ്റ്റ്.\n"
+"ഈ UNO ബോട്ടിന് മൂന്ന് ഗെയിം മോഡുകളുണ്ട്: ക്ലാസിക്, സാനിക്, വൈൽഡ്.\n"
 "\n"
 " 🎻 ക്ലാസിക് മോഡ് സാധാരണ UNO ഡെക്ക് ഉപയോഗിക്കുന്നു, ഓട്ടോ സ്കിപ്പ് ഇല്ല.\n"
-" 🚀 സാനിക് മോഡ് സാധാരണ UNO ഡെക്ക് ഉപയോഗിക്കുന്നു, ഒരു കളിക്കാരൻ ഊഴം കളിക്കാൻ "
-"കൂടുതൽ സമയമെടുത്താൽ ബോട്ട് അവരെ സ്വയമേവ ഒഴിവാക്കുന്നു\n"
-" 🐉 വൈൽഡ് മോഡ് കൂടുതൽ സ്പെഷ്യൽ കാർഡുകളും കുറഞ്ഞ നമ്പർ വൈവിധ്യവുമുള്ള ഡെക്ക് "
-"ഉപയോഗിക്കുന്നു, ഓട്ടോ സ്കിപ്പ് ഇല്ല.\n"
-" ✍️ ടെക്സ്റ്റ് മോഡ് സാധാരണ UNO ഡെക്ക് ഉപയോഗിക്കുന്നു, പക്ഷേ "
-"സ്റ്റിക്കറുകൾക്ക് പകരം കാർഡുകൾ ടെക്സ്റ്റായി കാണിക്കുന്നു.\n"
+" 🚀 സാനിക് മോഡ് സാധാരണ UNO ഡെക്ക് ഉപയോഗിക്കുന്നു, ഒരു കളിക്കാരൻ ഊഴം കളിക്കാൻ കൂടുതൽ സമയമെടുത്താൽ ബോട്ട് അവരെ സ്വയമേവ ഒഴിവാക്കുന്നു\n"
+" 🐉 വൈൽഡ് മോഡ് കൂടുതൽ സ്പെഷ്യൽ കാർഡുകളും കുറഞ്ഞ നമ്പർ വൈവിധ്യവുമുള്ള ഡെക്ക് ഉപയോഗിക്കുന്നു, ഓട്ടോ സ്കിപ്പ് ഇല്ല.\n"
 "\n"
-"ഗെയിം മോഡ് മാറ്റാൻ, ഗെയിം സൃഷ്ടിച്ചയാൾ ഒരു കാർഡ് കളിക്കുന്നതുപോലെ "
-"ബോട്ടിന്റെ പേരും ഒരു സ്പേസും ടൈപ്പ് ചെയ്യണം, അപ്പോൾ എല്ലാ ഗെയിം മോഡ് "
-"ഓപ്ഷനുകളും ദൃശ്യമാകും."
+"ഗെയിം മോഡ് മാറ്റാൻ, ഗെയിം സൃഷ്ടിച്ചയാൾ ഒരു കാർഡ് കളിക്കുന്നതുപോലെ ബോട്ടിന്റെ പേരും ഒരു സ്പേസും ടൈപ്പ് ചെയ്യണം, അപ്പോൾ എല്ലാ ഗെയിം മോഡ് ഓപ്ഷനുകളും ദൃശ്യമാകും."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

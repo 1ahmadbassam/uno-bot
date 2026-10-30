@@ -426,14 +426,6 @@ msgstr "🐉 Chế độ hoang dã"
 msgid "Into the Wild~ 🐉"
 msgstr "Lạc vào thế giới hoang dã~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ Chế độ văn bản"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "Văn bản ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -543,33 +535,21 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"Bot UNO này có bốn chế độ chơi: Cổ điển, Sanic, Hoang dã và Văn bản.\n"
+"Bot UNO này có ba chế độ chơi: Cổ điển, Sanic và Hoang dã.\n"
 "\n"
 " 🎻 Chế độ Cổ điển dùng bộ bài UNO thông thường và không tự động bỏ lượt.\n"
-" 🚀 Chế độ Sanic dùng bộ bài UNO thông thường và bot sẽ tự động bỏ qua người "
-"chơi nếu họ mất quá nhiều thời gian cho lượt của mình\n"
-" 🐉 Chế độ Hoang dã dùng bộ bài có nhiều lá đặc biệt hơn, ít loại số hơn và "
-"không tự động bỏ lượt.\n"
-" ✍️ Chế độ Văn bản dùng bộ bài UNO thông thường nhưng hiển thị lá bài bằng "
-"chữ thay vì nhãn dán.\n"
+" 🚀 Chế độ Sanic dùng bộ bài UNO thông thường và bot sẽ tự động bỏ qua người chơi nếu họ mất quá nhiều thời gian cho lượt của mình\n"
+" 🐉 Chế độ Hoang dã dùng bộ bài có nhiều lá đặc biệt hơn, ít loại số hơn và không tự động bỏ lượt.\n"
 "\n"
-"Để đổi chế độ chơi, NGƯỜI TẠO TRÒ CHƠI cần gõ tên bot và một dấu cách, "
-"giống như khi đánh bài, và tất cả các chế độ chơi sẽ hiện ra."
+"Để đổi chế độ chơi, NGƯỜI TẠO TRÒ CHƠI cần gõ tên bot và một dấu cách, giống như khi đánh bài, và tất cả các chế độ chơi sẽ hiện ra."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

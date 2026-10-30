@@ -445,14 +445,6 @@ msgstr "🐉 Дикий режим"
 msgid "Into the Wild~ 🐉"
 msgstr "В дикую природу~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ Текстовый режим"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "Текст ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -564,35 +556,21 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"У этого UNO-бота четыре режима игры: Классический, Sanic, Дикий и "
-"Текстовый.\n"
+"У этого UNO-бота три режима игры: Классический, Sanic и Дикий.\n"
 "\n"
-" 🎻 Классический режим использует обычную колоду UNO, автоматического "
-"пропуска хода нет.\n"
-" 🚀 Режим Sanic использует обычную колоду UNO, и бот автоматически "
-"пропускает игрока, если тот слишком долго делает ход\n"
-" 🐉 Дикий режим использует колоду с большим количеством особых карт, меньшим "
-"разнообразием чисел и без автоматического пропуска.\n"
-" ✍️ Текстовый режим использует обычную колоду UNO, но показывает карты "
-"текстом вместо стикеров.\n"
+" 🎻 Классический режим использует обычную колоду UNO, автоматического пропуска хода нет.\n"
+" 🚀 Режим Sanic использует обычную колоду UNO, и бот автоматически пропускает игрока, если тот слишком долго делает ход\n"
+" 🐉 Дикий режим использует колоду с большим количеством особых карт, меньшим разнообразием чисел и без автоматического пропуска.\n"
 "\n"
-"Чтобы сменить режим игры, СОЗДАТЕЛЬ ИГРЫ должен ввести имя бота и пробел, "
-"как при игре картой, и появятся все варианты режимов."
+"Чтобы сменить режим игры, СОЗДАТЕЛЬ ИГРЫ должен ввести имя бота и пробел, как при игре картой, и появятся все варианты режимов."
 
 #: utils.py:80 utils.py:92 utils.py:299
 #, python-brace-format

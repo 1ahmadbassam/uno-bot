@@ -101,18 +101,6 @@ def add_mode_wild(results):
     )
 
 
-def add_mode_text(results):
-    """Change mode to text"""
-    results.append(
-        InlineQueryResultArticle(
-            "mode_text",
-            title=_("✍️ Text mode"),
-            input_message_content=
-            InputTextMessageContent(_('Text ✍️'))
-        )
-    )
-    
-    
 def add_draw(player, results):
     """Add option to draw"""
     n = player.game.draw_counter or 1
@@ -170,14 +158,9 @@ def add_card(game, card, results, can_play):
     """Add an option that represents a card"""
 
     if can_play:
-        if game.mode != "text":
-            results.append(
-                Sticker(str(card), sticker_file_id=c.STICKERS[str(card)])
+        results.append(
+            Sticker(str(card), sticker_file_id=c.STICKERS[str(card)])
         )
-        if game.mode == "text":
-            results.append(
-                Sticker(str(card), sticker_file_id=c.STICKERS[str(card)], input_message_content=InputTextMessageContent("Card Played: {card}".format(card=c.label(card)))
-        ))
     else:
         results.append(
             Sticker(str(uuid4()), sticker_file_id=c.STICKERS_GREY[str(card)],

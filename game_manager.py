@@ -137,7 +137,8 @@ class GameManager(object):
         game.opening_color_choice = data.get('opening_color_choice', False)
         game.draw_counter = data.get('draw_counter', 0)
         game.players_won = data.get('players_won', 0)
-        game.mode = data.get('mode')
+        # Games saved in the removed text mode carry on in classic mode, which had the same deck
+        game.mode = 'classic' if data.get('mode') == 'text' else data.get('mode')
         game.open = data.get('open', True)
         game.translate = data.get('translate', False)
         game.owner = set(data.get('owner') or [])

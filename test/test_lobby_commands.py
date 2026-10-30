@@ -133,7 +133,7 @@ class TestModeMenu(LobbyTest):
     def test_creator_and_admin_change_the_mode_without_joining(self):
         self.command(bot.new_game, CREATOR)
         game = self.games()[0]
-        for user, mode in ((CREATOR, 'wild'), (ADMIN, 'text')):
+        for user, mode in ((CREATOR, 'wild'), (ADMIN, 'classic')):
             ids = self.menu(user)
             self.assertIn('mode_%s@%d' % (mode, self.chat.id), ids)
             self.choose(user, 'mode_%s@%d' % (mode, self.chat.id))

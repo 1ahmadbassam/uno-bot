@@ -420,14 +420,6 @@ msgstr "🐉 野外 (Wild) 模式"
 msgid "Into the Wild~ 🐉"
 msgstr "走進野外~ 🐉"
 
-#: results.py:138
-msgid "✍️ Text mode"
-msgstr "✍️ 文字模式"
-
-#: results.py:140
-msgid "Text ✍️"
-msgstr "文字 ✍️"
-
 #: results.py:153
 #, python-brace-format
 msgid "Drawing {number} card"
@@ -528,27 +520,19 @@ msgstr ""
 
 #: simple_commands.py:70
 msgid ""
-"This UNO bot has four game modes: Classic, Sanic, Wild and Text.\n"
+"This UNO bot has three game modes: Classic, Sanic and Wild.\n"
 "\n"
-" 🎻 The Classic mode uses the conventional UNO deck and there is no auto "
-"skip.\n"
-" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically "
-"skips a player if he/she takes too long to play its turn\n"
-" 🐉 The Wild mode uses a deck with more special cards, less number variety "
-"and no auto skip.\n"
-" ✍️ The Text mode uses the conventional UNO deck but instead of stickers it "
-"uses the text.\n"
+" 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
+" 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+" 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n"
 "\n"
-"To change the game mode, the GAME CREATOR has to type the bot nickname and "
-"a space, just like when playing a card, and all gamemode options should "
-"appear."
+"To change the game mode, the GAME CREATOR has to type the bot nickname and a space, just like when playing a card, and all gamemode options should appear."
 msgstr ""
-"這個 UNO 機器人有四種遊戲模式：傳統、Sanic、野外和文字。\n"
+"這個 UNO 機器人有三種遊戲模式：傳統、Sanic 和野外。\n"
 "\n"
 " 🎻 傳統模式使用一般的 UNO 牌組，不會自動跳過。\n"
 " 🚀 Sanic 模式使用一般的 UNO 牌組，如果玩家出牌時間太長，機器人會自動跳過該玩家\n"
 " 🐉 野外模式使用特殊牌更多、數字種類更少的牌組，不會自動跳過。\n"
-" ✍️ 文字模式使用一般的 UNO 牌組，但以文字取代貼圖顯示卡牌。\n"
 "\n"
 "要變更遊戲模式，遊戲建立者需要像出牌時一樣輸入機器人的名稱和一個空格，所有遊戲模式選項就會出現。"
 
