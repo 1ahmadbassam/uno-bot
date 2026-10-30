@@ -40,6 +40,7 @@ ANNOUNCE_DELAY = 1.0
 HISTORY_DEFAULT, HISTORY_MAX = 10, 50
 INDEX_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'index.html')
 REPLAY_HTML = os.path.join(os.path.dirname(INDEX_HTML), 'replay.html')
+FAIR_JS = os.path.join(os.path.dirname(INDEX_HTML), 'fair.js')
 
 _export_lock = threading.Lock()
 # Results whose score message hasn't been posted yet; a game's fairness reveal joins that message
@@ -335,7 +336,8 @@ def write_exports(directory, rivals, seasons, results, tz, colors=None, logs=Non
     Write the website files:
     index.html (with the data inlined), scores.csv (the current season, in the uno-scores format),
     old/scores_<season>.csv for the earlier seasons, scores.json with every detail,
-    replay.html and games/<match id>.json for each game in `logs`.
+    replay.html, fair.js (the fairness checker both pages use) and games/<match id>.json
+    for each game in `logs`.
     """
     logs = logs or {}
     current = seasons[-1] if seasons else None
@@ -351,9 +353,10 @@ def write_exports(directory, rivals, seasons, results, tz, colors=None, logs=Non
         with open(INDEX_HTML, encoding='utf-8') as f:
             page = f.read()
         _write_atomic(os.path.join(directory, 'index.html'), rs.inline_data(page, data))
-    if os.path.exists(REPLAY_HTML):
-        with open(REPLAY_HTML, encoding='utf-8') as f:
-            _write_atomic(os.path.join(directory, 'replay.html'), f.read())
+    for source in (REPLAY_HTML, FAIR_JS):
+        if os.path.exists(source):
+            with open(source, encoding='utf-8') as f:
+                _write_atomic(os.path.join(directory, os.path.basename(source)), f.read())
     _write_replays(os.path.join(directory, 'games'), rivals, results, logs, tz, colors, pacing)
 
 

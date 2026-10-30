@@ -390,8 +390,20 @@ def scores_data(rivals, seasons: List[Season], results, tz, colors=None, logs=No
             'turns': r.turns,
             'loser_cards_left': r.loser_cards_left,
             **({'g': r.id, 'd': summarize_log(logs[r.id])} if r.id in logs else {}),
+            **({'f': fair_status(logs[r.id])} if r.id in logs and fair_status(logs[r.id]) else {}),
         } for number, r in enumerate(results, 1)],
     }
+
+
+def fair_status(log):
+    """How a logged game's cards can be checked: 'drand' or 'players' (provably fair), 'system'
+    (the server's own generator, not checkable) or None (no proof: older games, or fair play off)"""
+    proof = log.get('proof')
+    if not proof:
+        return None
+    if not proof.get('verifiable'):
+        return 'system'
+    return proof.get('source') or 'drand'
 
 
 def replay_data(rivals, result, number, log, tz, colors=None, pacing=None):
@@ -546,7 +558,19 @@ def _player_summary(hand):
         'th': [0, 0, 0],         # thinking time: total ms, decisions, longest ms
         'ahead': 0,              # plays and draws after which this rival held fewer cards
         'back': 0,               # most cards behind the other rival at any point
+        'hd': [0] * 6,           # opening hand, by CARD_TYPES
+        'hc': [0] * 4,           # colored cards in the opening hand, by LOG_COLORS
+        'dt': [0] * 6,           # cards drawn, by CARD_TYPES
+        'dc': [0] * 4,           # colored cards drawn, by LOG_COLORS
     }
+
+
+def _count_cards(cards, types, colors):
+    """Add `cards` to the per-type and per-color counts (the fairness tests on the website)"""
+    for card in cards:
+        types[CARD_TYPES.index(card_type(card))] += 1
+        if card[:1] in LOG_COLORS and '_' in card:
+            colors[LOG_COLORS.index(card[0])] += 1
 
 
 def summarize_log(log):
@@ -555,6 +579,8 @@ def summarize_log(log):
     deal = events[0]
     hands = {key: len(cards) for key, cards in deal['h'].items()}
     per = {key: _player_summary(hands[key]) for key in hands}
+    for key, cards in deal['h'].items():
+        _count_cards(cards, per[key]['hd'], per[key]['hc'])
     # The pending draw count, as game.draw_counter keeps it: a +2 turned up as the first
     # card already counts. A stack is recorded only when someone draws it, so a game
     # won on a +2 doesn't count.
@@ -588,6 +614,7 @@ def summarize_log(log):
             finisher[p] = e['c']
         elif kind == 'draw':
             count = len(e.get('cs') or ())
+            _count_cards(e.get('cs') or (), s['dt'], s['dc'])
             if e.get('r') == 'vol':
                 s['dv'] += 1
                 s['dk'] += e.get('ok', 0)

@@ -240,6 +240,7 @@ class TestReplayExport(unittest.TestCase):
             self.assertEqual((replay['n'], replay['winner'], replay['pacing']), (2, 'b', 1.5))
             self.assertEqual(replay['events'], log['ev'])
             self.assertTrue(os.path.exists(os.path.join(directory, 'replay.html')))
+            self.assertTrue(os.path.exists(os.path.join(directory, 'fair.js')))
             with open(os.path.join(directory, 'scores.json'), encoding='utf-8') as f:
                 matches = json.load(f)['matches']
             self.assertNotIn('g', matches[0])

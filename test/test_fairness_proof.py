@@ -4,7 +4,6 @@ import hmac
 import inspect
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -27,10 +26,11 @@ from game_manager import GameManager
 from player import Player
 
 BEACON = "143ac4a3ef744631cc9815a2c3218bfa3179dc5c56bb999a9f1c24c1a5aa0c10"
-REPLAY_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'replay.html')
+FAIR_JS = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'fair.js')
+INDEX_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'index.html')
 
 
-# --- A reference checker: the same algorithm as web/replay.html -------------
+# --- A reference checker: the same algorithm as web/fair.js -------------
 
 def full_deck(mode):
     values = ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip'] if mode == 'wild' else \
@@ -571,18 +571,15 @@ class TestExpectedWait(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('node'), "Node.js is not installed")
 class TestReplayPageChecker(unittest.TestCase):
-    """Runs the checker from web/replay.html on real proofs, so the page and the bot agree"""
+    """Runs the website's checker (web/fair.js) on real proofs, so the page and the bot agree"""
 
     def run_page(self, cases):
-        with open(REPLAY_HTML, encoding='utf-8') as f:
-            page = f.read()
-        js = re.search(r"// --- Fairness check -+\n(.*?)// --- Loading", page, re.S).group(1)
+        with open(FAIR_JS, encoding='utf-8') as f:
+            js = f.read()
         script = (
-            "var G = {players: {a: 'A', b: 'B'}};\nfunction nm(p) { return p; }\n"
-            "function cardName(c) { return c; }\nfunction plural(n, w) { return n + ' ' + w; }\n"
-            "function esc(s) { return String(s); }\n" + js +
-            "\n(async function () {\n  var cases = " + json.dumps(cases) + ";\n  var out = {};\n"
+            js + "\n(async function () {\n  var cases = " + json.dumps(cases) + ";\n  var out = {};\n"
             "  for (var k in cases) {\n    var p = cases[k].proof;\n"
+            "    if (cases[k].whole) { out[k] = await verifyProof(p, cases[k].events); continue; }\n"
             "    var entropy = p.source === 'players' ? await playersEntropy(p.player_seeds) : p.beacon;\n"
             "    var r = await replayOps(p, await fairStream(p.seed, entropy));\n"
             "    out[k] = r || replayMatchesProof(cases[k].events || [], p);\n  }\n"
@@ -613,12 +610,89 @@ class TestReplayPageChecker(unittest.TestCase):
             'seeds': {'proof': seeded},
             'bad_card': {'proof': bad_card},
             'swapped_hands': {'proof': good, 'events': swapped},
+            # The main page's one-call check; the players' seeds need no network
+            'whole': {'proof': seeded, 'whole': True},
+            'whole_bad_seed': {'proof': dict(seeded, seed='00' * 32), 'whole': True},
+            'whole_server': {'proof': dict(seeded, verifiable=False, source='system'), 'whole': True},
         })
         self.assertIsNone(out['good'])
         self.assertIsNone(out['seeds'])
         self.assertIsNotNone(out['bad_card'])
+        self.assertEqual(out['whole'], {'ok': True})
+        self.assertFalse(out['whole_bad_seed']['ok'])
+        self.assertIsNone(out['whole_server']['ok'])
         if events[0]['h']['a'][0] != events[0]['h']['b'][0]:
             self.assertIsNotNone(out['swapped_hands'])
+
+
+
+class TestFairPlayExport(unittest.TestCase):
+    """What the website's fair play section reads from scores.json"""
+
+    def test_summary_counts_the_cards_each_rival_got(self):
+        import rivalry_stats as rs
+        log = {'ev': [
+            {'k': 'deal', 't': 0, 'h': {'a': ['r_1', 'g_skip', 'draw_four'], 'b': ['y_2', 'b_draw', 'colorchooser']},
+             'fc': 'r_5', 'first': 'a'},
+            {'k': 'draw', 't': 5, 'p': 'b', 'cs': ['g_reverse', 'y_7'], 'h': 5, 'r': 'pen'},
+            {'k': 'draw', 't': 9, 'p': 'a', 'cs': ['colorchooser'], 'h': 4, 'r': 'vol'},
+            {'k': 'end', 't': 10, 'p': 'a', 'o': 'win'},
+        ]}
+        d = rs.summarize_log(log)
+        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1])
+        self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
+        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0])
+        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0])
+        self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
+        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0])
+
+    def test_fair_status(self):
+        import rivalry_stats as rs
+        self.assertIsNone(rs.fair_status({'ev': []}))
+        self.assertEqual(rs.fair_status({'proof': {'verifiable': True, 'source': 'drand'}}), 'drand')
+        self.assertEqual(rs.fair_status({'proof': {'verifiable': True, 'source': 'players'}}), 'players')
+        self.assertEqual(rs.fair_status({'proof': {'verifiable': False, 'source': 'system'}}), 'system')
+
+
+@unittest.skipUnless(shutil.which('node'), "Node.js is not installed")
+class TestFairPlayStatistics(unittest.TestCase):
+    """The p-values on the website's fair play section, against values from scipy.stats"""
+
+    def test_p_values(self):
+        with open(INDEX_HTML, encoding='utf-8') as f:
+            page = f.read()
+        start, end = page.index('function lgamma(x)'), page.index('// Number, action (skip')
+        script = page[start:end] + """
+console.log(JSON.stringify({
+  binom: [binomTest(7, 9), binomTest(28, 47), binomTest(0, 0)],
+  // One game is Fisher's exact test: A holds all 3 of the cards among 7 + 7
+  fisher: shareTest([{ nA: 7, nB: 7, K: 3 }], 3),
+  // Two games add up: 2 of 2 and 1 of 1, among 7 + 7 cards each
+  strat: shareTest([{ nA: 7, nB: 7, K: 2 }, { nA: 7, nB: 7, K: 1 }], 3),
+  chi: [chiTest([26, 33, 35, 18], [28, 28, 28, 28]), gammaQ(2.5, 1.6)],
+  holm: holm([0.01, null, 0.04, 0.03])
+}));
+"""
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
+            f.write(script)
+        try:
+            result = subprocess.run(['node', f.name], capture_output=True, text=True, timeout=60)
+        finally:
+            os.unlink(f.name)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        # scipy.stats.binomtest(7, 9).pvalue, binomtest(28, 47).pvalue
+        self.assertAlmostEqual(out['binom'][0], 0.1796875, places=9)
+        self.assertAlmostEqual(out['binom'][1], 0.24296021728332556, places=9)
+        self.assertIsNone(out['binom'][2])
+        # scipy.stats.fisher_exact([[3, 4], [0, 7]]).pvalue
+        self.assertAlmostEqual(out['fisher'], 0.19230769230769232, places=9)
+        # P(2 of 2) = 21/91 = 3/13, P(1 of 1) = 1/2: A got all 3 with 3/26, and none of them with 3/26 too
+        self.assertAlmostEqual(out['strat'], 6 / 26, places=9)
+        # scipy.stats.chisquare([26, 33, 35, 18]).pvalue, chi2.sf(3.2, 5)
+        self.assertAlmostEqual(out['chi'][0], 0.09546993524522868, places=9)
+        self.assertAlmostEqual(out['chi'][1], 0.6691829020332432, places=9)
+        self.assertEqual(out['holm'], [0.03, None, 0.06, 0.06])
 
 
 if __name__ == '__main__':
