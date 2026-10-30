@@ -232,6 +232,23 @@ class TestExports(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(directory, 'scores.json')))
             self.assertFalse([name for name in os.listdir(directory) if name.endswith('.tmp')])
 
+    def test_exporting_into_the_template_folder_keeps_the_data_fresh(self):
+        # The export overwrites the template it reads, so the next export finds old data inlined
+        seasons = [rs.Season(1, "2026", T0)]
+        with tempfile.TemporaryDirectory() as directory:
+            template = os.path.join(directory, 'index.html')
+            with open(template, 'w', encoding='utf-8') as f:
+                f.write("<html>%s<p>page</p></html>" % rs.DATA_PLACEHOLDER)
+            with patch.object(rivalry, 'INDEX_HTML', template):
+                rivalry.write_exports(directory, rs.Rivals(PLAYERS), seasons, results([A]), BEIRUT)
+                rivalry.write_exports(directory, rs.Rivals(PLAYERS), seasons, results([A, I, I]), BEIRUT)
+            with open(template, encoding='utf-8') as f:
+                page = f.read()
+            data = json.loads(page[page.index('json">') + 6:page.index('</script>')])
+            self.assertEqual([m['winner'] for m in data['matches']], ['a', 'b', 'b'])
+            self.assertEqual(page.count('rivalry-data'), 1)
+            self.assertTrue(page.endswith('<p>page</p></html>'))
+
 
 class TestWebLink(unittest.TestCase):
 

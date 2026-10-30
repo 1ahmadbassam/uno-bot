@@ -24,8 +24,11 @@ JSON_VERSION = 3
 # web/index.html uses the same number (MIN_GAMES).
 RECORD_MIN_GAMES = 20
 COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
-# The empty element of web/index.html that the export fills with the data
+# The element of web/index.html that the export fills with the data
 DATA_PLACEHOLDER = '<script id="rivalry-data" type="application/json"></script>'
+# The same element with whatever it holds: when the export folder is web/ itself, the
+# template the export reads is the page it wrote last time, with older data inlined
+DATA_ELEMENT_RE = re.compile(r'(<script id="rivalry-data" type="application/json">).*?(</script>)', re.S)
 
 
 @dataclass
@@ -420,7 +423,9 @@ def inline_data(page, data):
     text = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     # Keep "</script>" and HTML comments in names from closing the script element
     text = text.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
-    return page.replace(DATA_PLACEHOLDER, DATA_PLACEHOLDER.replace('></', '>%s</' % text), 1)
+    # The inlined text never holds "<", so the first "</script>" closes the element.
+    # A function, not a template string, so the backslashes of the JSON stay as they are.
+    return DATA_ELEMENT_RE.sub(lambda m: m.group(1) + text + m.group(2), page, count=1)
 
 
 # --- Game logs (rivalry_log.py) -------------------------------------------
