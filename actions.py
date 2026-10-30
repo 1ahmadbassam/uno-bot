@@ -185,9 +185,9 @@ def fairness_commitment(game):
     rng = game.rng
     if not rng.announce:
         return None
-    return _("🔒 Fairness: the cards will come from a secret seed with fingerprint "
-             "{commit} and drand round {round}. The seed is revealed when the game ends.").format(
-        commit=rng.commitment, round=rng.round)
+    return _("🔒 Fairness: this game's cards will come from a secret seed with fingerprint "
+             "{commit}. It's revealed when the game ends, so every card can be checked.").format(
+        commit=rng.commitment)
 
 
 def reveal_fairness(bot, game):
@@ -204,9 +204,8 @@ def reveal_fairness(bot, game):
             text += "\n" + __("Check every card: {url}", multi=game.translate).format(
                 url="%s/replay.html#%d" % (RIVALRY_WEB_URL.rstrip('/'), rng.match_ids[-1]))
     else:
-        text = __("⚠️ drand couldn't be reached when this game started, so its cards came "
-                  "from the server's own random generator and can't be checked.",
-                  multi=game.translate)
+        text = __("⚠️ This game's cards came from the server's own random generator, "
+                  "so they can't be checked.", multi=game.translate)
     send_async(bot, game.chat.id, text=text, disable_notification=True)
     rivalry.attach_proof(rng.match_ids, rng.proof())
 

@@ -42,6 +42,8 @@ def help_handler(update: Update, context: CallbackContext):
         "/new - Create a game in this group\n"
         "/join - Join this group's game, even after it started\n"
         "/start - Deal the cards and begin\n"
+        "/seed - Only when the bot asks at the start: add any text to the game's "
+        "randomness because drand can't be reached\n"
         "/leave - Leave the game\n"
         "/skip - Skip the player whose turn it is once their time is up "
         "(they draw a card); you can always skip yourself\n"

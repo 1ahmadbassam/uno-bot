@@ -23,6 +23,7 @@ from datetime import datetime
 
 import card as c
 from errors import DeckEmptyError
+from fairness import seat_label
 from config import WAITING_TIME
 
 
@@ -63,7 +64,7 @@ class Player(object):
     def draw_first_hand(self):
         try:
             for _ in range(7):
-                self.cards.append(self.game.deck.draw())
+                self.cards.append(self.game.deck.draw(seat_label(self)))
         except DeckEmptyError:
             for card in self.cards:
                 self.game.deck.dismiss(card)
@@ -133,7 +134,7 @@ class Player(object):
 
         try:
             for _ in range(_amount):
-                self.cards.append(self.game.deck.draw())
+                self.cards.append(self.game.deck.draw(seat_label(self)))
                 drawn += 1
 
         except DeckEmptyError:

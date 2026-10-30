@@ -17,7 +17,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import calendar
 import logging
+import time
 from datetime import datetime
 from functools import wraps
 
@@ -32,6 +34,7 @@ from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
     CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext, TypeHandler
 
 import card as c
+import fairness
 import rivalry
 import rivalry_log
 import settings
@@ -40,10 +43,10 @@ from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
     fairness_commitment, reveal_fairness
-from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY
+from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
-                    RejoinNotAllowedError)
+                    RejoinNotAllowedError, GameStartingError)
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_pass,
@@ -52,7 +55,7 @@ from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
 from game_threads import game_thread_runner
-from utils import display_name
+from utils import display_name, RetryAfter, _retry_after_delay
 from utils import send_async, send_paced, answer_async, error, TIMEOUT, user_is_creator_or_admin, user_is_creator, game_is_running, display_color_group, make_color_keyboard, make_turn_keyboard
 
 
@@ -226,6 +229,10 @@ def join_game(update: Update, context: CallbackContext):
     try:
         gm.join_game(update.message.from_user, chat)
 
+    except GameStartingError:
+        send_async(context.bot, chat.id, text=_("The game is starting: every player has to send /seed first."),
+                   reply_to_message_id=update.message.message_id)
+
     except LobbyClosedError:
             send_async(context.bot, chat.id, text=_("The lobby is closed"))
 
@@ -284,6 +291,11 @@ def leave_game(update: Update, context: CallbackContext):
 
     try:
         gm.leave_game(user, chat)
+
+    except GameStartingError:
+        send_async(context.bot, chat.id, text=_("The game is starting: every player has to send /seed first."),
+                   reply_to_message_id=update.message.message_id)
+        return
 
     except NoGameInChatError:
         send_async(context.bot, chat.id, text=_("You are not playing in a game in "
@@ -362,6 +374,11 @@ def kick_player(update: Update, context: CallbackContext):
 
             try:
                 gm.leave_game(kicked, chat)
+
+            except GameStartingError:
+                send_async(context.bot, chat.id, text=_("The game is starting: every player has to send /seed first."),
+                           reply_to_message_id=update.message.message_id)
+                return
 
             except NoGameInChatError:
                 send_async(context.bot, chat.id, text=_("Player {name} is not found in the current game.").format(name=display_name(kicked)),
@@ -748,7 +765,8 @@ def status_update(update: Update, context: CallbackContext):
         try:
             gm.leave_game(user, chat)
 
-        except NoGameInChatError:
+        except (NoGameInChatError, GameStartingError):
+            # While seeds are collected the player stays; the start then times out without theirs
             pass
         except NotEnoughPlayersError:
             forfeit_win(context.bot, game, user)
@@ -776,6 +794,198 @@ def status_update(update: Update, context: CallbackContext):
                 start_player_countdown(context.bot, game, context.job_queue)
 
 
+def _send_now(bot, chat_id, text):
+    """Send a message and wait for Telegram's reply, whose timestamp anchors the drand round; None on failure"""
+    for _attempt in range(2):
+        try:
+            return bot.send_message(chat_id, text, disable_notification=True, timeout=TIMEOUT)
+        except RetryAfter as err:
+            time.sleep(_retry_after_delay(err) + 0.5)
+        except Exception:
+            logger.warning("Could not send the fairness announcement to chat %s", chat_id, exc_info=True)
+            return None
+    return None
+
+
+def _announce_round(bot, game):
+    """
+    Post the drand round the game will use. It must come out after the message
+    Telegram timestamps, so nobody can know its value before the game is locked in.
+    """
+    rng = game.rng
+    for _attempt in range(3):
+        planned = fairness.first_round_after(time.time() + 1)
+        message = _send_now(bot, game.chat.id, __(
+            "🎲 Starting the game! Its cards come from the seed with fingerprint {commit} "
+            "and drand round {round}, which isn't out yet.", multi=game.translate).format(
+            commit=rng.commitment, round=planned))
+        if message is None:
+            break
+        stamped = calendar.timegm(message.date.utctimetuple())
+        if fairness.round_time(planned) > stamped + 1:
+            rng.set_round(planned, stamped, message.message_id)
+            return
+        # Telegram delivered it after that round came out: announce a later one
+    # No timestamp from Telegram; the checker shows that the round wasn't announced in the chat
+    rng.set_round(fairness.first_round_after(time.time() + 1))
+
+
+def _prepare_fair_start(bot, game, job_queue):
+    """Choose the game's public randomness; True when it can be dealt now, False while players send seeds"""
+    rng = game.rng
+    if not rng.enabled:
+        return True
+    _announce_round(bot, game)
+    if rng.fetch_planned_round():
+        return True
+
+    rng.wait_for_seeds(fairness.SEED_TIMEOUT)
+    gm.persist_game(game)
+    if FAIR_PLAY_REQUIRED:
+        then = __("If not everyone has sent one within {seconds} seconds, the start is cancelled.",
+                  multi=game.translate)
+    else:
+        then = __("If not everyone has sent one within {seconds} seconds, the game starts without "
+                  "proof, using the server's own random generator.", multi=game.translate)
+    send_async(bot, game.chat.id, text=__(
+        "⚠️ drand can't be reached right now. To keep this game provably fair, every player "
+        "sends /seed followed by any text, for example /seed purple banana 42. "
+        "The texts are published when the game ends.\nThe game starts once all {need} players "
+        "have sent one.", multi=game.translate).format(need=len(game.players)) + "\n" +
+        then.format(seconds=fairness.SEED_TIMEOUT))
+    _schedule_seed_timeout(game, job_queue, fairness.SEED_TIMEOUT)
+    return False
+
+
+def _schedule_seed_timeout(game, job_queue, seconds):
+    if job_queue is not None:
+        job_queue.run_once(_seed_timeout_job, seconds, context=(game, job_queue))
+
+
+def _seed_timeout_job(context: CallbackContext):
+    game, job_queue = context.job.context
+    game_thread_runner.submit(f"chat:{game.chat.id}", _seeds_timed_out_with_locales,
+                              context.bot, game, job_queue)
+
+
+def _seeds_timed_out_with_locales(bot, game, job_queue):
+    with locales_for_game(game):
+        _seeds_timed_out(bot, game, job_queue)
+
+
+def _seeds_timed_out(bot, game, job_queue):
+    """Not every player sent /seed in time: cancel the start, or start without proof"""
+    if not game_is_running(game) or not game.rng.awaiting_seeds:
+        return
+    if FAIR_PLAY_REQUIRED:
+        game.rng.seeds_deadline = None
+        gm.persist_game(game)
+        send_async(bot, game.chat.id, text=__(
+            "Not every player sent /seed in time, so the game didn't start. Use /start to try again.",
+            multi=game.translate))
+        return
+    game.rng.use_system()
+    send_async(bot, game.chat.id, text=__(
+        "⚠️ Not every player sent /seed in time. This game uses the server's own random "
+        "generator, so its cards can't be checked.", multi=game.translate))
+    _deal_and_announce(bot, game, game.chat, job_queue)
+
+
+@game_locales
+@user_locale
+def seed_command(update: Update, context: CallbackContext):
+    """Handler for /seed: a player's text for the game's randomness when drand is down"""
+    chat = update.message.chat
+    user = update.message.from_user
+    player = gm.player_for_user_in_chat(user, chat)
+    if player is None or not player.game.rng.awaiting_seeds:
+        send_async(context.bot, chat.id,
+                   text=_("No seed is needed right now: players only send one when drand "
+                          "can't be reached as a game starts."),
+                   reply_to_message_id=update.message.message_id)
+        return
+    parts = (update.message.text or '').split(maxsplit=1)
+    text = parts[1].strip() if len(parts) > 1 else ''
+    if not text:
+        send_async(context.bot, chat.id, text=_("Send it with some text, for example /seed purple banana 42"),
+                   reply_to_message_id=update.message.message_id)
+        return
+    game = player.game
+    rng = game.rng
+    if not rng.add_seed(user.id, fairness.seat_label(player), text):
+        send_async(context.bot, chat.id, text=_("You already sent your seed."),
+                   reply_to_message_id=update.message.message_id)
+        return
+    have, need = len(rng.player_seeds), len(game.players)
+    if have < need:
+        gm.persist_game(game)
+        send_async(context.bot, chat.id, text=__("🎲 Got a seed from {name} ({have}/{need}).",
+                                                 multi=game.translate).format(
+            name=display_name(user), have=have, need=need), disable_notification=True)
+        return
+    rng.use_player_seeds()
+    send_async(context.bot, chat.id, text=__("🎲 Every player sent a seed. Dealing!", multi=game.translate),
+               disable_notification=True)
+    _deal_and_announce(context.bot, game, chat, context.job_queue)
+
+
+def _deal_and_announce(bot, game, chat, job_queue):
+    """Start the game with its randomness chosen: seat, deal and post the first card"""
+    game.start()
+
+    try:
+        for player in game.players:
+            player.draw_first_hand()
+    except DeckEmptyError:
+        game.abort_start()
+        gm.persist_game(game)
+        text = _("There are not enough cards in the deck for "
+                 "this many players.")
+        # abort_start() made a new seed for the next attempt
+        commitment = fairness_commitment(game)
+        if commitment:
+            text += "\n\n" + commitment
+        send_async(bot, chat.id, text=text)
+        return
+    rivalry_log.start(game)
+    gm.persist_game(game)
+    if game.choosing_color:
+        first_message = (
+            __("First card is Wild!\n"
+               "First player: {name}\n"
+               "Please choose the starting color.\n"
+               "Use /close to stop people from joining the game.\n"
+               "Enable multi-translations with /enable_translations",
+               multi=game.translate)
+            .format(name=display_name(game.current_player.user)))
+        markup = make_color_keyboard(chat.id, game)
+    else:
+        first_message = (
+            __("First player: {name}\n"
+               "Use /close to stop people from joining the game.\n"
+               "Enable multi-translations with /enable_translations",
+               multi=game.translate)
+            .format(name=display_name(game.current_player.user)))
+        markup = make_turn_keyboard(game, chat.id)
+
+    def send_first():
+        """Send the first card and player"""
+
+        bot.sendSticker(chat.id,
+                        sticker=c.STICKERS[str(game.last_card)],
+                        timeout=TIMEOUT,
+                        disable_notification=True)
+
+        bot.sendMessage(chat.id,
+                        text=first_message,
+                        reply_markup=markup,
+                        timeout=TIMEOUT,
+                        disable_notification=True)
+
+    dispatcher.run_async(send_first)
+    start_player_countdown(bot, game, job_queue)
+
+
 @game_locales
 @user_locale
 def start_game(update: Update, context: CallbackContext):
@@ -796,66 +1006,26 @@ def start_game(update: Update, context: CallbackContext):
         if game.started:
             send_async(context.bot, chat.id, text=_("The game has already started"))
 
+        elif game.rng.awaiting_seeds:
+            remaining = game.rng.seeds_deadline - time.time()
+            if remaining <= 0:
+                # The timer was lost, e.g. the bot restarted while players sent seeds
+                _seeds_timed_out(context.bot, game, context.job_queue)
+            else:
+                send_async(context.bot, chat.id,
+                           text=__("Waiting for every player's /seed ({have}/{need}).",
+                                   multi=game.translate).format(
+                               have=len(game.rng.player_seeds), need=len(game.players)))
+                _schedule_seed_timeout(game, context.job_queue, remaining)
+
         elif len(game.players) < MIN_PLAYERS:
             send_async(context.bot, chat.id,
                        text=__("At least {minplayers} players must /join the game "
                               "before you can start it").format(minplayers=MIN_PLAYERS))
 
         else:
-            # Starting a game
-            game.start()
-
-            try:
-                for player in game.players:
-                    player.draw_first_hand()
-            except DeckEmptyError:
-                game.abort_start()
-                gm.persist_game(game)
-                text = _("There are not enough cards in the deck for "
-                         "this many players.")
-                # abort_start() made a new seed for the next attempt
-                commitment = fairness_commitment(game)
-                if commitment:
-                    text += "\n\n" + commitment
-                send_async(context.bot, chat.id, text=text)
-                return
-            rivalry_log.start(game)
-            gm.persist_game(game)
-            if game.choosing_color:
-                first_message = (
-                    __("First card is Wild!\n"
-                       "First player: {name}\n"
-                       "Please choose the starting color.\n"
-                       "Use /close to stop people from joining the game.\n"
-                       "Enable multi-translations with /enable_translations",
-                       multi=game.translate)
-                    .format(name=display_name(game.current_player.user)))
-                markup = make_color_keyboard(chat.id, game)
-            else:
-                first_message = (
-                    __("First player: {name}\n"
-                       "Use /close to stop people from joining the game.\n"
-                       "Enable multi-translations with /enable_translations",
-                       multi=game.translate)
-                    .format(name=display_name(game.current_player.user)))
-                markup = make_turn_keyboard(game, chat.id)
-
-            def send_first():
-                """Send the first card and player"""
-
-                context.bot.sendSticker(chat.id,
-                                sticker=c.STICKERS[str(game.last_card)],
-                                timeout=TIMEOUT,
-                                disable_notification=True)
-
-                context.bot.sendMessage(chat.id,
-                                text=first_message,
-                                reply_markup=markup,
-                                timeout=TIMEOUT,
-                                disable_notification=True)
-
-            dispatcher.run_async(send_first)
-            start_player_countdown(context.bot, game, context.job_queue)
+            if _prepare_fair_start(context.bot, game, context.job_queue):
+                _deal_and_announce(context.bot, game, chat, context.job_queue)
 
     elif len(context.args) and context.args[0] == 'select':
         gm.ensure_user_loaded(update.message.from_user.id)
@@ -1298,6 +1468,7 @@ threaded_join_game = _threaded_by(_chat_key, require_message=True)(join_game)
 threaded_leave_game = _threaded_by(_chat_key, require_message=True)(leave_game)
 threaded_kick_player = _threaded_by(_chat_key, require_message=True)(kick_player)
 threaded_start_game = _threaded_by(_chat_key, require_message=True)(start_game)
+threaded_seed_command = _threaded_by(_chat_key, require_message=True)(seed_command)
 threaded_close_game = _threaded_by(_chat_key, require_message=True)(close_game)
 threaded_open_game = _threaded_by(_chat_key, require_message=True)(open_game)
 threaded_enable_translations = _threaded_by(_chat_key, require_message=True)(enable_translations)
@@ -1327,6 +1498,7 @@ try:
 except TypeError:
     dispatcher.add_handler(CommandHandler('start', threaded_start_game))
 dispatcher.add_handler(CommandHandler('new', threaded_new_game))
+dispatcher.add_handler(CommandHandler('seed', threaded_seed_command))
 dispatcher.add_handler(CommandHandler('kill', threaded_kill_game))
 dispatcher.add_handler(CommandHandler('join', threaded_join_game))
 dispatcher.add_handler(CommandHandler('leave', threaded_leave_game))

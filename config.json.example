@@ -15,6 +15,7 @@
     "max_players": 10,
     "shuffle_players": true,
     "fair_play": true,
+    "fair_play_required": false,
     "turn_pacing_delay": 1.5,
     "stale_game_unload_seconds": 1800,
     "stale_game_scan_every_seconds": 60,

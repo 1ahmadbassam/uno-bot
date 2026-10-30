@@ -81,6 +81,10 @@ if isinstance(SHUFFLE_PLAYERS, str):
 FAIR_PLAY = os.getenv("FAIR_PLAY", config.get("fair_play", True))
 if isinstance(FAIR_PLAY, str):
     FAIR_PLAY = FAIR_PLAY.lower() in ("yes", "true", "t", "1")
+# With fair_play_required, a game whose randomness can't be checked doesn't start
+FAIR_PLAY_REQUIRED = os.getenv("FAIR_PLAY_REQUIRED", config.get("fair_play_required", False))
+if isinstance(FAIR_PLAY_REQUIRED, str):
+    FAIR_PLAY_REQUIRED = FAIR_PLAY_REQUIRED.lower() in ("yes", "true", "t", "1")
 
 # Head-to-head score between two players, recorded automatically when one of them wins
 RIVALRY = config.get("rivalry") or {}

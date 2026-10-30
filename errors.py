@@ -44,3 +44,8 @@ class LobbyFullError(Exception):
 
 class RejoinNotAllowedError(Exception):
     pass
+
+
+class GameStartingError(Exception):
+    """Joining or leaving while the players send their /seed for the start (fairness.py)"""
+    pass

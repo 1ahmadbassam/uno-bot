@@ -24,15 +24,10 @@ from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS
 from datetime import datetime, timezone
 
 from deck import Deck
-from fairness import FairRandom
+from fairness import FairRandom, seat_label
 import card as c
 import rivalry_log
 from errors import DeckEmptyError
-
-def _seat_name(player):
-    """How a player appears in the fairness log's seating entry"""
-    return getattr(player.user, 'first_name', None) or str(player.user)
-
 
 class Game(object):
     """ This class represents a game of UNO """
@@ -97,9 +92,9 @@ class Game(object):
             return
 
         self.reversed = False
-        before = [_seat_name(p) for p in players]
+        before = [seat_label(p) for p in players]
         self.rng.shuffle(players)
-        self.rng.note('s', before, [_seat_name(p) for p in players])
+        self.rng.note('s', before, [seat_label(p) for p in players])
         n = len(players)
         for i in range(n):
             players[i]._next = players[(i + 1) % n]
@@ -108,8 +103,9 @@ class Game(object):
 
     def start(self):
         self.touch()
-        # Fetch the committed drand round (one request per game)
-        self.rng.activate()
+        if self.rng.source is None:
+            # Not prepared by the /start flow (fairness off, tests): OS randomness
+            self.rng.use_system()
         if SHUFFLE_PLAYERS:
             self.shuffle_players()
 

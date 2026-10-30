@@ -31,7 +31,7 @@ from player import Player
 from config import STALE_GAME_UNLOAD_SECONDS, STALE_GAME_SCAN_EVERY_SECONDS, MAX_PLAYERS
 from errors import (AlreadyJoinedError, LobbyClosedError, NoGameInChatError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
-                    RejoinNotAllowedError)
+                    RejoinNotAllowedError, GameStartingError)
 from persisted_state import PersistedChatState, PersistedUserChat
 
 class GameManager(object):
@@ -440,6 +440,9 @@ class GameManager(object):
         except (KeyError, IndexError):
             raise NoGameInChatError()
 
+        if game.rng.awaiting_seeds:
+            raise GameStartingError()
+
         if not game.open:
             raise LobbyClosedError()
 
@@ -516,6 +519,10 @@ class GameManager(object):
             raise NoGameInChatError
 
         game = player.game
+
+        if game.rng.awaiting_seeds:
+            # The players who send seeds can't change until the game starts
+            raise GameStartingError()
 
         if len(game.players) < 3:
             raise NotEnoughPlayersError()

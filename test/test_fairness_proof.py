@@ -1,22 +1,26 @@
 import copy
 import hashlib
 import hmac
+import inspect
 import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Installs the module stubs needed to import the game modules
 import test.test_rate_limit_mitigations as stubs  # noqa: F401
 
+import bot
 import card as c
 import fairness
-from errors import DeckEmptyError
+from errors import DeckEmptyError, GameStartingError
 from fairness import FairRandom
 from game import Game
 from game_manager import GameManager
@@ -41,15 +45,15 @@ def full_deck(mode):
 
 
 class Stream(object):
-    def __init__(self, seed_hex, beacon_hex):
-        self.seed, self.beacon, self.counter = bytes.fromhex(seed_hex), bytes.fromhex(beacon_hex), 0
+    def __init__(self, seed_hex, entropy_hex):
+        self.seed, self.entropy, self.counter = bytes.fromhex(seed_hex), bytes.fromhex(entropy_hex), 0
 
     def randbelow(self, n):
         if n <= 1:
             return 0
         mask = (1 << (n - 1).bit_length()) - 1
         while True:
-            msg = b"uno-fair-v1" + self.beacon + self.counter.to_bytes(8, 'big')
+            msg = b"uno-fair-v1" + self.entropy + self.counter.to_bytes(8, 'big')
             self.counter += 1
             value = int.from_bytes(hmac.new(self.seed, msg, hashlib.sha256).digest()[:8], 'big') & mask
             if value < n:
@@ -57,11 +61,15 @@ class Stream(object):
 
 
 def check(proof):
-    """None when every card follows from the seed and beacon, else what went wrong"""
+    """(problem or None, {seat: cards drawn in order}) for a proof"""
     if hashlib.sha256(bytes.fromhex(proof['seed'])).hexdigest() != proof['commit']:
-        return 'commitment'
-    stream = Stream(proof['seed'], proof['beacon'])
-    pile, grave, out = [], [], {}
+        return 'commitment', None
+    if proof['source'] == 'players':
+        entropy = fairness.players_entropy(proof['player_seeds'])
+    else:
+        entropy = proof['beacon']
+    stream = Stream(proof['seed'], entropy)
+    pile, grave, out, by_seat = [], [], {}, {}
     for i, op in enumerate(proof['ops']):
         kind = op[0]
         if kind == 's':
@@ -70,80 +78,96 @@ def check(proof):
                 k = stream.randbelow(j + 1)
                 seats[j], seats[k] = seats[k], seats[j]
             if seats != op[2]:
-                return 'seating at %d' % i
+                return 'seating at %d' % i, None
         elif kind == 'f':
             pile, grave, out = full_deck(op[1]), [], {}
         elif kind == 'd':
             if not pile:
                 pile, grave = grave, []
             if not pile:
-                return 'empty deck at %d' % i
+                return 'empty deck at %d' % i, None
             pile.sort()
             card = pile.pop(stream.randbelow(len(pile)))
             if card != op[1]:
-                return 'card at %d' % i
+                return 'card at %d' % i, None
             out[card] = out.get(card, 0) + 1
+            by_seat.setdefault(op[2], []).append(card)
         elif kind in ('x', 'b'):
             for card in ([op[1]] if kind == 'x' else op[1]):
                 if not out.get(card):
-                    return 'invented card at %d' % i
+                    return 'invented card at %d' % i, None
                 out[card] -= 1
                 (grave if kind == 'x' else pile).append(card)
         elif kind == 'c':
             if c.COLORS[stream.randbelow(4)] != op[1]:
-                return 'color at %d' % i
+                return 'color at %d' % i, None
         else:
-            return 'unknown op at %d' % i
-    return None
+            return 'unknown op at %d' % i, None
+    return None, by_seat
 
 
 def user(uid, name):
     return SimpleNamespace(id=uid, first_name=name, username=None)
 
 
-def play_a_game(mode='classic', players=3, max_turns=600):
-    """Play a game through the real game code with a fake drand beacon; returns the game"""
+def drand_rng():
+    """A FairRandom that went through the /start flow with a fake drand round"""
+    rng = FairRandom(enabled=True)
+    rng.set_round(fairness.first_round_after(time.time()), int(time.time()), 1)
     with patch('fairness.fetch_round', return_value=BEACON), patch('fairness.time.sleep'):
-        game = Game(SimpleNamespace(id=-1, title="Test", type="group"))
-        game.rng = FairRandom(enabled=True)
-        game.deck.rng = game.rng
-        game.mode = mode
-        seated = [Player(game, user(i + 1, "P%d" % (i + 1))) for i in range(players)]
-        with patch('game.SHUFFLE_PLAYERS', True):
-            game.start()
-        game.started = True
-        for p in seated:
-            p.draw_first_hand()
-        if game.choosing_color:
-            game.choose_color(c.RED)
+        assert rng.fetch_planned_round()
+    return rng
 
-        left_one = auto_color = False
-        for turn in range(max_turns):
-            p = game.current_player
-            if turn == 40 and not left_one and len(game.players) > 2:
-                # A player leaves mid-game: their hand goes to the discard pile
-                if p is game.current_player:
-                    game.turn()
-                p.leave()
-                left_one = True
-                continue
-            playable = p.playable_cards()
-            # Keep a few cards in hand so the game runs long enough to go through the deck
-            if playable and len(p.cards) > 3:
-                card = playable[0]
-                p.play(card)
-                if game.choosing_color:
-                    if not auto_color:
-                        game.turn()  # ran out of time: the bot picks the color
-                        auto_color = True
-                    else:
-                        game.choose_color(c.COLORS[turn % 4])
-                continue
-            try:
-                p.draw()
-            except DeckEmptyError:
-                break
+
+def seeds_rng(names):
+    rng = FairRandom(enabled=True)
+    rng.wait_for_seeds(60)
+    for i, name in enumerate(names):
+        rng.add_seed(i + 1, name, "seed of %s" % name)
+    rng.use_player_seeds()
+    return rng
+
+
+def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
+    """Play a game through the real game code; returns the game"""
+    game = Game(SimpleNamespace(id=-1, title="Test", type="group"))
+    game.rng = rng or drand_rng()
+    game.deck.rng = game.rng
+    game.mode = mode
+    seated = [Player(game, user(i + 1, "P%d" % (i + 1))) for i in range(players)]
+    with patch('game.SHUFFLE_PLAYERS', True):
+        game.start()
+    game.started = True
+    for p in seated:
+        p.draw_first_hand()
+    if game.choosing_color:
+        game.choose_color(c.RED)
+
+    left_one = auto_color = False
+    for turn in range(max_turns):
+        p = game.current_player
+        if turn == 40 and not left_one and len(game.players) > 2:
+            # A player leaves mid-game: their hand goes to the discard pile
             game.turn()
+            p.leave()
+            left_one = True
+            continue
+        playable = p.playable_cards()
+        # Keep a few cards in hand so the game runs long enough to go through the deck
+        if playable and len(p.cards) > 3:
+            p.play(playable[0])
+            if game.choosing_color:
+                if not auto_color:
+                    game.turn()  # ran out of time: the bot picks the color
+                    auto_color = True
+                else:
+                    game.choose_color(c.COLORS[turn % 4])
+            continue
+        try:
+            p.draw()
+        except DeckEmptyError:
+            break
+        game.turn()
     return game
 
 
@@ -153,70 +177,114 @@ class TestFairRandom(unittest.TestCase):
         rng = FairRandom(enabled=True)
         self.assertEqual(rng.commitment, hashlib.sha256(rng.seed).hexdigest())
         self.assertEqual(len(rng.seed), 32)
+        self.assertIsNone(rng.round)  # the round is only chosen at /start
 
-    def test_committed_round_is_not_published_yet(self):
-        with patch('fairness.time.time', return_value=fairness.round_time(1000) + 1.0):
-            rng = FairRandom(enabled=True)
-        self.assertEqual(rng.round, 1002)
-        self.assertGreater(fairness.round_time(rng.round), rng.committed_at)
+    def test_round_comes_out_after_the_announcement(self):
+        for stamp in (fairness.round_time(1000) + x for x in (0, 0.5, 1, 1.9, 2, 2.9)):
+            stamp = int(stamp)
+            self.assertGreater(fairness.round_time(fairness.first_round_after(stamp)), stamp + 1)
 
-    def test_stream_is_deterministic_and_matches_the_reference(self):
-        rng = FairRandom(enabled=True)
+    def test_stream_matches_the_reference(self):
+        rng = drand_rng()
         rng.seed = bytes(range(32))
-        rng.beacon, rng.verifiable = BEACON, True
-        ours = [rng.randbelow(n) for n in (2, 3, 7, 52, 108, 140, 1, 4)]
+        sizes = (2, 3, 7, 52, 108, 140, 1, 4)
+        ours = [rng.randbelow(n) for n in sizes]
         reference = Stream(bytes(range(32)).hex(), BEACON)
-        self.assertEqual(ours, [reference.randbelow(n) for n in (2, 3, 7, 52, 108, 140, 1, 4)])
+        self.assertEqual(ours, [reference.randbelow(n) for n in sizes])
 
     def test_randbelow_is_uniform(self):
-        rng = FairRandom(enabled=True)
-        rng.beacon, rng.verifiable = BEACON, True
+        rng = drand_rng()
         counts = [0] * 5
         for _ in range(5000):
             counts[rng.randbelow(5)] += 1
         for count in counts:
             self.assertTrue(800 <= count <= 1200, counts)
 
-    def test_falls_back_when_drand_is_unreachable(self):
+    def test_unreachable_drand_is_reported(self):
+        rng = FairRandom(enabled=True)
+        rng.set_round(fairness.first_round_after(time.time()))
         with patch('fairness.fetch_round', return_value=None), patch('fairness.time.sleep'):
-            rng = FairRandom(enabled=True)
-            rng.activate()
-        self.assertFalse(rng.verifiable)
-        self.assertIsNone(rng.proof()['seed'])
-        self.assertIn(rng.randbelow(10), range(10))
+            self.assertFalse(rng.fetch_planned_round())
+        self.assertIsNone(rng.verifiable)
 
-    def test_disabled_never_touches_the_network(self):
-        with patch('fairness.fetch_round') as fetch:
-            rng = FairRandom(enabled=False)
-            rng.activate()
-        fetch.assert_not_called()
-        self.assertFalse(rng.verifiable)
+    def test_player_seeds_order_does_not_matter(self):
+        a = fairness.players_entropy([['a', 'one'], ['b', 'two']])
+        self.assertEqual(a, fairness.players_entropy([['b', 'two'], ['a', 'one']]))
+        self.assertNotEqual(a, fairness.players_entropy([['a', 'one'], ['b', 'tw0']]))
+        # Lengths are part of the hash, so texts can't be shifted between players
+        self.assertNotEqual(fairness.players_entropy([['a', 'xy'], ['b', 'z']]),
+                            fairness.players_entropy([['a', 'x'], ['b', 'yz']]))
+
+    def test_each_player_sends_one_seed(self):
+        rng = FairRandom(enabled=True)
+        rng.wait_for_seeds(60)
+        self.assertTrue(rng.awaiting_seeds)
+        self.assertTrue(rng.add_seed(1, 'a', 'x'))
+        self.assertFalse(rng.add_seed(1, 'a', 'y'))
+        self.assertEqual(rng.player_seeds[1], ['a', 'x'])
 
     def test_saved_and_restored_stream_continues_identically(self):
-        rng = FairRandom(enabled=True)
-        rng.beacon, rng.verifiable = BEACON, True
+        rng = drand_rng()
         [rng.randbelow(100) for _ in range(10)]
         restored = FairRandom.from_dict(json.loads(json.dumps(rng.to_dict())))
         self.assertEqual([rng.randbelow(100) for _ in range(20)], [restored.randbelow(100) for _ in range(20)])
-        self.assertEqual(restored.commitment, rng.commitment)
+        self.assertEqual(restored.proof(), rng.proof())
+
+    def test_waiting_for_seeds_survives_a_restart(self):
+        rng = FairRandom(enabled=True)
+        rng.wait_for_seeds(60)
+        rng.add_seed(7, 'a', 'hello')
+        restored = FairRandom.from_dict(json.loads(json.dumps(rng.to_dict())))
+        self.assertTrue(restored.awaiting_seeds)
+        self.assertEqual(restored.player_seeds, {7: ['a', 'hello']})
+
+    def test_first_version_saves_still_load(self):
+        v1 = {'enabled': True, 'seed': '11' * 32, 'round': 5, 'beacon': BEACON, 'verifiable': True,
+              'counter': 3, 'ops': [['f', 'classic']]}
+        rng = FairRandom.from_dict(v1)
+        self.assertEqual(rng.source, fairness.DRAND)
+        self.assertEqual(rng.entropy, BEACON)
+        lobby = FairRandom.from_dict({'enabled': True, 'seed': '22' * 32, 'round': 5, 'verifiable': None})
+        self.assertIsNone(lobby.source)
+        self.assertIsNone(lobby.round)
 
 
 class TestFairnessProof(unittest.TestCase):
 
     def test_a_full_game_checks_out(self):
         for mode in ('classic', 'wild'):
-            game = play_a_game(mode)
-            proof = game.rng.proof()
+            proof = play_a_game(mode).rng.proof()
             kinds = {op[0] for op in proof['ops']}
-            # Seating, a fresh deck, draws, discards and a bot-picked color were all exercised
             self.assertTrue({'s', 'f', 'd', 'x', 'c'} <= kinds, kinds)
-            self.assertIsNone(check(proof))
+            problem, by_seat = check(proof)
+            self.assertIsNone(problem)
+            # Cards turned up for the first card belong to no seat: the first card itself
+            # plus any Wild Draw Four put back before it
+            put_back = sum(len(op[1]) for op in proof['ops'] if op[0] == 'b')
+            self.assertEqual(len(by_seat[None]), 1 + put_back)
+
+    def test_every_draw_names_who_got_it(self):
+        game = play_a_game(max_turns=30)
+        draws = [op for op in game.rng.proof()['ops'] if op[0] == 'd']
+        hands = [op for op in draws if op[2] is not None]
+        self.assertTrue(all(op[2] in ('P1', 'P2', 'P3') for op in hands))
+        # Each player was dealt 7 cards first, in seat order
+        seats = [op[2] for op in hands[:21]]
+        self.assertEqual([seats[i] for i in (0, 7, 14)], [seats[i * 7 + 6] for i in range(3)])
+
+    def test_a_game_with_player_seeds_checks_out(self):
+        game = play_a_game(rng=seeds_rng(['P1', 'P2', 'P3']))
+        proof = game.rng.proof()
+        self.assertEqual(proof['source'], 'players')
+        self.assertIsNone(proof['beacon'])
+        self.assertEqual(len(proof['player_seeds']), 3)
+        self.assertIsNone(check(proof)[0])
 
     def test_discard_pile_recycling_checks_out(self):
         game = play_a_game('classic', players=4, max_turns=1500)
         draws = sum(1 for op in game.rng.proof()['ops'] if op[0] == 'd')
         self.assertGreater(draws, 108, "the game never went through the whole deck")
-        self.assertIsNone(check(game.rng.proof()))
+        self.assertIsNone(check(game.rng.proof())[0])
 
     def test_tampering_is_detected(self):
         proof = play_a_game().rng.proof()
@@ -224,19 +292,24 @@ class TestFairnessProof(unittest.TestCase):
 
         swapped = copy.deepcopy(proof)
         swapped['ops'][draw][1] = 'draw_four'
-        self.assertIsNotNone(check(swapped))
+        self.assertIsNotNone(check(swapped)[0])
 
         other_seed = copy.deepcopy(proof)
         other_seed['seed'] = '00' * 32
-        self.assertEqual(check(other_seed), 'commitment')
+        self.assertEqual(check(other_seed)[0], 'commitment')
 
         other_beacon = copy.deepcopy(proof)
         other_beacon['beacon'] = '11' * 32
-        self.assertIsNotNone(check(other_beacon))
+        self.assertIsNotNone(check(other_beacon)[0])
 
         invented = copy.deepcopy(proof)
-        invented['ops'].insert(draw + 1, ['x', 'draw_four'] if proof['ops'][draw][1] != 'draw_four' else ['x', 'r_0'])
-        self.assertIsNotNone(check(invented))
+        extra = 'r_0' if proof['ops'][draw][1] == 'draw_four' else 'draw_four'
+        invented['ops'].insert(draw + 1, ['x', extra])
+        self.assertIsNotNone(check(invented)[0])
+
+        seeds = play_a_game(rng=seeds_rng(['P1', 'P2', 'P3'])).rng.proof()
+        seeds['player_seeds'][0][1] = 'something else'
+        self.assertIsNotNone(check(seeds)[0])
 
     def test_proof_survives_a_restart(self):
         game = play_a_game(max_turns=30)
@@ -287,23 +360,146 @@ class TestFairnessProof(unittest.TestCase):
             gm.end_game(chat, user(1, "A"))
         self.assertEqual(seen, [game])
 
-    @unittest.skipUnless(shutil.which('node'), "Node.js is not installed")
-    def test_replay_page_checker_agrees(self):
-        """Runs the checker from web/replay.html on a real proof, so the page and the bot agree"""
+
+class FakeBot(object):
+    """Records messages; send_message answers like Telegram, with a timestamp"""
+
+    def __init__(self, delays=()):
+        self.sent = []
+        self.delays = list(delays)  # seconds Telegram's timestamp lags behind, per message
+
+    def send_message(self, chat_id, text, **kwargs):
+        lag = self.delays.pop(0) if self.delays else 0
+        self.sent.append(text)
+        return SimpleNamespace(date=datetime.fromtimestamp(int(time.time() + lag), timezone.utc),
+                               message_id=len(self.sent))
+
+
+class TestStartFlow(unittest.TestCase):
+
+    def setUp(self):
+        self.chat = SimpleNamespace(id=-77, title="Start", type="group")
+        self.game = Game(self.chat)
+        self.game.rng = FairRandom(enabled=True)
+        self.game.deck.rng = self.game.rng
+        self.players = [Player(self.game, user(i, "P%d" % i)) for i in (1, 2)]
+        self.patches = [patch('bot.gm'), patch('bot.send_async'), patch('bot._deal_and_announce'),
+                        patch('fairness.time.sleep'), patch('bot.time.sleep')]
+        self.gm, self.send, self.deal = [p.start() for p in self.patches[:3]]
+        for p in self.patches[3:]:
+            p.start()
+        self.gm.chatid_games = {self.chat.id: [self.game]}
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+
+    def test_round_is_announced_then_fetched(self):
+        fake = FakeBot()
+        with patch('fairness.fetch_round', return_value=BEACON) as fetch:
+            self.assertTrue(bot._prepare_fair_start(fake, self.game, MagicMock()))
+        rng = self.game.rng
+        self.assertEqual(rng.source, fairness.DRAND)
+        self.assertIn(str(rng.round), fake.sent[0])
+        self.assertIn(rng.commitment, fake.sent[0])
+        self.assertGreater(fairness.round_time(rng.round), rng.anchor['date'] + 1)
+        fetch.assert_called_with(rng.round)
+
+    def test_late_delivery_announces_a_later_round(self):
+        fake = FakeBot(delays=[30, 0])  # Telegram stamped the first message long after the planned round
+        with patch('fairness.fetch_round', return_value=BEACON):
+            bot._prepare_fair_start(fake, self.game, MagicMock())
+        self.assertEqual(len(fake.sent), 2)
+        rng = self.game.rng
+        self.assertIn(str(rng.round), fake.sent[1])
+        self.assertGreater(fairness.round_time(rng.round), rng.anchor['date'] + 1)
+
+    def test_drand_down_asks_for_seeds_and_locks_the_lobby(self):
+        job_queue = MagicMock()
+        with patch('fairness.fetch_round', return_value=None):
+            self.assertFalse(bot._prepare_fair_start(FakeBot(), self.game, job_queue))
+        self.assertTrue(self.game.rng.awaiting_seeds)
+        self.assertIn('/seed', self.send.call_args[1]['text'])
+        job_queue.run_once.assert_called_once()
+        self.assertEqual(job_queue.run_once.call_args[0][1], fairness.SEED_TIMEOUT)
+
+        gm = GameManager()
+        gm.chatid_games[self.chat.id] = [self.game]
+        for p in self.players:
+            gm.userid_players[p.user.id] = [p]
+            gm.userid_current[p.user.id] = p
+        with self.assertRaises(GameStartingError):
+            gm.join_game(user(3, "P3"), self.chat)
+        with self.assertRaises(GameStartingError):
+            gm.leave_game(self.players[0].user, self.chat)
+
+    def _seed(self, player, text):
+        self.gm.player_for_user_in_chat.return_value = player
+        update = MagicMock()
+        update.message.chat = self.chat
+        update.message.from_user = player.user
+        update.message.text = '/seed ' + text
+        inspect.unwrap(bot.seed_command)(update, MagicMock())
+
+    def test_game_deals_once_every_player_sent_a_seed(self):
+        self.game.rng.wait_for_seeds(60)
+        self._seed(self.players[0], 'purple banana')
+        self.deal.assert_not_called()
+        self._seed(self.players[0], 'again')  # a second seed from the same player is refused
+        self.deal.assert_not_called()
+        self._seed(self.players[1], '42')
+        self.deal.assert_called_once()
+        rng = self.game.rng
+        self.assertEqual(rng.source, fairness.PLAYERS)
+        self.assertEqual(sorted(t for _, t in rng.player_seeds.values()), ['42', 'purple banana'])
+
+    def test_seed_without_text_is_refused(self):
+        self.game.rng.wait_for_seeds(60)
+        self._seed(self.players[0], '')
+        self.assertEqual(self.game.rng.player_seeds, {})
+
+    def test_timeout_starts_without_proof(self):
+        self.game.rng.wait_for_seeds(60)
+        with patch('bot.game_is_running', return_value=True), patch('bot.FAIR_PLAY_REQUIRED', False):
+            bot._seeds_timed_out(MagicMock(), self.game, MagicMock())
+        self.assertEqual(self.game.rng.source, fairness.SYSTEM)
+        self.deal.assert_called_once()
+
+    def test_timeout_cancels_the_start_when_proof_is_required(self):
+        self.game.rng.wait_for_seeds(60)
+        with patch('bot.game_is_running', return_value=True), patch('bot.FAIR_PLAY_REQUIRED', True):
+            bot._seeds_timed_out(MagicMock(), self.game, MagicMock())
+        self.assertFalse(self.game.rng.awaiting_seeds)
+        self.assertIsNone(self.game.rng.source)
+        self.deal.assert_not_called()
+
+    def test_fairness_off_deals_straight_away(self):
+        self.game.rng = FairRandom(enabled=False)
+        fake = FakeBot()
+        with patch('fairness.fetch_round') as fetch:
+            self.assertTrue(bot._prepare_fair_start(fake, self.game, MagicMock()))
+        fetch.assert_not_called()
+        self.assertEqual(fake.sent, [])
+
+
+@unittest.skipUnless(shutil.which('node'), "Node.js is not installed")
+class TestReplayPageChecker(unittest.TestCase):
+    """Runs the checker from web/replay.html on real proofs, so the page and the bot agree"""
+
+    def run_page(self, cases):
         with open(REPLAY_HTML, encoding='utf-8') as f:
             page = f.read()
         js = re.search(r"// --- Fairness check -+\n(.*?)// --- Loading", page, re.S).group(1)
-        proofs = {'good': play_a_game('wild').rng.proof()}
-        bad = copy.deepcopy(proofs['good'])
-        i = next(i for i, op in enumerate(bad['ops']) if op[0] == 'd' and op[1] != 'r_1')
-        bad['ops'][i][1] = 'r_1'
-        proofs['bad'] = bad
         script = (
+            "var G = {players: {a: 'A', b: 'B'}};\nfunction nm(p) { return p; }\n"
             "function cardName(c) { return c; }\nfunction plural(n, w) { return n + ' ' + w; }\n"
             "function esc(s) { return String(s); }\n" + js +
-            "\n(async function () {\n  var proofs = " + json.dumps(proofs) + ";\n  var out = {};\n"
-            "  for (var k in proofs) { var s = await fairStream(proofs[k].seed, proofs[k].beacon);"
-            " out[k] = await replayOps(proofs[k], s); }\n  console.log(JSON.stringify(out));\n})();\n")
+            "\n(async function () {\n  var cases = " + json.dumps(cases) + ";\n  var out = {};\n"
+            "  for (var k in cases) {\n    var p = cases[k].proof;\n"
+            "    var entropy = p.source === 'players' ? await playersEntropy(p.player_seeds) : p.beacon;\n"
+            "    var r = await replayOps(p, await fairStream(p.seed, entropy));\n"
+            "    out[k] = r || replayMatchesProof(cases[k].events || [], p);\n  }\n"
+            "  console.log(JSON.stringify(out));\n})();\n")
         with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as f:
             f.write(script)
         try:
@@ -311,9 +507,31 @@ class TestFairnessProof(unittest.TestCase):
         finally:
             os.unlink(f.name)
         self.assertEqual(result.returncode, 0, result.stderr)
-        out = json.loads(result.stdout.strip().splitlines()[-1])
+        return json.loads(result.stdout.strip().splitlines()[-1])
+
+    def test_page_checker_agrees(self):
+        with patch.dict(fairness.rivalry_log.KEYS, {1: 'a', 2: 'b'}):
+            good = play_a_game('wild', players=2).rng.proof()
+            seeded = play_a_game(players=2, rng=seeds_rng(['a', 'b'])).rng.proof()
+        _, by_seat = check(good)
+        events = [{'k': 'deal', 'h': {'a': by_seat['a'][:7], 'b': by_seat['b'][:7]}, 'fc': by_seat[None][0]},
+                  {'k': 'draw', 'p': 'a', 'cs': by_seat['a'][7:9]}]
+        swapped = copy.deepcopy(events)
+        swapped[0]['h']['a'][0], swapped[0]['h']['b'][0] = events[0]['h']['b'][0], events[0]['h']['a'][0]
+        bad_card = copy.deepcopy(good)
+        i = next(i for i, op in enumerate(bad_card['ops']) if op[0] == 'd' and op[1] != 'r_1')
+        bad_card['ops'][i][1] = 'r_1'
+        out = self.run_page({
+            'good': {'proof': good, 'events': events},
+            'seeds': {'proof': seeded},
+            'bad_card': {'proof': bad_card},
+            'swapped_hands': {'proof': good, 'events': swapped},
+        })
         self.assertIsNone(out['good'])
-        self.assertIsNotNone(out['bad'])
+        self.assertIsNone(out['seeds'])
+        self.assertIsNotNone(out['bad_card'])
+        if events[0]['h']['a'][0] != events[0]['h']['b'][0]:
+            self.assertIsNotNone(out['swapped_hands'])
 
 
 if __name__ == '__main__':

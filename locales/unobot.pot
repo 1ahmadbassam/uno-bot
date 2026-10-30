@@ -556,14 +556,6 @@ msgstr ""
 msgid "🃏 Show my cards"
 msgstr ""
 
-#: actions.py:207
-msgid "⚠️ drand couldn't be reached when this game started, so its cards came from the server's own random generator and can't be checked."
-msgstr ""
-
-#: actions.py:188
-msgid "🔒 Fairness: the cards will come from a secret seed with fingerprint {commit} and drand round {round}. The seed is revealed when the game ends."
-msgstr ""
-
 #: actions.py:204
 msgid "Check every card: {url}"
 msgstr ""
@@ -572,4 +564,66 @@ msgstr ""
 msgid ""
 "🔓 Fairness seed: {seed}\n"
 "Its SHA-256 must match the fingerprint {commit} posted when the lobby opened."
+msgstr ""
+
+#: actions.py:207
+msgid "⚠️ This game's cards came from the server's own random generator, so they can't be checked."
+msgstr ""
+
+#: actions.py:188
+msgid "🔒 Fairness: this game's cards will come from a secret seed with fingerprint {commit}. It's revealed when the game ends, so every card can be checked."
+msgstr ""
+
+#: bot.py:845
+msgid "If not everyone has sent one within {seconds} seconds, the start is cancelled."
+msgstr ""
+
+#: bot.py:848
+msgid "If not everyone has sent one within {seconds} seconds, the game starts without proof, using the server's own random generator."
+msgstr ""
+
+#: bot.py:888
+msgid "⚠️ Not every player sent /seed in time. This game uses the server's own random generator, so its cards can't be checked."
+msgstr ""
+
+#: bot.py:927
+msgid "🎲 Every player sent a seed. Dealing!"
+msgstr ""
+
+#: bot.py:883
+msgid "Not every player sent /seed in time, so the game didn't start. Use /start to try again."
+msgstr ""
+
+#: bot.py:903
+msgid "No seed is needed right now: players only send one when drand can't be reached as a game starts."
+msgstr ""
+
+#: bot.py:910
+msgid "Send it with some text, for example /seed purple banana 42"
+msgstr ""
+
+#: bot.py:916
+msgid "You already sent your seed."
+msgstr ""
+
+#: bot.py:233
+msgid "The game is starting: every player has to send /seed first."
+msgstr ""
+
+#: bot.py:818
+msgid "🎲 Starting the game! Its cards come from the seed with fingerprint {commit} and drand round {round}, which isn't out yet."
+msgstr ""
+
+#: bot.py:922
+msgid "🎲 Got a seed from {name} ({have}/{need})."
+msgstr ""
+
+#: bot.py:850
+msgid ""
+"⚠️ drand can't be reached right now. To keep this game provably fair, every player sends /seed followed by any text, for example /seed purple banana 42. The texts are published when the game ends.\n"
+"The game starts once all {need} players have sent one."
+msgstr ""
+
+#: bot.py:1016
+msgid "Waiting for every player's /seed ({have}/{need})."
 msgstr ""

@@ -16,3 +16,4 @@ settings - Language and other settings
 score - Show the head-to-head score
 stats - Statistics of the last game
 source - Source code and credits
+seed - Add randomness to a starting game when drand is down

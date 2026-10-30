@@ -59,8 +59,8 @@ class Deck(object):
 
         self.logger.debug("Initialized empty Deck")
 
-    def draw(self):
-        """Draws a uniformly random card from the remaining draw pile"""
+    def draw(self, seat=None):
+        """Draws a uniformly random card from the remaining draw pile; `seat`: who gets it, for the fairness log"""
         if not self.cards:
             if not self.graveyard:
                 raise DeckEmptyError()
@@ -70,7 +70,7 @@ class Deck(object):
 
         self.cards.sort(key=str)
         card = self.cards.pop(self.rng.randbelow(len(self.cards)))
-        self.rng.note('d', str(card))
+        self.rng.note('d', str(card), seat)
         self.logger.debug("Drawing card %s", str(card))
         return card
 
