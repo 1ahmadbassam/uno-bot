@@ -555,7 +555,11 @@ def summarize_log(log):
     deal = events[0]
     hands = {key: len(cards) for key, cards in deal['h'].items()}
     per = {key: _player_summary(hands[key]) for key in hands}
-    stack = max_stack = samples = 0
+    # The pending draw count, as game.draw_counter keeps it: a +2 turned up as the first
+    # card already counts. A stack is recorded only when someone draws it, so a game
+    # won on a +2 doesn't count.
+    stack = 2 if card_type(deal.get('fc') or '') == 'd2' else 0
+    max_stack = samples = 0
     finisher = {}
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
@@ -576,7 +580,6 @@ def summarize_log(log):
                 s['bl'] += 1
             if kind_of_card in ('d2', 'd4'):
                 stack += 2 if kind_of_card == 'd2' else 4
-                max_stack = max(max_stack, stack)
             else:
                 stack = 0
             if e['h'] == 1 and hands[p] > 1:
@@ -594,6 +597,9 @@ def summarize_log(log):
                     s['den'] += 1
                 if e.get('src') in per:
                     per[e['src']]['dealt'] += count
+                if stack:
+                    # A failed challenge adds 2 to the pile, as do_call_bluff does
+                    max_stack = max(max_stack, stack + (2 if e.get('r') == 'chal' else 0))
                 stack = 0
             hands[p] = e['h']
             s['mx'] = max(s['mx'], e['h'])

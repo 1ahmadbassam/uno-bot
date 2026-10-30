@@ -311,7 +311,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
       <label>Season <select id="f-season"></select></label>
       <label>Mode <select id="f-mode"></select></label>
       <label>Players <select id="f-players">
-        <option value="all">Any</option><option value="2">2 players</option><option value="3">3+ players</option>
+        <option value="all">Any</option><option value="2">2 players or not recorded</option><option value="3">3+ players</option>
       </select></label>
       <span class="chips" id="f-out" title="Which kinds of results count"></span>
       <label>From <input type="date" id="f-from"></label>
@@ -678,6 +678,9 @@ function dateKey(t) { var d = new Date(t); return d.getUTCFullYear() + '-' + pad
 function fmtKey(key) { return +key.slice(8, 10) + ' ' + MONTHS[+key.slice(5, 7) - 1] + ' ' + key.slice(0, 4); }
 function fmtWhen(m) { return fmtKey(m.key) + ' ' + pad(m.h) + ':' + pad(m.mi); }
 function gameRef(m) { return 'game #' + m.n + ' · ' + fmtKey(m.key); }
+function gameSpan(ms, run, cap) { return (cap ? 'Games #' : 'games #') + ms[run.start].n + '–#' + ms[run.end].n; }
+// Time between the previous game ending and game i starting; the end times when the start wasn't recorded
+function idleBefore(ms, i) { var m = ms[i]; return (m.st != null && m.st <= m.t ? m.st : m.t) - ms[i - 1].t; }
 function hexRgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; var v = parseInt(h, 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
 function mix(c1, c2, t) {
   var x = hexRgb(c1), y = hexRgb(c2);
@@ -1156,7 +1159,7 @@ function parse(d) {
       y: y, mo: mo, d: dd, h: +s.slice(11, 13), mi: +s.slice(14, 16),
       wd: (new Date(Date.UTC(y, mo - 1, dd)).getUTCDay() + 6) % 7,
       w: m.winner, l: m.winner === 'a' ? 'b' : 'a', out: m.outcome, mode: m.mode, pl: m.players,
-      turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null,
+      st: st, turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null,
       g: m.g || null, d: m.d || null
     };
   });
@@ -1170,7 +1173,7 @@ function keep(m, opts) {
   opts = opts || {};
   if (!opts.anySeason && S.season !== 'all' && m.season !== S.season) return false;
   if (S.mode !== 'all' && (m.mode || '') !== S.mode) return false;
-  if (S.pl === '2' && m.pl !== 2) return false;
+  if (S.pl === '2' && m.pl > 2) return false;   // Older games have no count; they stay in
   if (S.pl === '3' && !(m.pl > 2)) return false;
   if (S.out[m.out] === false) return false;
   if (!opts.anyDate && ((S.from && m.key < S.from) || (S.to && m.key > S.to))) return false;
@@ -1268,7 +1271,7 @@ function analyze(ms) {
   });
   R.gap = null;
   for (i = 1; i < n; i++) {
-    var g = ms[i].t - ms[i - 1].t;
+    var g = idleBefore(ms, i);
     if (!R.gap || g > R.gap.v) R.gap = { v: g, i: i };
   }
   R.spanDays = n ? Math.round((keyDate(ms[n - 1].key) - keyDate(ms[0].key)) / DAY) + 1 : 0;
@@ -1277,7 +1280,7 @@ function analyze(ms) {
   var sessions = [];
   ms.forEach(function (m, i) {
     var prev = ms[i - 1], s = sessions[sessions.length - 1];
-    if (!prev || m.t - prev.t > SESSION_GAP) { s = { start: i, end: i, a: 0, b: 0, n: 0 }; sessions.push(s); }
+    if (!prev || idleBefore(ms, i) > SESSION_GAP) { s = { start: i, end: i, a: 0, b: 0, n: 0 }; sessions.push(s); }
     s.end = i; s[m.w]++; s.n++;
   });
   sessions.forEach(function (s) {
@@ -1453,7 +1456,7 @@ function renderOverview(R) {
 
   var tiles = [];
   tiles.push(tile('Win ratio', ratioText(W.a, W.b), nm('a') + ' / ' + nm('b') + ' · inverse ' + ratioText(W.b, W.a), 'Wins of the first player for every win of the second.'));
-  if (R.current) tiles.push(tile('Current streak', sw(R.current.p) + R.current.len, nm(R.current.p) + ' since game ' + (R.current.start + 1)));
+  if (R.current) tiles.push(tile('Current streak', sw(R.current.p) + R.current.len, nm(R.current.p) + ' since game #' + R.ms[R.current.start].n));
   var last = R.ms[n - 1];
   if (last) tiles.push(tile('Last game', ago(last.t), sw(last.w) + nm(last.w) + ' won · ' + fmtWhen(last)));
   if (n) {
@@ -1468,7 +1471,7 @@ function renderOverview(R) {
   $('ov-tiles').innerHTML = tiles.join('');
 
   $('form').innerHTML = R.ms.slice(-20).map(function (m) {
-    return '<i class="' + m.w + '" data-tip="' + esc('Game ' + (R.ms.indexOf(m) + 1) + ' · ' + fmtWhen(m) + ' · ' + NAMES[m.w] + ' won') + '"></i>';
+    return '<i class="' + m.w + '" data-tip="' + esc('Game #' + m.n + ' · ' + fmtWhen(m) + ' · ' + NAMES[m.w] + ' won') + '"></i>';
   }).join('') || '<span class="cap">No games yet.</span>';
 
   var rows = ['<tr><th>Last</th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th><th class="num">' + nm('a') + ' share</th></tr>'];
@@ -1628,11 +1631,11 @@ function renderStreaks(R) {
   var t = [];
   if (R.current) t.push(tile('Current streak', sw(R.current.p) + R.current.len, nm(R.current.p)));
   t.push(pairTile('Longest streak', R.longest.a ? R.longest.a.len : 0, R.longest.b ? R.longest.b.len : 0, 'Most wins in a row.',
-    R.longest.a ? 'games ' + (R.longest.a.start + 1) + '–' + (R.longest.a.end + 1) : '', R.longest.b ? 'games ' + (R.longest.b.start + 1) + '–' + (R.longest.b.end + 1) : ''));
+    R.longest.a ? gameSpan(R.ms, R.longest.a) : '', R.longest.b ? gameSpan(R.ms, R.longest.b) : ''));
   t.push(pairTile('Longest drought', R.drought.a ? R.drought.a.len : 0, R.drought.b ? R.drought.b.len : 0, 'Most games in a row without a win.'));
   t.push(pairTile('Average streak', avgRun(R, 'a'), avgRun(R, 'b'), 'The average length of a player\'s winning runs.'));
   t.push(pairTile('Best comeback', R.comeback.a.v ? '−' + R.comeback.a.v : '–', R.comeback.b.v ? '−' + R.comeback.b.v : '–', 'The biggest deficit a player turned into a lead.',
-    R.comeback.a.i >= 0 ? 'led at game ' + (R.comeback.a.i + 1) : '', R.comeback.b.i >= 0 ? 'led at game ' + (R.comeback.b.i + 1) : ''));
+    R.comeback.a.i >= 0 ? 'led at game #' + R.ms[R.comeback.a.i].n : '', R.comeback.b.i >= 0 ? 'led at game #' + R.ms[R.comeback.b.i].n : ''));
   t.push(tile('Lead changes', R.changes, plural(R.ties, 'time') + ' level after a game', 'How often the lead passed from one player to the other.'));
   t.push(tile('Runs', R.runs.length, 'average ' + (R.runs.length ? f1(R.n / R.runs.length) : '–') + ' games each'));
   $('st-tiles').innerHTML = t.join('');
@@ -1655,7 +1658,7 @@ function renderStreaks(R) {
       var i = ev.target.getAttribute('data-i');
       if (i == null) { hideTip(); return; }
       var r = R.runs[+i], s = R.ms[r.start], e = R.ms[r.end];
-      showTip('<b>' + nm(r.p) + ': ' + plural(r.len, 'win') + ' in a row</b><br><span class="m">Games ' + (r.start + 1) + '–' + (r.end + 1) + ' · ' + fmtKey(s.key) + (s.key !== e.key ? ' – ' + fmtKey(e.key) : '') + '</span>', ev.clientX, ev.clientY);
+      showTip('<b>' + nm(r.p) + ': ' + plural(r.len, 'win') + ' in a row</b><br><span class="m">' + gameSpan(R.ms, r, true) + ' · ' + fmtKey(s.key) + (s.key !== e.key ? ' – ' + fmtKey(e.key) : '') + '</span>', ev.clientX, ev.clientY);
     });
     node.firstChild.addEventListener('mouseleave', hideTip);
   }
@@ -1777,7 +1780,7 @@ function renderTime(R) {
   t.push(pairTile('Perfect days', R.perfect.a, R.perfect.b, 'Days with at least 2 games where one player won every game.'));
   t.push(pairTile('Most wins in a day', R.bestDay.a ? R.bestDay.a.v : 0, R.bestDay.b ? R.bestDay.b.v : 0, '',
     R.bestDay.a ? fmtKey(R.bestDay.a.key) : '', R.bestDay.b ? fmtKey(R.bestDay.b.key) : ''));
-  t.push(tile('Longest break', R.gap ? fmtSpan(R.gap.v) : '–', R.gap ? 'before game ' + (R.gap.i + 1) + ' · ' + fmtKey(R.ms[R.gap.i].key) : ''));
+  t.push(tile('Longest break', R.gap ? fmtSpan(R.gap.v) : '–', R.gap ? 'before ' + gameRef(R.ms[R.gap.i]) : ''));
   var favH = { a: bestIndex(R.hours, 'a'), b: bestIndex(R.hours, 'b') }, favD = { a: bestIndex(R.wdays, 'a'), b: bestIndex(R.wdays, 'b') };
   t.push(pairTile('Best hour', favH.a >= 0 ? pad(favH.a) + ':00' : '–', favH.b >= 0 ? pad(favH.b) + ':00' : '–', 'The hour in which a player has the most wins.'));
   t.push(pairTile('Best weekday', favD.a >= 0 ? WEEKDAYS[favD.a] : '–', favD.b >= 0 ? WEEKDAYS[favD.b] : '–', 'The weekday on which a player has the most wins.'));
@@ -1906,10 +1909,14 @@ function renderGames(R) {
   R.ms.forEach(function (m) { var k = m.mode || '(not recorded)'; (modes[k] = modes[k] || []).push(m); });
   Object.keys(modes).sort().forEach(function (k) { rows.push(groupRow('Mode: ' + esc(k), modes[k])); });
   var two = R.ms.filter(function (m) { return m.pl === 2; }), more = R.ms.filter(function (m) { return m.pl > 2; });
+  var unknown = R.ms.filter(function (m) { return m.pl == null; });
   if (two.length) rows.push(groupRow('2 players', two));
   if (more.length) rows.push(groupRow('3+ players', more));
+  if (unknown.length && (two.length || more.length)) rows.push(groupRow('Players not recorded', unknown));
   $('g-modes').innerHTML = rows.join('');
 }
+// Who holds a record: both players on a tie, nobody when neither has one
+function leaders(a, b) { a = a || 0; b = b || 0; return a || b ? (a === b ? ['a', 'b'] : [a > b ? 'a' : 'b']) : []; }
 function avgText(arr) { return arr.length ? f1(sum(arr) / arr.length) : '–'; }
 function winCells(c) {
   var n = c.a + c.b;
@@ -1953,7 +1960,7 @@ function renderInside(R) {
   t.push(pairTile('Challenges won', a.cw + ' of ' + a.ch, b.cw + ' of ' + b.ch, 'Times a player challenged a +4 and caught a bluff.'));
   t.push(pairTile('Timeouts', a.to, b.to, 'Turns a player ran out of time on.'));
   t.push(pairTile('Largest hand', a.mx ? a.mx.v : '–', b.mx ? b.mx.v : '–', 'The most cards a player held at once.'));
-  if (L.stack) t.push(tile('Longest +2/+4 stack', '+' + L.stack.v, gameRef(L.stack.m) + replayLink(L.stack.m), 'The biggest pile of +2 and +4 cards played on top of each other before someone drew.'));
+  if (L.stack) t.push(tile('Longest +2/+4 stack', '+' + L.stack.v, gameRef(L.stack.m) + replayLink(L.stack.m), 'The most cards drawn at once from a pile of +2 and +4 cards, counting a +2 turned up at the start and the 2 extra cards for a failed challenge.'));
   $('in-tiles').innerHTML = t.join('');
 
   function shares(A, key) { var tot = sum(A[key]); return A[key].map(function (v) { return tot ? v / tot : 0; }); }
@@ -2114,15 +2121,15 @@ function renderSeasons() {
     var R = analyze(ms), W = R.wins, live = idx === SEASONS.length - 1;
     var winner = W.a > W.b ? 'a' : W.b > W.a ? 'b' : null;
     if (winner && !live) titles[winner]++;
-    var ls = R.longest.a && (!R.longest.b || R.longest.a.len >= R.longest.b.len) ? 'a' : R.longest.b ? 'b' : null;
-    var bl = R.lead.a.v >= R.lead.b.v ? 'a' : 'b';
+    var ls = leaders(R.longest.a && R.longest.a.len, R.longest.b && R.longest.b.len);
+    var bl = leaders(R.lead.a.v, R.lead.b.v);
     rows.push('<tr><td><b>' + esc(s.name) + '</b>' + (live ? '<span class="meta">in progress</span>' : '') + '</td>' +
       '<td>' + (ms.length ? fmtKey(ms[0].key) + ' – ' + fmtKey(ms[ms.length - 1].key) : '–') + '</td>' +
       '<td class="num">' + ms.length + '</td>' +
       '<td class="num' + (winner === 'a' ? ' win' : '') + '">' + W.a + '</td><td class="num' + (winner === 'b' ? ' win' : '') + '">' + W.b + '</td>' +
       '<td>' + (winner ? sw(winner) + nm(winner) + (live ? ' leads' : '') : ms.length ? 'Level' : '–') + '</td>' +
-      '<td>' + (ls ? sw(ls) + R.longest[ls].len : '–') + '</td>' +
-      '<td>' + (R.lead[bl].v ? sw(bl) + '+' + R.lead[bl].v : '–') + '</td></tr>');
+      '<td>' + (ls.map(function (p) { return sw(p) + R.longest[p].len; }).join(' · ') || '–') + '</td>' +
+      '<td>' + (bl.map(function (p) { return sw(p) + '+' + R.lead[p].v; }).join(' · ') || '–') + '</td></tr>');
     multi.push({ s: s, R: R });
   });
   $('se-table').innerHTML = rows.join('');
@@ -2153,15 +2160,14 @@ function renderRecap() {
   var live = S.season !== 'all' && SEASONS.length && S.season === SEASONS[SEASONS.length - 1].name;
   var base = champ ? COL[champ] : COL.act, c1 = mix(base, '#000000', 0.12), c2 = mix(base, '#000000', 0.5);
   var title = S.season === 'all' ? 'All-time recap' : 'Season ' + esc(S.season) + ' recap' + (live ? ' · so far' : '');
-  var longest = R.longest.a && (!R.longest.b || R.longest.a.len >= R.longest.b.len) ? 'a' : 'b';
-  var bl = R.lead.a.v >= R.lead.b.v ? 'a' : 'b';
+  var longest = leaders(R.longest.a && R.longest.a.len, R.longest.b && R.longest.b.len), bl = leaders(R.lead.a.v, R.lead.b.v);
   var favH = bestIndex(R.hours.map(function (h) { return { n: h.a + h.b }; }), 'n'), favD = bestIndex(R.wdays.map(function (h) { return { n: h.a + h.b }; }), 'n');
   var stats = [
     [R.n, 'games played'],
     [R.days.length, 'days with games'],
     [R.sessions.length, 'sessions'],
-    [R.longest[longest] ? R.longest[longest].len + ' · ' + nm(longest) : '–', 'longest streak'],
-    [R.lead[bl].v ? '+' + R.lead[bl].v + ' · ' + nm(bl) : '–', 'biggest lead'],
+    [longest.length ? R.longest[longest[0]].len + ' · ' + longest.map(function (p) { return nm(p); }).join(' & ') : '–', 'longest streak'],
+    [bl.length ? '+' + R.lead[bl[0]].v + ' · ' + bl.map(function (p) { return nm(p); }).join(' & ') : '–', 'biggest lead'],
     [R.busiest ? R.busiest.n + ' games' : '–', 'busiest day' + (R.busiest ? ', ' + fmtKey(R.busiest.key) : '')],
     [favH >= 0 ? pad(favH) + ':00' : '–', 'favorite hour'],
     [favD >= 0 ? WEEKDAYS[favD] : '–', 'favorite day'],
@@ -2206,7 +2212,7 @@ function renderLog(R) {
   }).join('') + '</tr>';
   $('log-table').innerHTML = head + view.map(function (r) {
     return '<tr><td class="num">' + r.n + '</td><td>' + r.when + '</td><td>' + esc(r.season) + '</td><td>' + sw(r.w) + esc(r.winner) + '</td><td class="num">' + r.score + '</td>' +
-      '<td>' + r.out + '</td><td>' + esc(r.mode) + '</td><td class="num">' + (r.pl || '') + '</td><td class="num">' + (r.turns || '') + '</td>' +
+      '<td>' + r.out + '</td><td>' + esc(r.mode) + '</td><td class="num">' + (r.pl || '<span class="meta" title="Not recorded">–</span>') + '</td><td class="num">' + (r.turns || '') + '</td>' +
       '<td class="num">' + (r.dur != null ? fmtDur(r.dur) : '') + '</td><td class="num">' + (r.cards != null ? r.cards : '') + '</td>' +
       '<td>' + (r.g ? '<a href="replay.html#' + r.g + '">▶</a>' : '') + '</td></tr>';
   }).join('');

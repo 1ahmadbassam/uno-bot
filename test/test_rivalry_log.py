@@ -185,6 +185,31 @@ class TestSummary(unittest.TestCase):
         self.assertEqual((b['fd'], b['dv'], b['dk'], b['mx'], b['back']), (2, 1, 1, 6, 5))
         self.assertEqual((a['ahead'], b['ahead'], d['samples']), (6, 0, 6))
 
+    def test_a_draw_two_turned_up_at_the_start_counts_toward_the_stack(self):
+        log = log_of(
+            {'k': 'play', 'p': 'a', 'c': 'r_draw', 'h': 2, 't': 1, 'n': 0},
+            {'k': 'draw', 'p': 'b', 'r': 'pen', 'cs': ['b_1', 'b_2', 'b_3', 'b_4'], 'src': 'a', 'h': 7, 't': 2, 'n': 1},
+        )
+        log['ev'][0]['fc'] = 'y_draw'
+        self.assertEqual(rs.summarize_log(log)['stack'], 4)
+
+    def test_a_stack_nobody_drew_is_not_a_record(self):
+        log = log_of(
+            {'k': 'play', 'p': 'a', 'c': 'r_draw', 'h': 2, 't': 1, 'n': 0},
+            {'k': 'play', 'p': 'b', 'c': 'g_draw', 'h': 2, 't': 2, 'n': 1},
+            {'k': 'play', 'p': 'a', 'c': 'g_draw', 'h': 0, 't': 3, 'n': 2},
+            {'k': 'end', 'p': 'a', 'o': 'win', 't': 4, 'n': 3},
+        )
+        self.assertEqual(rs.summarize_log(log)['stack'], 0)
+
+    def test_a_failed_challenge_adds_two_to_the_stack(self):
+        log = log_of(
+            {'k': 'play', 'p': 'a', 'c': 'draw_four', 'h': 2, 't': 1, 'n': 0},
+            {'k': 'chal', 'p': 'b', 'vs': 'a', 't': 2, 'n': 1},
+            {'k': 'draw', 'p': 'b', 'r': 'chal', 'cs': ['b_1', 'b_2', 'b_3', 'b_4', 'b_5', 'b_6'], 'src': 'a', 'h': 9, 't': 3, 'n': 1},
+        )
+        self.assertEqual(rs.summarize_log(log)['stack'], 6)
+
     def test_penalty_on_one_card_counts_as_denied(self):
         log = log_of(
             {'k': 'play', 'p': 'a', 'c': 'r_1', 'h': 2, 't': 1, 'n': 0},
