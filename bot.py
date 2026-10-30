@@ -105,6 +105,9 @@ def _inline_result_key(update: Update):
     if chosen is None or chosen.from_user is None:
         return "inline:unknown"
 
+    lobby = _lobby_mode_result(chosen.result_id)
+    if lobby:
+        return f"chat:{lobby[0]}"
     user_id = chosen.from_user.id
     player = gm.userid_current.get(user_id)
     if player:
@@ -160,6 +163,22 @@ def new_game(update: Update, context: CallbackContext):
         help_handler(update, context)
 
     else:
+        chat = update.message.chat
+        caller = update.message.from_user
+        gm.ensure_chat_loaded(chat)
+        games = gm.chatid_games.get(chat_id) or []
+        if any(g.players or g.started for g in games):
+            # Another game would leave this one unreachable: the commands act on the newest game
+            send_async(context.bot, chat_id,
+                       text=_("There is already a game in this chat. The game creator or an admin "
+                              "can end it with /kill."),
+                       reply_to_message_id=update.message.message_id)
+            return
+        if games and not user_is_creator_or_admin(caller, games[-1], context.bot, chat):
+            send_async(context.bot, chat_id,
+                       text=_("A game is already open in this chat. Join it with /join."),
+                       reply_to_message_id=update.message.message_id)
+            return
 
         if update.message.chat_id in gm.remind_dict:
             for user in gm.remind_dict[update.message.chat_id]:
@@ -180,9 +199,11 @@ def new_game(update: Update, context: CallbackContext):
         commitment = fairness_commitment(game)
         if commitment:
             send_async(context.bot, chat_id, text=text + "\n\n" + commitment[0],
-                       parse_mode=ParseMode.HTML, reply_markup=commitment[1])
+                       parse_mode=ParseMode.HTML,
+                       reply_markup=InlineKeyboardMarkup(list(commitment[1].inline_keyboard) +
+                                                         list(make_mode_keyboard(game).inline_keyboard)))
         else:
-            send_async(context.bot, chat_id, text=text)
+            send_async(context.bot, chat_id, text=text, reply_markup=make_mode_keyboard(game))
 
 
 @user_locale
@@ -206,15 +227,13 @@ def kill_game(update: Update, context: CallbackContext):
 
     if user_is_creator_or_admin(user, game, context.bot, chat):
 
+        # The chat's game, whether or not the creator or admin plays in it
         try:
-            gm.end_game(chat, user)
-            send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
-
+            gm.end_game(chat, user, game=game)
         except NoGameInChatError:
-            send_async(context.bot, chat.id,
-                       text=_("The game is not started yet. "
-                              "Join the game with /join and start the game with /start"),
-                       reply_to_message_id=update.message.message_id)
+            send_async(context.bot, chat.id, text=_("There is no running game in this chat."))
+        else:
+            send_async(context.bot, chat.id, text=__("Game ended!", multi=game.translate))
 
     else:
         send_async(context.bot, chat.id,
@@ -261,7 +280,7 @@ def join_game(update: Update, context: CallbackContext):
         player = gm.player_for_user_in_chat(update.message.from_user, chat)
         game = player.game if player else (gm.chatid_games.get(chat.id) or [None])[-1]
         kwargs = {}
-        if game and user_can_change_mode(update.message.from_user, game):
+        if game and user_can_change_mode(update.message.from_user, game, context.bot):
             kwargs['reply_markup'] = make_mode_keyboard(game)
 
         send_async(context.bot, chat.id,
@@ -282,7 +301,7 @@ def join_game(update: Update, context: CallbackContext):
             game = player.game if player else (gm.chatid_games.get(chat.id) or [None])[-1]
 
         kwargs = {}
-        if game and user_can_change_mode(update.message.from_user, game):
+        if game and user_can_change_mode(update.message.from_user, game, context.bot):
             kwargs['reply_markup'] = make_mode_keyboard(game)
 
         send_async(context.bot, chat.id,
@@ -1238,6 +1257,51 @@ def skip_player(update: Update, context: CallbackContext):
         do_skip(context.bot, skipped_player, context.job_queue)
 
 
+def _add_mode_results(results):
+    """The game modes offered in the inline menu"""
+    add_mode_classic(results)
+    add_mode_fast(results)
+    add_mode_wild(results)
+    add_mode_text(results)
+
+
+def _lobby_for_mode(user, bot):
+    """The open lobby whose mode `user` may change without playing in it: one they created,
+    else one in a chat they administer; the most recently active first"""
+    lobbies = [games[-1] for games in list(gm.chatid_games.values())
+               if games and not games[-1].started and not games[-1].rng.awaiting_seeds]
+    lobbies.sort(key=lambda g: g.last_activity, reverse=True)
+    for game in lobbies:
+        if user_is_creator(user, game):
+            return game
+    for game in lobbies:
+        if user_can_change_mode(user, game, bot):
+            return game
+    return None
+
+
+def _lobby_mode_result(result_id):
+    """(chat id, mode) of a mode result offered to someone not playing ('mode_<mode>@<chat id>'), or None"""
+    if not result_id.startswith('mode_') or '@' not in result_id:
+        return None
+    mode, _sep, chat_id = result_id[5:].partition('@')
+    try:
+        return int(chat_id), mode
+    except ValueError:
+        return None
+
+
+def _change_mode(bot, user, game, mode):
+    """Set the mode of a game that hasn't started, if `user` may"""
+    if not user_can_change_mode(user, game, bot) or mode not in GAME_MODES:
+        logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
+        return
+    game.set_mode(mode)
+    gm.persist_game(game)
+    logger.info("Gamemode changed to {mode}".format(mode=mode))
+    send_async(bot, game.chat.id, text=__("Gamemode changed to {mode}", multi=game.translate).format(mode=mode))
+
+
 @game_locales
 @user_locale
 def reply_to_query(update: Update, context: CallbackContext):
@@ -1256,7 +1320,14 @@ def reply_to_query(update: Update, context: CallbackContext):
         player = gm.userid_current[user_id]
         game = player.game
     except (KeyError, AttributeError):
-        add_no_game(results)
+        lobby = _lobby_for_mode(user, context.bot) if update.inline_query else None
+        if lobby:
+            _add_mode_results(results)
+            for result in results:
+                # The chat goes in the id: someone who isn't playing has no game to find it by
+                object.__setattr__(result, 'id', f"{result.id}@{lobby.chat.id}")
+        else:
+            add_no_game(results)
     else:
         # Multi-game turn auto-focus: if it is not the player's turn in the currently
         # focused game, but it is their turn in another started game, switch focus to it.
@@ -1272,11 +1343,8 @@ def reply_to_query(update: Update, context: CallbackContext):
         # The game has not started.
         # The creator may change the game mode, other users just get a "game has not started" message.
         if not game.started:
-            if user_can_change_mode(user, game):
-                add_mode_classic(results)
-                add_mode_fast(results)
-                add_mode_wild(results)
-                add_mode_text(results)
+            if user_can_change_mode(user, game, context.bot):
+                _add_mode_results(results)
             else:
                 add_not_started(results)
 
@@ -1335,6 +1403,14 @@ def process_result(update: Update, context: CallbackContext):
     Handler for chosen inline results.
     Checks the players actions and acts accordingly.
     """
+    lobby = _lobby_mode_result(getattr(update.chosen_inline_result, 'result_id', '') or '')
+    if lobby:
+        chat_id, mode = lobby
+        games = gm.chatid_games.get(chat_id)
+        if games and not games[-1].started:
+            _change_mode(context.bot, update.chosen_inline_result.from_user, games[-1], mode)
+        return
+
     try:
         user = update.chosen_inline_result.from_user
         gm.ensure_user_loaded(user.id)
@@ -1371,14 +1447,7 @@ def process_result(update: Update, context: CallbackContext):
         return
     elif result_id.startswith('mode_'):
         # First 5 characters are 'mode_', the rest is the gamemode.
-        mode = result_id[5:]
-        if not user_can_change_mode(user, game) or mode not in GAME_MODES:
-            logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
-            return
-        game.set_mode(mode)
-        gm.persist_game(game)
-        logger.info("Gamemode changed to {mode}".format(mode = mode))
-        send_async(context.bot, chat.id, text=__("Gamemode changed to {mode}", multi=game.translate).format(mode=mode))
+        _change_mode(context.bot, user, game, result_id[5:])
         return
     elif len(result_id) == 36:  # UUID result
         return

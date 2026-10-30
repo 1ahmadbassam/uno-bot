@@ -37,7 +37,7 @@ try:
     from telegram.error import Unauthorized
 except ImportError:
     from telegram.error import Forbidden as Unauthorized
-from telegram.error import BadRequest, TimedOut, ChatMigrated
+from telegram.error import BadRequest, TimedOut, ChatMigrated, TelegramError
 try:
     from telegram.error import RetryAfter
 except ImportError:
@@ -288,11 +288,19 @@ def user_is_creator(user, game):
     return user.id in owner
 
 
-def user_can_change_mode(user, game):
-    """Check whether a user is allowed to change the game mode"""
+def user_can_change_mode(user, game, bot=None):
+    """Check whether a user is allowed to change the game mode: the game's creator,
+    the bot's admins and, when `bot` is given, the chat's admins, before the game starts"""
     if not user or not game or getattr(game, 'started', False):
         return False
-    return user_is_creator(user, game)
+    if user_is_creator(user, game):
+        return True
+    if bot is None:
+        return False
+    try:
+        return user_is_admin(user, bot, game.chat)
+    except TelegramError:
+        return False
 
 
 def user_is_admin(user, bot, chat):

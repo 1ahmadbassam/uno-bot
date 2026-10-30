@@ -634,7 +634,14 @@ msgstr ""
 msgid "🔎 Match stats"
 msgstr ""
 
+#: bot.py:170
+msgid "There is already a game in this chat. The game creator or an admin can end it with /kill."
+msgstr ""
+
+#: bot.py:176
+msgid "A game is already open in this chat. Join it with /join."
+msgstr ""
+
 #: utils.py:393
 msgid "Change game mode"
 msgstr ""
-

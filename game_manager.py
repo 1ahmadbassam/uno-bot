@@ -546,22 +546,25 @@ class GameManager(object):
                 del self.userid_players[user.id]
         self._persist_chat(chat.id)
 
-    def end_game(self, chat, user):
+    def end_game(self, chat, user, game=None):
         """
-        End a game
+        End a game: `game`, or else the one `user` plays in this chat
         """
         self.ensure_chat_loaded(chat)
         self._maybe_unload_stale_games(exclude_chat_id=chat.id)
 
         self.logger.info("Game in chat " + str(chat.id) + " ended")
 
-        # Find the correct game instance to end
-        player = self.player_for_user_in_chat(user, chat)
+        if game is None:
+            # Find the correct game instance to end
+            player = self.player_for_user_in_chat(user, chat)
 
-        if not player:
+            if not player:
+                raise NoGameInChatError
+
+            game = player.game
+        elif game not in self.chatid_games.get(chat.id, ()):
             raise NoGameInChatError
-
-        game = player.game
 
         if self.on_game_end is not None:
             try:
