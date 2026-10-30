@@ -240,7 +240,12 @@ function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 function clock(ms) { var s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); }
 function fmtDur(ms) { var s = Math.round(ms / 1000); return Math.floor(s / 60) + 'm ' + pad(s % 60) + 's'; }
 var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fmtStamp(s) { return s ? +s.slice(8, 10) + ' ' + MONTHS[+s.slice(5, 7) - 1] + ' ' + s.slice(0, 4) + ' ' + s.slice(11, 16) : '–'; }
+// Times are the viewer's local time, as on the main page
+function fmtDate(t, seconds) {
+  var d = new Date(t);
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + (seconds ? ':' + pad(d.getSeconds()) : '');
+}
+function fmtStamp(s) { return s ? fmtDate(Date.parse(s)) : '–'; }
 function think(e) { return e.th == null ? null : Math.max(0, e.th - (G.pacing || 0) * 1000) / 1000; }
 
 // --- Cards ------------------------------------------------------------------
@@ -512,7 +517,7 @@ window.addEventListener('resize', function () { if (G && window.innerWidth !== l
 // The checker itself is in fair.js (shared with index.html); this shows its steps.
 // A seat in the proof: a rival's key ("a"/"b") or another player's first name
 function seatName(seat) { return G && G.players && G.players[seat] ? G.players[seat] : seat; }
-function fmtTime(unix) { return new Date(unix * 1000).toLocaleString(); }
+function fmtTime(unix) { return fmtDate(unix * 1000, true); }
 FairNames.card = function (card) { return cardName(card); };
 FairNames.seat = seatName;
 

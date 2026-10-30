@@ -379,7 +379,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
         <div class="form" id="form"></div>
         <div class="ch" style="margin-top:14px"><h3>Momentum</h3><span class="hint" data-tip="Win share over the most recent games compared with the whole selection. An arrow shows a player doing better or worse lately than overall.">?</span></div>
         <div class="tbl"><table id="momentum"></table></div>
-        <div class="ch" style="margin-top:14px"><h3>Periods</h3><span class="hint" data-tip="Results by calendar period in the bot's time zone, within the current season and filters (the date range is ignored here).">?</span></div>
+        <div class="ch" style="margin-top:14px"><h3>Periods</h3><span class="hint" data-tip="Results by calendar period in your local time, within the current season and filters (the date range is ignored here).">?</span></div>
         <div class="tbl"><table id="periods"></table></div>
         <div class="note" id="projection"></div>
       </div>
@@ -448,7 +448,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
 
   <section id="time">
     <h2>When they play</h2>
-    <p class="lede">Times are the bot's local time.</p>
+    <p class="lede">Times are in your local time.</p>
     <div class="grid wide">
       <div class="card">
         <div class="ch"><h3>Calendar</h3><span class="ctl"><span class="seg" id="cal-mode"><button type="button" data-v="net" class="on">Day winner</button><button type="button" data-v="games">Games</button></span><span class="hint" data-tip="One square per day. Day winner: the color of whoever won more games that day, stronger for a bigger margin. Games: darker for more games.">?</span></span></div>
@@ -677,7 +677,7 @@ var DAYPARTS = [['Morning', 5, 12], ['Afternoon', 12, 17], ['Evening', 17, 22], 
 var OUTCOMES = { win: 'Played', forfeit: 'Forfeit', manual: 'Added by hand', imported: 'Imported' };
 var P = ['a', 'b'];
 
-var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], TZ = 'UTC', SIG = '', PACING = 0;
+var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], SIG = '', PACING = 0;
 var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4'];
 var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4'];
 var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow'];
@@ -720,6 +720,18 @@ function fmtSpan(ms) {
   var h = Math.round(min / 60);
   if (h < 48) return plural(h, 'hour');
   return plural(Math.round(h / 24), 'day');
+}
+// Every time on the page is the viewer's local time. `wt` is that wall-clock time
+// written as if it were UTC, so the charts' UTC-based date helpers show local dates.
+function localTime(t) {
+  var d = new Date(t), y = d.getFullYear(), mo = d.getMonth() + 1, dd = d.getDate();
+  return {
+    y: y, mo: mo, d: dd, h: d.getHours(), mi: d.getMinutes(), wd: (d.getDay() + 6) % 7, key: y + '-' + pad(mo) + '-' + pad(dd),
+    wt: Date.UTC(y, mo - 1, dd, d.getHours(), d.getMinutes(), d.getSeconds())
+  };
+}
+function localZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'your local time'; } catch (e) { return 'your local time'; }
 }
 function keyDate(key) { return Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)); }
 function dateKey(t) { var d = new Date(t); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
@@ -1195,17 +1207,13 @@ function donut(node, o) {
 function parse(d) {
   DATA = d;
   NAMES = { a: d.players.a, b: d.players.b };
-  TZ = d.timezone || 'UTC';
   PACING = d.pacing || 0;
   SEASONS = d.seasons || [];
   ALL = (d.matches || []).map(function (m, i) {
-    var s = m.ended_at, y = +s.slice(0, 4), mo = +s.slice(5, 7), dd = +s.slice(8, 10);
-    var t = Date.parse(s), st = m.started_at ? Date.parse(m.started_at) : null;
+    var t = Date.parse(m.ended_at), st = m.started_at ? Date.parse(m.started_at) : null, L = localTime(t);
     return {
-      n: m.n || i + 1, season: m.season, t: t, key: s.slice(0, 10),
-      wt: Date.UTC(y, mo - 1, dd, +s.slice(11, 13), +s.slice(14, 16), +s.slice(17, 19) || 0),
-      y: y, mo: mo, d: dd, h: +s.slice(11, 13), mi: +s.slice(14, 16),
-      wd: (new Date(Date.UTC(y, mo - 1, dd)).getUTCDay() + 6) % 7,
+      n: m.n || i + 1, season: m.season, t: t, key: L.key, wt: L.wt,
+      y: L.y, mo: L.mo, d: L.d, h: L.h, mi: L.mi, wd: L.wd,
       w: m.winner, l: m.winner === 'a' ? 'b' : 'a', out: m.outcome, mode: m.mode, pl: m.players,
       st: st, turns: m.turns, cards: m.loser_cards_left, dur: st != null && t >= st ? (t - st) / 1000 : null,
       g: m.g || null, d: m.d || null, f: m.f || null
@@ -1567,18 +1575,7 @@ function ago(t) {
   if (d < 60e3) return 'just now';
   return fmtSpan(d) + ' ago';
 }
-// Today's date in the bot's time zone
-function todayKey() {
-  try {
-    var parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
-    var get = function (type) { return parts.filter(function (p) { return p.type === type; })[0].value; };
-    return get('year') + '-' + get('month') + '-' + get('day');
-  } catch (e) {
-    var last = DATA.matches[DATA.matches.length - 1], off = 0;
-    if (last) { var mm = /([+-])(\d\d):(\d\d)$/.exec(last.ended_at); if (mm) off = (mm[1] === '-' ? -1 : 1) * (+mm[2] * 60 + +mm[3]) * 60e3; }
-    return dateKey(Date.now() + off);
-  }
-}
+function todayKey() { return localTime(Date.now()).key; }
 
 // When the trailing player would draw level at their recent form
 function projection(R) {
@@ -2757,7 +2754,7 @@ function apply(d) {
   for (i = 0; i < names.length; i++) names[i].textContent = NAMES.b;
   $('title').textContent = NAMES.a + ' vs ' + NAMES.b;
   document.title = NAMES.a + ' vs ' + NAMES.b + ' · UNO Rivalry';
-  $('subtitle').textContent = 'UNO rivalry · ' + plural(ALL.length, 'game') + ' since ' + (ALL.length ? fmtKey(ALL[0].key) : '–') + ' · times in ' + TZ;
+  $('subtitle').textContent = 'UNO rivalry · ' + plural(ALL.length, 'game') + ' since ' + (ALL.length ? fmtKey(ALL[0].key) : '–') + ' · times in ' + localZone();
   $('footer').innerHTML = 'Generated by the UNO bot. Sessions break after 30 minutes without a game; percentage records start at ' + MIN_GAMES + ' games; Elo starts at ' + ELO_START + ' with K = ' + ELO_K + '. <a href="scores.json">scores.json</a>';
   $('loading').style.display = 'none';
   $('app').style.display = '';
