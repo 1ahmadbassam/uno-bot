@@ -589,12 +589,34 @@ def callback_router(update: Update, context: CallbackContext):
 
 def _answer_callback(bot, query, text=None, show_alert=False):
     try:
+        dispatcher.run_async(_do_answer_callback, bot, query, text, show_alert)
+    except Exception:
+        _do_answer_callback(bot, query, text, show_alert)
+
+
+def _do_answer_callback(bot, query, text=None, show_alert=False):
+    try:
         if text is None:
             bot.answerCallbackQuery(query.id)
         else:
             bot.answerCallbackQuery(query.id, text=text, show_alert=show_alert)
     except BadRequest:
         pass
+
+
+def _edit_message_text(query, text, reply_markup=None, on_error_fallback=None):
+    try:
+        dispatcher.run_async(_do_edit_message_text, query, text, reply_markup, on_error_fallback)
+    except Exception:
+        _do_edit_message_text(query, text, reply_markup, on_error_fallback)
+
+
+def _do_edit_message_text(query, text, reply_markup=None, on_error_fallback=None):
+    try:
+        query.edit_message_text(text=text, reply_markup=reply_markup)
+    except (BadRequest, Exception):
+        if on_error_fallback:
+            on_error_fallback()
 
 
 def _game_for_callback(bot, query, chat_id):
@@ -633,14 +655,11 @@ def _color_callback_for_game(bot, query, game, chat_id, color, context):
     is_opening = getattr(game, 'opening_color_choice', False)
 
     if query.message:
-        try:
-            chosen_text = __("🎨 {name} chose {color}.", multi=game.translate).format(
-                name=display_name(chooser.user),
-                color=color_display
-            )
-            query.edit_message_text(text=chosen_text, reply_markup=None)
-        except (BadRequest, Exception):
-            pass
+        chosen_text = __("🎨 {name} chose {color}.", multi=game.translate).format(
+            name=display_name(chooser.user),
+            color=color_display
+        )
+        _edit_message_text(query, text=chosen_text, reply_markup=None)
 
     reset_waiting_time(bot, chooser)
     game.choose_color(color)
@@ -707,7 +726,6 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
         draw_counter_before = getattr(game, 'draw_counter', 0)
         reset_waiting_time(bot, player)
         erupted = do_draw(bot, player)
-        gm.persist_game(game)
 
         # Tell only the drawing player which card they got (the callback answer
         # is private), so they can decide to play or pass without the inline menu
@@ -734,10 +752,12 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
 
                 reply_markup = make_turn_keyboard(game, chat_id)
                 if query.message:
-                    try:
-                        query.edit_message_text(text=prompt_text, reply_markup=reply_markup)
-                    except (BadRequest, Exception):
-                        send_async(bot, chat_id, text=prompt_text, reply_markup=reply_markup, disable_notification=True)
+                    _edit_message_text(
+                        query,
+                        text=prompt_text,
+                        reply_markup=reply_markup,
+                        on_error_fallback=lambda: send_async(bot, chat_id, text=prompt_text, reply_markup=reply_markup, disable_notification=True)
+                    )
                 else:
                     send_async(bot, chat_id, text=prompt_text, reply_markup=reply_markup, disable_notification=True)
 
@@ -746,10 +766,7 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
             else:
                 # Penalty draw (+2 or +4): turn advanced to next player
                 if query.message:
-                    try:
-                        query.edit_message_text(text=draw_action_text, reply_markup=None)
-                    except (BadRequest, Exception):
-                        pass
+                    _edit_message_text(query, text=draw_action_text, reply_markup=None)
 
                 nextplayer_message = __("Next player: {name}", multi=game.translate).format(
                     name=display_name(game.current_player.user))
@@ -768,13 +785,10 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
         gm.persist_game(game)
 
         if query.message:
-            try:
-                pass_action_text = __("⏭️ {name} passed.", multi=game.translate).format(
-                    name=player_name
-                )
-                query.edit_message_text(text=pass_action_text, reply_markup=None)
-            except (BadRequest, Exception):
-                pass
+            pass_action_text = __("⏭️ {name} passed.", multi=game.translate).format(
+                name=player_name
+            )
+            _edit_message_text(query, text=pass_action_text, reply_markup=None)
 
         if game_is_running(game):
             pass_msg = __("Next player: {name}", multi=game.translate).format(

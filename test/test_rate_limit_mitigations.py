@@ -79,7 +79,7 @@ if 'shared_vars' not in sys.modules:
         dispatcher=types.SimpleNamespace(
             add_handler=lambda *a, **k: None,
             add_error_handler=lambda *a, **k: None,
-            run_async=lambda f, *a, **k: None
+            run_async=lambda f, *a, **k: f(*a, **k)
         )
     )
     sv.dispatcher = sv.updater.dispatcher
@@ -91,8 +91,7 @@ else:
             sv.dispatcher.add_handler = lambda *a, **k: None
         if not hasattr(sv.dispatcher, 'add_error_handler'):
             sv.dispatcher.add_error_handler = lambda *a, **k: None
-        if not hasattr(sv.dispatcher, 'run_async'):
-            sv.dispatcher.run_async = lambda f, *a, **k: None
+        sv.dispatcher.run_async = lambda f, *a, **k: f(*a, **k)
 
 from telegram.error import RetryAfter
 from utils import (
@@ -448,6 +447,41 @@ class TestRateLimitMitigations(unittest.TestCase):
         _answer_inline_query_with_retry(bot, "query_id_123", [])
         self.assertEqual(bot.answerInlineQuery.call_count, 2)
         mock_sleep.assert_called_once_with(3.5)
+
+    def test_callback_answer_and_message_edit_scheduled_via_dispatcher(self):
+        import bot
+        fake_bot = MagicMock()
+        fake_query = MagicMock()
+        with patch('bot.dispatcher.run_async') as mock_run_async:
+            bot._answer_callback(fake_bot, fake_query, text="Hello", show_alert=True)
+            mock_run_async.assert_called_once()
+            self.assertIs(mock_run_async.call_args[0][0], bot._do_answer_callback)
+
+        with patch('bot.dispatcher.run_async') as mock_run_async:
+            bot._edit_message_text(fake_query, text="Prompt", reply_markup=None)
+            mock_run_async.assert_called_once()
+            self.assertIs(mock_run_async.call_args[0][0], bot._do_edit_message_text)
+
+    def test_draw_callback_does_not_call_persist_game_redundantly_in_bot(self):
+        bot = MagicMock()
+        chat = MockChat(-100123)
+        game = Game(chat)
+        p1 = Player(game, MockUser(111, "Alice"))
+        Player(game, MockUser(222, "Bob"))
+        game.current_player = p1
+        game.started = True
+        game.last_card = c.Card(c.RED, '5')
+        p1.cards = [c.Card(c.GREEN, '1')]
+        game.deck.cards = [c.Card(c.BLUE, '2')]
+        query = MagicMock(from_user=p1.user, message=MagicMock())
+
+        with patch('bot.gm') as mock_gm, patch('bot.send_async'), patch('bot.send_paced'), \
+                patch('bot.start_player_countdown'), patch('bot.game_is_running', return_value=True), \
+                patch('actions.gm') as mock_actions_gm, patch('actions.send_async'):
+            mock_gm.chatid_games.get.return_value = [game]
+            _handle_action_callback(bot, query, chat.id, "draw", MagicMock())
+            mock_actions_gm.persist_game.assert_called_once_with(game)
+            mock_gm.persist_game.assert_not_called()
 
     def test_ensure_chat_loaded_handles_int_and_chat_object(self):
         from game_manager import GameManager
