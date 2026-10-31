@@ -292,7 +292,8 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
 
 
 def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
-    """Plays the selected card and sends an update to the group if needed"""
+    """Plays the selected card and sends an update to the group if needed;
+    returns the player a Storm Swap exchanged hands with, if any"""
     card = c.from_str(result_id)
     think = rivalry_log.think_time(player.game, player)
     # /cancel only holds for the card played next, whatever it is (game.turn() clears it)
@@ -302,7 +303,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     game = player.game
     chat = game.chat
     rivalry_log.played(game, player, card, think, cancelled=cancelled)
-    storm.apply(game, player, card, cancelled)
+    swapped = storm.apply(game, player, card, cancelled)
 
     if c.is_draw_wild(card):
         game.last_bluffer = player
@@ -334,6 +335,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
 
     if game in gm.chatid_games.get(chat.id, []):
         gm.persist_game(game)
+    return swapped
 
 
 def do_draw(bot, player):

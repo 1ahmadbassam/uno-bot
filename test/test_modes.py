@@ -119,8 +119,8 @@ class TestModeRules(unittest.TestCase):
         picked = [op[1] for op in ops if op[0] == 'c']
         self.assertTrue(picked)
         self.assertTrue(set(picked) <= set(SIX['colors']))
-        # Both hands of 8 come right after the first card
-        deal = [op for op in ops if op[0] == 'd'][1:17]
+        # Both hands of 8 come right after the first card (and any +4 turned up and put back)
+        deal = [op for op in ops if op[0] == 'd' and op[2] is not None][:16]
         self.assertEqual(Counter(op[2] for op in deal), {'P1': 8, 'P2': 8})
 
     @unittest.skipUnless(shutil.which('node'), "Node.js is not installed")

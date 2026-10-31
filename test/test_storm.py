@@ -35,8 +35,9 @@ def storm_game(players=2):
               for i in range(players)]
     game.started = True
     game.last_card = c.Card(c.RED, '5')
-    for p in seated:
-        p.cards = [c.Card(c.BLUE, str(n)) for n in range(1, 4 + len(p.cards))]
+    # A different hand for each player, so a test can tell whose cards someone got
+    for i, p in enumerate(seated):
+        p.cards = [c.Card(c.COLORS[i % 4], str(n)) for n in range(1, 4 + i)]
     return game, seated
 
 
@@ -106,9 +107,12 @@ class TestStormEffects(unittest.TestCase):
     def test_swap_follows_the_direction_of_play(self):
         game, (p1, p2, p3) = storm_game(players=3)
         game.reverse()
-        before = list(p1.prev.cards)
+        # In reversed play the next player is the one seated before
+        self.assertIs(p1.next, p3)
+        mine, theirs = list(p3.cards), list(p1.cards)
+        others = list(p2.cards)
         play(game, p1, c.Card(c.RED, c.SWAP))
-        self.assertEqual(p1.cards, before)
+        self.assertEqual((p1.cards, p3.cards, p2.cards), (mine, theirs, others))
 
     def test_drop_deals_a_new_hand_of_the_same_size(self):
         game, (p1, p2) = storm_game()
@@ -120,6 +124,19 @@ class TestStormEffects(unittest.TestCase):
         kinds = [op[0] for op in game.rng.ops]
         self.assertEqual(kinds[kinds.index('b'):], ['b', 'd', 'd', 'd'])
         self.assertEqual(game.rng.ops[kinds.index('b')][1], ['b_1', 'b_2', 'b_3'])
+
+    def test_play_returns_who_a_swap_hit(self):
+        game, (p1, p2) = storm_game()
+        p1.cards = hand('b_1')
+        with patch.object(actions, 'gm', MagicMock()), patch.object(actions, 'send_async'):
+            p1.cards.append(c.Card(c.RED, c.SWAP))
+            swapped = actions.do_play_card(MagicMock(), p1, 'r_swap')
+        # p2 is left with p1's last card: the bot announces their UNO
+        self.assertIs(swapped, p2)
+        self.assertEqual(len(p2.cards), 1)
+        p2.cards.append(c.Card(c.RED, '9'))
+        with patch.object(actions, 'gm', MagicMock()), patch.object(actions, 'send_async'):
+            self.assertIsNone(actions.do_play_card(MagicMock(), p2, 'r_9'))
 
     def test_a_winning_card_does_nothing(self):
         game, (p1, p2) = storm_game()
@@ -142,15 +159,21 @@ class TestCancel(unittest.TestCase):
     def setUp(self):
         self.game, (self.p1, self.p2) = storm_game()
 
-    def run_cancel(self, user, game=None):
+    def run_cancel(self, user, game=None, loaded=True):
         update = MagicMock()
         update.message.chat.id = -1
         update.message.from_user = user
         handler = bot.cancel_effect.__wrapped__.__wrapped__
+        games = {-1: [game or self.game]} if game is not False else {}
         with patch.object(bot, 'gm') as gm, patch.object(bot, 'send_async') as send:
-            gm.chatid_games = {-1: [game or self.game]} if game is not False else {}
+            gm.chatid_games = games if loaded else {}
+            # The chat's games come back from storage when they aren't in memory
+            gm.ensure_chat_loaded.side_effect = lambda chat: gm.chatid_games.update(games)
             handler(update, MagicMock())
         return send.call_args[1]['text']
+
+    def test_cancel_loads_a_chat_that_is_not_in_memory(self):
+        self.assertEqual(self.run_cancel(self.p1.user, loaded=False), "Cards exchange disabled!")
 
     def test_messages(self):
         self.assertEqual(self.run_cancel(self.p2.user), "Not your turn!")
@@ -261,6 +284,15 @@ class TestStormLog(LoggedGame):
         self.play(self.alice, c.Card(c.RED, c.PLUS_ONE))
         draw, = self.events('draw')
         self.assertEqual((draw['p'], draw['r'], draw['src'], len(draw['cs'])), ('b', 'plus1', 'a', 1))
+
+    def test_a_storm_game_is_marked_at_the_end(self):
+        log = rivalry_log.finish(self.game, A, 'win')
+        self.assertEqual(log['ev'][-1]['st'], 1)
+        # Logged as a Storm game though nobody played a Storm card
+        self.assertEqual(rs.summarize_log(log)['storm']['a']['sw'], 0)
+        self.game.mode = 'classic'
+        rivalry_log.start(self.game)
+        self.assertNotIn('st', rivalry_log.finish(self.game, A, 'win')['ev'][-1])
 
     def test_a_cancelled_card_is_marked(self):
         storm.toggle_cancel(self.game)

@@ -1269,6 +1269,8 @@ def cancel_effect(update: Update, context: CallbackContext):
     effect of their next Swap or Drop off, or back on (storm.py)"""
     chat = update.message.chat
     user = update.message.from_user
+    # The chat's games may not be in memory (after a restart, or unloaded while idle)
+    gm.ensure_chat_loaded(chat)
     games = gm.chatid_games.get(chat.id)
     game = games[-1] if games else None
     reply = update.message.message_id
@@ -1470,6 +1472,7 @@ def process_result(update: Update, context: CallbackContext):
     last_anti_cheat = player.anti_cheat
     player.anti_cheat += 1
     played_card = False
+    swapped = None
     color_chosen_announcement = ""
 
     if result_id in ('hand', 'gameinfo', 'nogame'):
@@ -1525,13 +1528,17 @@ def process_result(update: Update, context: CallbackContext):
             return
     else:
         reset_waiting_time(context.bot, player)
-        do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
+        swapped = do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
         played_card = True
 
     if game_is_running(game):
         gm.persist_game(game)
         # Only announce UNO right after the card that left the player with one card
         uno_prefix = "🔥 UNO!\n" if played_card and len(player.cards) == 1 else ""
+        if swapped is not None and len(swapped.cards) == 1:
+            # A Storm Swap left the other player with one card
+            uno_prefix += __("🔥 UNO! {name} has one card left.\n", multi=game.translate).format(
+                name=display_name(swapped.user))
         if game.choosing_color:
             color_prompt = uno_prefix + __("{name}, please choose a color:", multi=game.translate).format(
                 name=display_name(game.current_player.user)

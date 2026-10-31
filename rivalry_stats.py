@@ -735,7 +735,7 @@ def summarize_log(log):
         'samples': samples,
         'ms': end.get('t', events[-1]['t']),
     }
-    if storm_game:
+    if storm_game or end.get('st'):
         summary['storm'] = storm
     if 'vr' in end:
         rolls = end['vr']

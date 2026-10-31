@@ -2162,7 +2162,7 @@ function renderVolcano(R) {
   if (firsts.length) t.push(tile('First eruption', 'turn ' + f(firsts.reduce(function (s, v) { return s + v; }, 0) / firsts.length), 'on average, in the games that had one'));
   t.push(pairTile('Win rate in Volcano', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Volcano game in the selection, logged or not.',
     wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
-  t.push(pairTile('Eruptions taken', per.a.n, per.b.n, 'Eruptions that landed on a player, and how many cards they got from them.', per.a.cards + ' cards', per.b.cards + ' cards'));
+  t.push(pairTile('Eruptions taken', per.a.n, per.b.n, 'Eruptions that landed on a player, and how many cards they got from them.', plural(per.a.cards, 'card'), plural(per.b.cards, 'card')));
   t.push(pairTile('Erupted on while on UNO', per.a.uno, per.b.uno, 'Eruptions that hit a player holding their last card, and how many of those games they still won.',
     per.a.unoW + ' still won', per.b.unoW + ' still won'));
   $('vo-tiles').innerHTML = t.join('');
@@ -2212,7 +2212,7 @@ function renderStorm(R) {
   });
   var n = logged.length;
   function f(v) { return (+v).toFixed(1); }
-  function signed(v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + ' cards'; }
+  function signed(v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + plural(Math.abs(v), 'card'); }
   var t = [];
   t.push(pairTile('Win rate in Storm', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Storm game in the selection, logged or not.',
     wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
@@ -2221,7 +2221,7 @@ function renderStorm(R) {
   t.push(pairTile('Swaps to a smaller hand', tot.a.up + ' of ' + tot.a.sw, tot.b.up + ' of ' + tot.b.sw, 'Swaps that gave a player a hand with fewer cards than the one they gave away.'));
   t.push(pairTile('Swapped onto UNO', tot.a.uno, tot.b.uno, 'Swaps that left the other player holding a single card.'));
   t.push(pairTile('Drops', tot.a.dr, tot.b.dr, 'Hands put back into the deck for a new one of the same size, and how many cards that was.',
-    tot.a.back + ' cards', tot.b.back + ' cards'));
+    plural(tot.a.back, 'card'), plural(tot.b.back, 'card')));
   t.push(pairTile('+1s played', tot.a.p1, tot.b.p1, 'Each one made the other player draw a card at once.', f(tot.a.p1 / n) + ' per game', f(tot.b.p1 / n) + ' per game'));
   t.push(pairTile('Cancelled with /cancel', tot.a.cx, tot.b.cx, 'Swaps and Drops played after /cancel, so without their effect.'));
   $('st-tiles').innerHTML = t.join('');

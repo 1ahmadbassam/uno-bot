@@ -225,5 +225,8 @@ def finish(game, winner_id, outcome):
         end['vr'] = getattr(game, 'volcano_rolls', 0)
         # And eruptions: with more players, some may have hit a player the log leaves out
         end['ve'] = getattr(game, 'volcano_eruptions', 0)
+    if game.rules.storm:
+        # A Storm game, even when nobody played a Storm card (rivalry_stats.summarize_log)
+        end['st'] = 1
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

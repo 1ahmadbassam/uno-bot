@@ -38,18 +38,19 @@ def apply(game, player, card, cancelled=False):
     """
     The effect of `card`, which `player` just played (the turn has already passed).
     `cancelled`: the player used /cancel before playing it. A card that won the
-    game does nothing.
+    game does nothing. Returns the player a Swap exchanged hands with, if any.
     """
     if not game.rules.storm or not is_storm_card(card) or not player.cards:
-        return
+        return None
     if card.value == c.PLUS_ONE:
         _plus_one(game, player)
     elif cancelled:
-        return
+        return None
     elif card.value == c.SWAP:
-        _swap(game, player)
+        return _swap(game, player)
     elif card.value == c.DROP:
         _drop(game, player)
+    return None
 
 
 def _plus_one(game, player):
@@ -67,9 +68,10 @@ def _plus_one(game, player):
 def _swap(game, player):
     other = player.next
     if other is None or other is player:
-        return
+        return None
     player.cards, other.cards = other.cards, player.cards
     rivalry_log.swapped(game, player, other)
+    return other
 
 
 def _drop(game, player):
