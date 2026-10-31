@@ -655,6 +655,25 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
     </div>
+
+    <div id="sp-crazy" class="mode-block">
+    <h3 class="mode-h">👻 Crazy</h3>
+    <p class="lede" id="cz-lede"></p>
+    <div id="cz-body">
+    <div class="card"><div class="tiles" id="cz-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>+8s per game</h3><span class="hint" data-tip="+8s played, the ones played as a bluff, and the +8 piles drawn, per logged Crazy game.">?</span></div>
+        <div class="chart" id="c-cz-eights"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Dealt a +8 and winning</h3><span class="hint" data-tip="Win rates in the logged Crazy games, by whether a player's starting hand had a +8.">?</span></div>
+        <div class="tbl"><table id="cz-win"></table></div>
+      </div>
+    </div>
+    </div>
+    </div>
   </section>
 
   <section id="fair">
@@ -746,8 +765,8 @@ var P = ['a', 'b'];
 
 var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], SIG = '', PACING = 0;
 // The Storm cards come last, so older summaries (6 types) keep their indexes
-var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1'];
-var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1'];
+var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8'];
+var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8'];
 var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow'];
 var COL = {};
 var S = {
@@ -1491,6 +1510,7 @@ function analyze(ms) {
 // One of CARD_TYPES for a card such as 'r_5', 'g_draw' or 'draw_four'
 function cardType(card) {
   if (card === 'draw_four') return 'd4';
+  if (card === 'draw_eight') return 'd8';
   if (card === 'colorchooser') return 'wild';
   var v = card.indexOf('_') >= 0 ? card.slice(card.indexOf('_') + 1) : card;
   return { skip: 'skip', reverse: 'rev', draw: 'd2', swap: 'swap', drop: 'drop', plus1: 'p1' }[v] || 'num';
@@ -2130,7 +2150,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2326,6 +2346,68 @@ function renderTornado(R) {
   return true;
 }
 
+// The Crazy mode (modes.CRAZY): 8 starting cards, two +8s in the deck, and the game info
+// doesn't show how many cards anyone holds; true when its block shows
+function renderCrazy(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'crazy'; });
+  $('sp-crazy').style.display = games.length ? '' : 'none';
+  if (!games.length) return false;
+  var logged = games.filter(function (m) { return m.d && m.d.crazy; });
+  var wins = { a: 0, b: 0 };
+  games.forEach(function (m) { wins[m.w]++; });
+  if (!logged.length) {
+    $('cz-lede').innerHTML = plural(games.length, 'Crazy game') + ' in the selection, none of them logged turn by turn yet.';
+    $('cz-body').style.display = 'none';
+    return true;
+  }
+  $('cz-body').style.display = '';
+  $('cz-lede').innerHTML = 'Classic rules with 8 starting cards and two Wild +8s in the deck, and nobody can look up how many cards the others hold. ' +
+    plural(logged.length, 'of the ' + games.length + ' Crazy game') + ' in the selection were logged.';
+  var keys = ['k8', 'p8', 'b8', 'n8', 't8'], tot = {};
+  var dealt = { yes: { a: [0, 0], b: [0, 0] }, no: { a: [0, 0], b: [0, 0] } };
+  P.forEach(function (p) { tot[p] = {}; keys.forEach(function (k) { tot[p][k] = 0; }); });
+  logged.forEach(function (m) {
+    var cz = m.d.crazy;
+    P.forEach(function (p) {
+      var mine = cz[p] || {}, key = mine.k8 ? 'yes' : 'no';
+      keys.forEach(function (k) { tot[p][k] += mine[k] || 0; });
+      dealt[key][p][1]++;
+      if (m.w === p) dealt[key][p][0]++;
+    });
+  });
+  var n = logged.length;
+  function f(v) { return (+v).toFixed(1); }
+  var t = [];
+  t.push(pairTile('Win rate in Crazy', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Crazy game in the selection, logged or not.',
+    wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
+  t.push(pairTile('+8s played', tot.a.p8, tot.b.p8, 'Wild +8s played, all logged games added up.', f(tot.a.p8 / n) + ' per game', f(tot.b.p8 / n) + ' per game'));
+  t.push(pairTile('+8 bluffs', tot.a.b8 + ' of ' + tot.a.p8, tot.b.b8 + ' of ' + tot.b.p8, 'Wild +8s played while still holding a card of the active color, which the rules forbid unless nobody challenges.'));
+  t.push(pairTile('+8 piles drawn', tot.a.n8, tot.b.n8, 'How often a player drew the cards of a +8 (also after losing a challenge or being caught bluffing), and how many cards that was.',
+    plural(tot.a.t8, 'card'), plural(tot.b.t8, 'card')));
+  t.push(pairTile('+8s dealt', tot.a.k8, tot.b.k8, 'Wild +8s in the starting hands of 8 cards.'));
+  $('cz-tiles').innerHTML = t.join('');
+
+  var cats = ['Played', 'Bluffs', 'Piles drawn'], ks = ['p8', 'b8', 'n8'];
+  barChart($('c-cz-eights'), {
+    cats: cats, grouped: true, yFmt: function (v) { return f(v); },
+    stacks: P.map(function (p) { return { color: COL[p], values: ks.map(function (k) { return tot[p][k] / n; }) }; }),
+    tip: function (ci) {
+      return '<b>+8s: ' + cats[ci].toLowerCase() + '</b>' + P.map(function (p) {
+        return row(sw(p) + nm(p), f(tot[p][ks[ci]] / n) + ' <span class="m">' + tot[p][ks[ci]] + ' in all</span>');
+      }).join('') + '<div class="m">per logged Crazy game</div>';
+    }
+  });
+
+  var rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  [['Dealt a +8', 'yes'], ['Not dealt one', 'no']].forEach(function (r) {
+    var x = dealt[r[1]], sa = share(x.a[0], x.a[1]), sb = share(x.b[0], x.b[1]);
+    rows.push('<tr><td>' + r[0] + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa, 0) + '<span class="meta">won ' + x.a[0] + ' of ' + x.a[1] + '</span></td>' +
+      '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
+  });
+  $('cz-win').innerHTML = rows.join('');
+  return true;
+}
+
 // --- Fair play ----------------------------------------------------------------
 // Statistical tests on the logged games, and the proofs of the provably fair ones
 // (fair.js checks those in the browser, the same way the replay page does)
@@ -2405,10 +2487,10 @@ function holm(ps) {
 }
 
 // Number, action (skip, reverse, +2) and wild (wild, +4) shares of a fresh deck
-var GROUPS = [[0], [1, 2, 3, 6, 7, 8], [4, 5]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
+var GROUPS = [[0], [1, 2, 3, 6, 7, 8], [4, 5, 9]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {

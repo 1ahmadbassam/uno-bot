@@ -17,7 +17,7 @@ class Mode(object):
     """The rules of one game mode"""
 
     def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False,
-                 bluff=True, tornado=False):
+                 bluff=True, tornado=False, hide_counts=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -35,6 +35,8 @@ class Mode(object):
         # Whether a pending +4 can be answered with another +4, or a +2 of its color
         # (Player._card_playable)
         self.tornado = tornado
+        # Whether the game info leaves out how many cards each player holds (results.game_info)
+        self.hide_counts = hide_counts
 
 
 CLASSIC = Mode('classic', N_("🎻 Classic mode"), N_('Classic 🎻'))
@@ -43,9 +45,10 @@ WILD = Mode('wild', N_("🐉 Wild mode"), N_('Into the Wild~ 🐉'), deck='wild'
 VOLCANO = Mode('volcano', N_("🌋 Volcano mode"), N_('Ka-Boom! 🌋'), volcano=True)
 STORM = Mode('storm', N_("🌧️ Storm mode"), N_('Dance in the Rain 🌧️'), deck='storm', storm=True)
 TORNADO = Mode('tornado', N_("🌪️ Tornado mode"), N_('Wind of Revolution 🌪️'), bluff=False, tornado=True)
+CRAZY = Mode('crazy', N_("👻 Crazy mode"), N_('Why so Serious? 👻️'), deck='crazy', hand_size=8, hide_counts=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

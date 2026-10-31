@@ -253,6 +253,7 @@ function think(e) { return e.th == null ? null : Math.max(0, e.th - (G.pacing ||
 // --- Cards ------------------------------------------------------------------
 function parts(card) {
   if (card === 'draw_four') return { color: 'x', label: '+4' };
+  if (card === 'draw_eight') return { color: 'x', label: '+8' };
   if (card === 'colorchooser') return { color: 'x', label: 'W' };
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇅', drop: '⤓', plus1: '+1' }[v] || v };
@@ -265,6 +266,7 @@ function chip(card, o) {
 }
 function cardName(card) {
   if (card === 'draw_four') return 'Wild +4';
+  if (card === 'draw_eight') return 'Wild +8';
   if (card === 'colorchooser') return 'Wild';
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return (COLOR_NAMES[card.slice(0, i)] || '') + ' ' + ({ skip: 'skip', reverse: 'reverse', draw: '+2', plus1: '+1' }[v] || v);
@@ -322,7 +324,7 @@ function describe(e) {
     case 'draw':
       var n = (e.cs || []).length;
       if (e.r === 'vol') return who + ' drew a card' + (e.ok ? '<span class="tag">playable</span>' : '');
-      return who + ' drew ' + plural(n, 'card') + ' <span class="tag">' + (REASONS[e.r] || e.r) + '</span>';
+      return who + ' drew ' + plural(n, 'card') + ' <span class="tag">' + (REASONS[e.r] || e.r) + '</span>' + (e.e8 ? '<span class="tag">👻 +8</span>' : '');
     case 'erupt':
       return '🌋 Ka-Boom! The volcano gave ' + who + ' ' + plural((e.cs || []).length, 'card') +
         ' <span class="tag">eruption ' + e.i + ' of 5</span>' +
@@ -414,7 +416,7 @@ function drawChart() {
 
 function renderStats() {
   var s = { a: {}, b: {} };
-  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0 }; });
+  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0, p8: 0, t8: 0 }; });
   var hands = { a: (G.events[0].h.a || []).length, b: (G.events[0].h.b || []).length };
   G.events.forEach(function (e) {
     if (e.k === 'swap') {
@@ -430,6 +432,7 @@ function renderStats() {
     if (e.k === 'play') {
       x.played++;
       if (e.cx) x.cancels++;
+      if (e.c === 'draw_eight') x.p8++;
       if (e._pile) x.stacks++;
       if (e._ww) x.ww++;
       if (!/_\d$/.test(e.c)) x.actions++;
@@ -438,6 +441,7 @@ function renderStats() {
     } else if (e.k === 'draw') {
       if (e.r === 'vol') x.vol++; else x.forced += (e.cs || []).length;
       if (e._took) x.big = Math.max(x.big, e._took);
+      if (e.e8) x.t8 += (e.cs || []).length;
       hands[e.p] = e.h;
       x.max = Math.max(x.max, e.h);
     } else if (e.k === 'erupt') {
@@ -449,6 +453,7 @@ function renderStats() {
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
   if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
   if (G.mode === 'tornado') rows.splice(4, 0, ['🌪️ Stacked on a +4', 'stacks'], ['🌪️ Color Chooser on Color Chooser', 'ww'], ['🌪️ Biggest pile drawn', 'big']);
+  if (G.mode === 'crazy') rows.splice(4, 0, ['👻 +8s played', 'p8'], ['👻 Cards drawn from +8s', 't8']);
   if (G.mode === 'storm') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
     rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + s.a[r[1]] + '</td><td class="num">' + s.b[r[1]] + '</td></tr>'; }).join('') +

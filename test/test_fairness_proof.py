@@ -49,6 +49,9 @@ def full_deck(mode):
             copies = 4 if mode == 'wild' else (1 if value == '0' else 2)
             cards += ['%s_%s' % (color, value)] * copies
     cards += ['colorchooser', 'draw_four'] * (6 if mode == 'wild' else 4)
+    if mode == 'crazy':
+        # The classic deck and two +8s
+        cards += ['draw_eight'] * 2
     return cards
 
 
@@ -665,12 +668,12 @@ class TestFairPlayExport(unittest.TestCase):
             {'k': 'end', 't': 10, 'p': 'a', 'o': 'win'},
         ]}
         d = rs.summarize_log(log)
-        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0])
+        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0])
         self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
-        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0])
-        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
-        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0])
+        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
 
     def test_fair_status(self):
         import rivalry_stats as rs

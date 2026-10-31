@@ -450,7 +450,7 @@ def inline_data(page, data):
 # --- Game logs (rivalry_log.py) -------------------------------------------
 
 # The Storm cards come last, so older summaries (6 types) keep their indexes
-CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1')
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8')
 ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
 LOG_COLORS = ('r', 'b', 'g', 'y')
 
@@ -531,6 +531,12 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
             lines.append("Color Chooser on Color Chooser: " + pair({key: tn[key]['ww'] for key in s}))
         if any(tn[key]['big'] for key in s):
             lines.append("Biggest penalty drawn: " + pair({key: "+%d" % tn[key]['big'] if tn[key]['big'] else "–" for key in s}))
+    if d.get('crazy'):
+        cz = d['crazy']
+        lines.append("👻 +8s played: " + pair({key: "%d (%d bluff%s)" % (cz[key]['p8'], cz[key]['b8'], "" if cz[key]['b8'] == 1 else "s")
+                                               for key in s}))
+        if any(cz[key]['n8'] for key in s):
+            lines.append("Cards drawn from +8s: " + pair({key: cz[key]['t8'] for key in s}))
     if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
         lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
@@ -559,6 +565,8 @@ def card_type(card):
     """One of CARD_TYPES for a card string such as 'r_5', 'g_draw' or 'draw_four'"""
     if card == 'draw_four':
         return 'd4'
+    if card == 'draw_eight':
+        return 'd8'
     if card == 'colorchooser':
         return 'wild'
     value = card.split('_', 1)[1] if '_' in card else card
@@ -629,6 +637,10 @@ def summarize_log(log):
     # on a Color Chooser (from the pile 'pi' and card 'on' each play logs), piles drawn and
     # the biggest one
     tornado = {key: {'s4': 0, 's2': 0, 'ww': 0, 'pen': 0, 'big': 0} for key in hands}
+    # Crazy mode, per rival: +8s dealt in the starting hand, +8s played and how many of them
+    # were bluffs, and the +8 piles they drew and their cards (draws logged with 'e8')
+    crazy = {key: {'k8': sum(1 for card in cards if card == 'draw_eight'), 'p8': 0, 'b8': 0, 'n8': 0, 't8': 0}
+             for key, cards in deal['h'].items()}
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if kind == 'swap':
@@ -671,12 +683,15 @@ def summarize_log(log):
                 s['co'][LOG_COLORS.index(e['c'][0])] += 1
             if kind_of_card == 'd4' and e.get('bl'):
                 s['bl'] += 1
+            if kind_of_card == 'd8':
+                crazy[p]['p8'] += 1
+                crazy[p]['b8'] += 1 if e.get('bl') else 0
             if e.get('pi') and e.get('on') == 'draw_four' and kind_of_card in ('d2', 'd4'):
                 tornado[p]['s4' if kind_of_card == 'd4' else 's2'] += 1
             elif e.get('on') == 'colorchooser' and kind_of_card == 'wild':
                 tornado[p]['ww'] += 1
-            if kind_of_card in ('d2', 'd4'):
-                stack += 2 if kind_of_card == 'd2' else 4
+            if kind_of_card in ('d2', 'd4', 'd8'):
+                stack += {'d2': 2, 'd4': 4, 'd8': 8}[kind_of_card]
             else:
                 stack = 0
             if e['h'] == 1 and hands[p] > 1:
@@ -687,6 +702,9 @@ def summarize_log(log):
             count = len(e.get('cs') or ())
             before_draw[p] = hands[p]
             _count_cards(e.get('cs') or (), s['dt'], s['dc'])
+            if e.get('e8'):
+                crazy[p]['n8'] += 1
+                crazy[p]['t8'] += count
             if e.get('r') == 'vol':
                 s['dv'] += 1
                 s['dk'] += e.get('ok', 0)
@@ -751,7 +769,7 @@ def summarize_log(log):
         'fc': deal.get('fc'),
         # (action cards, wild cards) in each starting hand
         'deal': {key: [sum(1 for card in cards if card_type(card) in ACTION_TYPES),
-                       sum(1 for card in cards if card_type(card) in ('wild', 'd4'))]
+                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8'))]
                  for key, cards in deal['h'].items()},
         'fin': finisher.get(winner) if end.get('o') == 'win' else None,
         'stack': max_stack,
@@ -762,6 +780,8 @@ def summarize_log(log):
         summary['storm'] = storm
     if end.get('tn'):
         summary['tornado'] = tornado
+    if end.get('cz'):
+        summary['crazy'] = crazy
     if 'vr' in end:
         rolls = end['vr']
         summary['vol'] = {

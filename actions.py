@@ -271,9 +271,7 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
         game.last_bluffer = None
         if unanswered:
             game.draw_counter = 0
-            send_async(bot, game.chat.id,
-                       text=__("The player who played the +4 left the game, so its penalty is cancelled.",
-                               multi=game.translate))
+            send_async(bot, game.chat.id, text=_draw_wild_left_text(game))
         gm.persist_game(game)
         return False
 
@@ -376,6 +374,13 @@ def do_draw(bot, player):
     return erupted
 
 
+def _draw_wild_left_text(game):
+    """The message for a +4 (or the Crazy mode's +8) whose player left before anyone drew it"""
+    if game.last_card is not None and game.last_card.special == c.DRAW_EIGHT:
+        return __("The player who played the +8 left the game, so its penalty is cancelled.", multi=game.translate)
+    return __("The player who played the +4 left the game, so its penalty is cancelled.", multi=game.translate)
+
+
 def do_call_bluff(bot, player):
     """Handles the bluff calling"""
     game = player.game
@@ -387,9 +392,7 @@ def do_call_bluff(bot, player):
         # Only the player who played the +4 can be judged; never fall back to
         # whoever sits before the challenger now
         game.draw_counter = 0
-        send_async(bot, chat.id,
-                   text=__("The player who played the +4 left the game, so its penalty is cancelled.",
-                           multi=game.translate))
+        send_async(bot, chat.id, text=_draw_wild_left_text(game))
         gm.persist_game(game)
         return
 
@@ -397,15 +400,18 @@ def do_call_bluff(bot, player):
     # Reset bluffing state so it never persists across subsequent turns
     bluffer.bluffing = False
     rivalry_log.challenge(game, player, bluffer, was_bluffing)
+    # 4 for a +4, 8 for the Crazy mode's +8
+    penalty = game.draw_counter
 
     if was_bluffing:
         if getattr(bluffer, 'pending_win', False):
             bluffer.pending_win = False
 
-        send_async(bot, chat.id,
-                   text=__("Bluff called! Giving 4 cards to {name}",
-                           multi=game.translate)
-                   .format(name=bluffer.user.first_name))
+        if penalty == 4:
+            text = __("Bluff called! Giving 4 cards to {name}", multi=game.translate)
+        else:
+            text = __("Bluff called! Giving {number} cards to {name}", multi=game.translate)
+        send_async(bot, chat.id, text=text.format(name=bluffer.user.first_name, number=penalty))
 
         before = len(bluffer.cards)
         try:
@@ -420,11 +426,12 @@ def do_call_bluff(bot, player):
 
     else:
         game.draw_counter += 2
-        send_async(bot, chat.id,
-                   text=__("{name1} didn't bluff! Giving 6 cards to {name2}",
-                           multi=game.translate)
-                   .format(name1=bluffer.user.first_name,
-                           name2=player.user.first_name))
+        if penalty == 4:
+            text = __("{name1} didn't bluff! Giving 6 cards to {name2}", multi=game.translate)
+        else:
+            text = __("{name1} didn't bluff! Giving {number} cards to {name2}", multi=game.translate)
+        send_async(bot, chat.id, text=text.format(name1=bluffer.user.first_name, name2=player.user.first_name,
+                                                  number=game.draw_counter))
         before = len(player.cards)
         try:
             player.draw()

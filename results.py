@@ -26,17 +26,26 @@ from telegram import InlineQueryResultArticle, InputTextMessageContent, \
     InlineQueryResultCachedSticker as Sticker
 
 import card as c
-from utils import display_name
 from internationalization import _, __
 
 
+def seating(game):
+    """The players in their seats, from the current player on, whichever way play goes"""
+    players = game.players
+    if not game.reversed or len(players) < 3:
+        return players
+    return players[:1] + players[:0:-1]
+
+
 def player_list(game):
-    """Generate list of player strings"""
+    """Generate list of player strings; the Crazy mode hides how many cards they hold"""
+    if game.rules.hide_counts:
+        return [_("{name} (● cards)").format(name=player.user.first_name) for player in seating(game)]
     return [_("{name} ({number} card)",
               "{name} ({number} cards)",
               len(player.cards))
             .format(name=player.user.first_name, number=len(player.cards))
-            for player in game.players]
+            for player in seating(game)]
 
 
 def add_no_game(results):
@@ -145,15 +154,13 @@ def add_card(game, card, results, can_play):
 
 
 def game_info(game):
-    players = player_list(game)
+    """The game info message: first names only, so nobody gets pinged"""
+    separator = "\n    — \n"
     return InputTextMessageContent(
-        _("Current player: {name}")
-        .format(name=display_name(game.current_player.user)) +
-        "\n" +
-        _("Last card: {card}").format(card=repr(game.last_card)) +
-        "\n" +
-        _("Player: {player_list}",
-          "Players: {player_list}",
-          len(players))
-        .format(player_list=" -> ".join(players))
+        _("Your turn: {name}").format(name=game.current_player.user.first_name) +
+        separator +
+        _("Card: {card}").format(card=c.spaced_label(game.last_card)) +
+        separator +
+        _("Players:") + "\n" +
+        "\n".join("• " + player for player in player_list(game))
     )

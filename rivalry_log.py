@@ -156,8 +156,12 @@ def drew(game, player, before, reason, src=None):
     ok = None
     if reason == 'vol' and new and game.current_player is player and new[-1] in player.playable_cards():
         ok = 1
+    # The Crazy mode's +8: a penalty drawn while it's the top card is its pile (a +8 can't be
+    # stacked), and the log may leave out the play of a third player
+    eight = (reason not in ('vol', 'plus1') and (reason != 'time' or len(new) > 1) and game.last_card is not None
+             and game.last_card.special == c.DRAW_EIGHT)
     _add(game, player, 'draw', reason in ('vol', 'pen'), cs=[str(card) for card in new],
-         h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok)
+         h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok, e8=1 if eight else None)
 
 
 @_never_breaks_the_game
@@ -236,5 +240,8 @@ def finish(game, winner_id, outcome):
     if game.rules.tornado:
         # A Tornado game: its stacks can only be told apart from the classic ones by the mode
         end['tn'] = 1
+    if game.rules.hide_counts:
+        # A Crazy game, even when nobody played a +8
+        end['cz'] = 1
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

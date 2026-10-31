@@ -63,12 +63,14 @@ STORM_VALUES = (SWAP, DROP, PLUS_ONE)
 # Special cards
 CHOOSE = 'colorchooser'
 DRAW_FOUR = 'draw_four'
+# Only in the Crazy mode's deck
+DRAW_EIGHT = 'draw_eight'
 
-SPECIALS = (CHOOSE, DRAW_FOUR)
+SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT)
 
 # Wild cards that make the next player draw, and how many cards they add;
 # the next player may challenge one as a bluff
-DRAW_WILDS = {DRAW_FOUR: 4}
+DRAW_WILDS = {DRAW_FOUR: 4, DRAW_EIGHT: 8}
 
 CARDS_CLASSIC = {
     "normal": {
@@ -332,6 +334,15 @@ STICKERS_STORM_GREY = {
     "y_plus1": "CAACAgQAAxUAAWrlyoJao_Or3YCJi34j03KqS6cIAAIZAwACRjR0DVg9rMreSVSIPQQ",
 }
 
+# The Crazy mode's +8 (UNOBotGamesArenaV pack, position 27 and its grey version 57)
+STICKERS_CRAZY = {
+    "draw_eight": "CAACAgQAAxUAAWrlyoLdjb8omy2vufbN87AmeqgqAAIeAwACRjR0DfU2k5i0xCZ_PQQ",
+}
+
+STICKERS_CRAZY_GREY = {
+    "draw_eight": "CAACAgQAAxUAAWrlyoKioDAFAc4SHzzK4HKK0ihzAAIfAwACRjR0Da67rJTdG6KJPQQ",
+}
+
 STICKERS_OPTIONS = {
     "option_draw": "CAACAgQAAxUAAWrlFf9h0bYOTGPFpUp1A4Kv4CBNAAICBAACRjR0DY2i3mgWBOLPPQQ",
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
@@ -350,12 +361,14 @@ _selected_cardset = CARDSETS.get(DEFAULT_CARDSET, CARDS_CLASSIC)
 STICKERS = {
     **_selected_cardset["normal"],
     **STICKERS_STORM,
+    **STICKERS_CRAZY,
     **STICKERS_OPTIONS,
 }
 
 STICKERS_GREY = {
     **_selected_cardset["not_playable"],
     **STICKERS_STORM_GREY,
+    **STICKERS_CRAZY_GREY,
 }
 
 
@@ -394,8 +407,15 @@ class Card(object):
 
 def label(card):
     """Readable card name for plain-text messages, e.g. '💚+2' or '⬛️+4'"""
-    return (repr(card).replace('Draw Four', '+4').replace('Draw', '+2')
+    return (repr(card).replace('Draw Four', '+4').replace('Draw Eight', '+8').replace('Draw', '+2')
             .replace('Colorchooser', 'Color Chooser'))
+
+
+def spaced_label(card):
+    """label() with a space between the color and the name, e.g. '❤️ 6' or '💙⬛️ +4'"""
+    # repr() starts with these icons
+    icons = COLOR_ICONS.get(card.color, '') + (COLOR_ICONS[BLACK] if card.special else '')
+    return icons + ' ' + label(card)[len(icons):]
 
 
 def is_draw_wild(card):
