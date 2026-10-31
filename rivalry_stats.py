@@ -512,8 +512,12 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     if d['stack'] >= 4:
         lines.append("Longest +2/+4 stack: +%d" % d['stack'])
     if any(s[key]['ty'][5] for key in s):
-        lines.append("+4s played: " + pair({key: "%d (%d bluff%s)" % (s[key]['ty'][5], s[key]['bl'], "" if s[key]['bl'] == 1 else "s")
-                                            for key in s}))
+        if d.get('tornado'):
+            # Tornado has no bluff challenges
+            lines.append("+4s played: " + pair({key: s[key]['ty'][5] for key in s}))
+        else:
+            lines.append("+4s played: " + pair({key: "%d (%d bluff%s)" % (s[key]['ty'][5], s[key]['bl'], "" if s[key]['bl'] == 1 else "s")
+                                                for key in s}))
     if d.get('storm'):
         st = d['storm']
         lines.append("🌧️ Swaps · Drops · +1s: " + pair({key: "%d · %d · %d" % (st[key]['sw'], st[key]['dr'], st[key]['p1'])
@@ -622,9 +626,9 @@ def summarize_log(log):
              for key in hands}
     storm_game = False
     # Tornado mode, per rival: +4s played on a +4, +2s played on a +4, Color Choosers played
-    # on a Color Chooser, penalties drawn and the biggest one
+    # on a Color Chooser (from the pile 'pi' and card 'on' each play logs), piles drawn and
+    # the biggest one
     tornado = {key: {'s4': 0, 's2': 0, 'ww': 0, 'pen': 0, 'big': 0} for key in hands}
-    last_played = card_type(deal.get('fc') or '')
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if kind == 'swap':
@@ -667,11 +671,10 @@ def summarize_log(log):
                 s['co'][LOG_COLORS.index(e['c'][0])] += 1
             if kind_of_card == 'd4' and e.get('bl'):
                 s['bl'] += 1
-            if stack and last_played == 'd4' and kind_of_card in ('d2', 'd4'):
+            if e.get('pi') and e.get('on') == 'draw_four' and kind_of_card in ('d2', 'd4'):
                 tornado[p]['s4' if kind_of_card == 'd4' else 's2'] += 1
-            elif last_played == 'wild' and kind_of_card == 'wild':
+            elif e.get('on') == 'colorchooser' and kind_of_card == 'wild':
                 tornado[p]['ww'] += 1
-            last_played = kind_of_card
             if kind_of_card in ('d2', 'd4'):
                 stack += 2 if kind_of_card == 'd2' else 4
             else:
@@ -696,7 +699,7 @@ def summarize_log(log):
                 if stack:
                     # A failed challenge adds 2 to the pile, as do_call_bluff does
                     max_stack = max(max_stack, stack + (2 if e.get('r') == 'chal' else 0))
-                if stack and count:
+                if e.get('r') == 'pen' or (e.get('r') == 'time' and count > 1):
                     # The pile of +2s and +4s, also when a timeout drew it
                     tornado[p]['pen'] += 1
                     tornado[p]['big'] = max(tornado[p]['big'], count)

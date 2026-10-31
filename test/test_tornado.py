@@ -143,6 +143,34 @@ class TestTornadoLog(LoggedGame):
         self.game.mode = 'tornado'
         rivalry_log.start(self.game)
 
+    def play(self, player, card):
+        player.cards.append(card)
+        actions.do_play_card(MagicMock(), player, str(card))
+
+    def test_plays_log_the_pile_and_the_card_under_them(self):
+        self.play(self.alice, c.Card(None, None, c.DRAW_FOUR))
+        self.game.choose_color(c.RED)
+        self.play(self.ivan, c.Card(c.RED, c.DRAW_TWO))
+        self.play(self.alice, c.Card(c.BLUE, c.DRAW_TWO))
+        first, second, third = self.events('play')
+        self.assertNotIn('pi', first)
+        self.assertEqual((second['pi'], second['on']), (4, 'draw_four'))
+        self.assertEqual((third['pi'], third['on']), (6, 'r_draw'))
+        self.game.draw_counter = 0
+        self.play(self.ivan, c.Card(None, None, c.CHOOSE))
+        self.game.choose_color(c.RED)
+        self.play(self.alice, c.Card(None, None, c.CHOOSE))
+        self.assertEqual(self.events('play')[-1]['on'], 'colorchooser')
+        self.assertNotIn('pi', self.events('play')[-1])
+
+    def test_classic_plays_dont_log_it(self):
+        self.game.mode = 'classic'
+        rivalry_log.start(self.game)
+        self.play(self.alice, c.Card(c.RED, c.DRAW_TWO))
+        self.play(self.ivan, c.Card(c.GREEN, c.DRAW_TWO))
+        self.assertNotIn('pi', self.events('play')[-1])
+        self.assertNotIn('on', self.events('play')[-1])
+
     def test_a_tornado_game_is_marked_at_the_end(self):
         log = rivalry_log.finish(self.game, A, 'win')
         self.assertEqual(log['ev'][-1]['tn'], 1)
@@ -160,21 +188,31 @@ class TestTornadoSummary(unittest.TestCase):
         self.log = log_of(
             {'k': 'play', 'p': 'a', 'c': 'draw_four', 'h': 2, 't': 1, 'n': 0},
             {'k': 'color', 'p': 'a', 'co': 'g', 't': 1, 'n': 0},
-            {'k': 'play', 'p': 'b', 'c': 'draw_four', 'h': 2, 't': 2, 'n': 1},
+            {'k': 'play', 'p': 'b', 'c': 'draw_four', 'h': 2, 't': 2, 'n': 1, 'pi': 4, 'on': 'draw_four'},
             {'k': 'color', 'p': 'b', 'co': 'r', 't': 2, 'n': 1},
-            {'k': 'play', 'p': 'a', 'c': 'r_draw', 'h': 1, 't': 3, 'n': 2},
+            {'k': 'play', 'p': 'a', 'c': 'r_draw', 'h': 1, 't': 3, 'n': 2, 'pi': 8, 'on': 'draw_four'},
             {'k': 'draw', 'p': 'b', 'r': 'pen', 'src': 'a', 'cs': ['b_%d' % i for i in range(1, 10)] + ['y_1'],
              'h': 12, 't': 4, 'n': 3},
-            {'k': 'play', 'p': 'b', 'c': 'colorchooser', 'h': 11, 't': 5, 'n': 4},
-            {'k': 'color', 'p': 'b', 'co': 'y', 't': 5, 'n': 4},
-            {'k': 'play', 'p': 'a', 'c': 'colorchooser', 'h': 0, 't': 6, 'n': 5},
-            {'k': 'end', 'p': 'a', 'o': 'win', 't': 8, 'n': 6, 'tn': 1},
+            # Ran out of time with nothing to draw but the usual card: not a pile
+            {'k': 'draw', 'p': 'a', 'r': 'time', 'cs': ['g_3'], 'h': 2, 't': 4, 'n': 4},
+            {'k': 'play', 'p': 'b', 'c': 'colorchooser', 'h': 11, 't': 5, 'n': 5},
+            {'k': 'color', 'p': 'b', 'co': 'y', 't': 5, 'n': 5},
+            {'k': 'play', 'p': 'a', 'c': 'colorchooser', 'h': 1, 't': 6, 'n': 6, 'on': 'colorchooser'},
+            {'k': 'color', 'p': 'a', 'co': 'b', 't': 6, 'n': 6},
+            # A third player took the +4 in between (the log leaves their turn out): no stack
+            {'k': 'play', 'p': 'b', 'c': 'draw_four', 'h': 10, 't': 7, 'n': 7},
+            {'k': 'color', 'p': 'b', 'co': 'g', 't': 7, 'n': 7},
+            {'k': 'play', 'p': 'a', 'c': 'draw_four', 'h': 0, 't': 8, 'n': 9},
+            {'k': 'end', 'p': 'a', 'o': 'win', 't': 9, 'n': 9, 'tn': 1},
         )
 
     def test_stacks_are_counted(self):
         d = rs.summarize_log(self.log)
         self.assertEqual(d['stack'], 10)
         self.assertEqual(d['tornado']['a'], {'s4': 0, 's2': 1, 'ww': 1, 'pen': 0, 'big': 0})
+        # And a timeout with a pile is one
+        next(e for e in self.log['ev'] if e.get('r') == 'time')['cs'] = ['g_3', 'g_4']
+        self.assertEqual(rs.summarize_log(self.log)['tornado']['a'], {'s4': 0, 's2': 1, 'ww': 1, 'pen': 1, 'big': 2})
         self.assertEqual(d['tornado']['b'], {'s4': 1, 's2': 0, 'ww': 0, 'pen': 1, 'big': 10})
 
     def test_stats_message(self):
@@ -184,7 +222,9 @@ class TestTornadoSummary(unittest.TestCase):
         text = rs.game_stats_text(rivals, 3, result, self.log, rs.timezone.utc, str)
         for line in ('🌪️ +4 on +4 · +2 on +4: Alice 0 · 1 · Ivan 1 · 0',
                      'Color Chooser on Color Chooser: Alice 1 · Ivan 0',
-                     'Biggest penalty drawn: Alice – · Ivan +10'):
+                     'Biggest penalty drawn: Alice – · Ivan +10',
+                     # No bluff count: Tornado has no challenges
+                     '+4s played: Alice 2 · Ivan 2'):
             self.assertIn(line, text.split('\n'))
 
 

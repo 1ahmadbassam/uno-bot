@@ -126,15 +126,20 @@ def turn(game):
 
 
 @_never_breaks_the_game
-def played(game, player, card, think=None, cancelled=False):
+def played(game, player, card, think=None, cancelled=False, pile=0, under=None):
     """`player` played `card`; `think`: think_time() taken before the card ended the turn;
-    `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect"""
+    `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect;
+    `pile`: the cards waiting to be drawn when it was played, and `under`: the card it
+    went on, which Tornado games log (the log leaves out the plays of other players)"""
     log = _log(game)
     if log is None:
         return
     bluff = 1 if c.is_draw_wild(card) and getattr(player, 'bluffing', False) else None
+    stacked = game.rules.tornado and pile > 0
+    on_chooser = game.rules.tornado and card.special == c.CHOOSE and under is not None and under.special == c.CHOOSE
     _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff,
-         cx=1 if cancelled else None)
+         cx=1 if cancelled else None, pi=pile if stacked else None,
+         on=str(under) if (stacked or on_chooser) and under is not None else None)
     if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 

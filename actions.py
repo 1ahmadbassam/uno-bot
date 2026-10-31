@@ -299,10 +299,12 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     # /cancel only holds for the card played next, whatever it is (game.turn() clears it)
     cancelled = player.game.storm_cancel and player.game.rules.storm and storm.can_cancel(card)
     player.game.storm_cancel = False
+    # What the card goes on, for the Tornado statistics (rivalry_log.played)
+    pile, under = player.game.draw_counter, player.game.last_card
     player.play(card)
     game = player.game
     chat = game.chat
-    rivalry_log.played(game, player, card, think, cancelled=cancelled)
+    rivalry_log.played(game, player, card, think, cancelled=cancelled, pile=pile, under=under)
     swapped = storm.apply(game, player, card, cancelled)
 
     if c.is_draw_wild(card) and game.rules.bluff:
