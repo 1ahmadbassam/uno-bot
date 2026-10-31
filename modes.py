@@ -17,7 +17,7 @@ class Mode(object):
     """The rules of one game mode"""
 
     def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False,
-                 bluff=True, tornado=False, hide_counts=False, diablo=False):
+                 bluff=True, tornado=False, hide_counts=False, diablo=False, xeno=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -39,6 +39,10 @@ class Mode(object):
         self.hide_counts = hide_counts
         # Whether the deck has Diablos, whose color the bot picks at random (actions.do_play_card)
         self.diablo = diablo
+        # Whether the deck has Xenos and Alphas, and number cards adding up to 5 go on each
+        # other (Player._card_playable); a Xeno's color has to be played, or drawn until found
+        # (Player.draw)
+        self.xeno = xeno
 
 
 CLASSIC = Mode('classic', N_("🎻 Classic mode"), N_('Classic 🎻'))
@@ -49,9 +53,10 @@ STORM = Mode('storm', N_("🌧️ Storm mode"), N_('Dance in the Rain 🌧️'),
 TORNADO = Mode('tornado', N_("🌪️ Tornado mode"), N_('Wind of Revolution 🌪️'), bluff=False, tornado=True)
 CRAZY = Mode('crazy', N_("👻 Crazy mode"), N_('Why so Serious? 👻️'), deck='crazy', hand_size=8, hide_counts=True)
 DIABLO = Mode('diablo', N_("💀 Diablo mode"), N_('Welcome to Hell 💀️'), deck='diablo', bluff=False, diablo=True)
+XENO = Mode('xeno', N_("👽 Xeno mode"), N_('Project Xeno 👽️'), deck='xeno', xeno=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

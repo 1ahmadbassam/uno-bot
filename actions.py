@@ -289,10 +289,13 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
     return False
 
 
-def diablo_announcement(game):
-    """The color the bot picked for the Diablo on top, for the next-player message"""
-    return __("💀 Diablo set the color to {color}!\n", multi=game.translate).format(
-        color=display_color_group(game.last_card.color, game))
+def bot_color_announcement(game):
+    """The color the bot picked for the Diablo or Xeno on top, for the next-player message"""
+    if game.last_card.special == c.XENO:
+        text = __("👽 Xeno set the color to {color}!\n", multi=game.translate)
+    else:
+        text = __("💀 Diablo set the color to {color}!\n", multi=game.translate)
+    return text.format(color=display_color_group(game.last_card.color, game))
 
 
 def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
@@ -317,11 +320,12 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     if c.is_draw_wild(card) and game.rules.bluff:
         game.last_bluffer = player
 
-    if card.special == c.DIABLO:
-        # The bot picks a Diablo's color, at random, and the turn goes on
-        game.choose_color(game.rng.choose_color(game.colors), diablo=True)
+    if card.special in c.BOT_COLOR_WILDS:
+        # The bot picks a Diablo's or Xeno's color, at random, and the turn goes on
+        game.choose_color(game.rng.choose_color(game.colors), diablo=card.special == c.DIABLO,
+                          xeno=card.special == c.XENO)
         if notify_color:
-            send_async(bot, chat.id, text=diablo_announcement(game).strip(), disable_notification=True)
+            send_async(bot, chat.id, text=bot_color_announcement(game).strip(), disable_notification=True)
 
     if len(player.cards) == 1 and notify_uno:
         send_async(bot, chat.id, text="UNO!", disable_notification=True)

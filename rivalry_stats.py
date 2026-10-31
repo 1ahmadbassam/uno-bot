@@ -450,7 +450,7 @@ def inline_data(page, data):
 # --- Game logs (rivalry_log.py) -------------------------------------------
 
 # New types come last, so older summaries (6 types) keep their indexes
-CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia')
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp')
 ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
 LOG_COLORS = ('r', 'b', 'g', 'y')
 
@@ -542,6 +542,15 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
         lines.append("💀 Diablos played: " + pair({key: db[key]['p'] for key in s}))
         if any(db[key]['p'] for key in s):
             lines.append("Diablo gave the color held most: " + pair({key: "%d of %d" % (db[key]['lk'], db[key]['p']) for key in s}))
+    if d.get('xeno'):
+        xe = d['xeno']
+        lines.append("👽 Xenos · Alphas · X-rule plays: " + pair({key: "%d · %d · %d" % (xe[key]['p'], xe[key]['al'], xe[key]['x5'])
+                                                                for key in s}))
+        if any(xe[key]['p'] for key in s):
+            lines.append("Xeno gave the color held most: " + pair({key: "%d of %d" % (xe[key]['lk'], xe[key]['p']) for key in s}))
+        if any(xe[key]['hu'] for key in s):
+            lines.append("Drawn to find a Xeno's color: " + pair({key: "%d time%s (+%d cards)" % (
+                xe[key]['hu'], "" if xe[key]['hu'] == 1 else "s", xe[key]['hc']) for key in s}))
     if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
         lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
@@ -574,11 +583,13 @@ def card_type(card):
         return 'd8'
     if card == 'diablo':
         return 'dia'
+    if card == 'xeno':
+        return 'xen'
     if card == 'colorchooser':
         return 'wild'
     value = card.split('_', 1)[1] if '_' in card else card
     return {'skip': 'skip', 'reverse': 'rev', 'draw': 'd2', 'swap': 'swap', 'drop': 'drop',
-            'plus1': 'p1'}.get(value, 'num')
+            'plus1': 'p1', 'alpha': 'alp'}.get(value, 'num')
 
 
 def _player_summary(hand):
@@ -653,6 +664,12 @@ def summarize_log(log):
     # often the color the player held most (the 'dia' color events)
     diablo = {key: {'k': sum(1 for card in cards if card == 'diablo'), 'p': 0, 'col': [0] * 4, 'same': 0, 'lk': 0}
               for key, cards in deal['h'].items()}
+    # Xeno mode, per rival: Xenos dealt and played, the colors the bot set for them, how often
+    # that was the color its player held most, Alphas and X-rule plays, and the draws made
+    # to find a Xeno's color (hunts), their cards and the longest one
+    xeno = {key: {'k': sum(1 for card in cards if card == 'xeno'), 'p': 0, 'col': [0] * 4, 'lk': 0,
+                  'al': 0, 'x5': 0, 'hu': 0, 'hc': 0, 'big': 0}
+            for key, cards in deal['h'].items()}
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if kind == 'swap':
@@ -698,6 +715,11 @@ def summarize_log(log):
             if kind_of_card == 'dia':
                 diablo[p]['p'] += 1
                 diablo[p]['on'] = e.get('uc')
+            if kind_of_card == 'xen':
+                xeno[p]['p'] += 1
+            if kind_of_card == 'alp':
+                xeno[p]['al'] += 1
+            xeno[p]['x5'] += e.get('x5', 0)
             if kind_of_card == 'd8':
                 crazy[p]['p8'] += 1
                 crazy[p]['b8'] += 1 if e.get('bl') else 0
@@ -721,6 +743,10 @@ def summarize_log(log):
             if e.get('e8'):
                 crazy[p]['n8'] += 1
                 crazy[p]['t8'] += count
+            if e.get('hu'):
+                xeno[p]['hu'] += 1
+                xeno[p]['hc'] += count
+                xeno[p]['big'] = max(xeno[p]['big'], count)
             if e.get('r') == 'vol':
                 s['dv'] += 1
                 s['dk'] += e.get('ok', 0)
@@ -765,6 +791,10 @@ def summarize_log(log):
                     db['col'][LOG_COLORS.index(e['co'])] += 1
                 db['same'] += 1 if db.pop('on', None) == e.get('co') else 0
                 db['lk'] += e.get('lk', 0)
+            elif e.get('xe'):
+                if e.get('co') in LOG_COLORS:
+                    xeno[p]['col'][LOG_COLORS.index(e['co'])] += 1
+                xeno[p]['lk'] += e.get('lk', 0)
             elif e.get('au'):
                 s['au'] += 1
             elif e.get('co') in LOG_COLORS:
@@ -791,7 +821,7 @@ def summarize_log(log):
         'fc': deal.get('fc'),
         # (action cards, wild cards) in each starting hand
         'deal': {key: [sum(1 for card in cards if card_type(card) in ACTION_TYPES),
-                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8', 'dia'))]
+                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8', 'dia', 'xen'))]
                  for key, cards in deal['h'].items()},
         'fin': finisher.get(winner) if end.get('o') == 'win' else None,
         'stack': max_stack,
@@ -808,6 +838,8 @@ def summarize_log(log):
         for db in diablo.values():
             db.pop('on', None)
         summary['diablo'] = diablo
+    if end.get('xe'):
+        summary['xeno'] = xeno
     if 'vr' in end:
         rolls = end['vr']
         summary['vol'] = {

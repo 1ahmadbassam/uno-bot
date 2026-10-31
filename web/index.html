@@ -693,6 +693,25 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
     </div>
+
+    <div id="sp-xeno" class="mode-block">
+    <h3 class="mode-h">👽 Xeno</h3>
+    <p class="lede" id="xe-lede"></p>
+    <div id="xe-body">
+    <div class="card"><div class="tiles" id="xe-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Colors the Xenos set</h3><span class="hint" data-tip="The colors the bot picked for each player's Xenos, all logged Xeno games added up. Each one is a fair 1 in 4.">?</span></div>
+        <div class="chart" id="c-xe-colors"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Dealt a Xeno and winning</h3><span class="hint" data-tip="Win rates in the logged Xeno games, by whether a player's starting hand had a Xeno.">?</span></div>
+        <div class="tbl"><table id="xe-win"></table></div>
+      </div>
+    </div>
+    </div>
+    </div>
   </section>
 
   <section id="fair">
@@ -784,8 +803,8 @@ var P = ['a', 'b'];
 
 var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], SIG = '', PACING = 0;
 // The Storm cards come last, so older summaries (6 types) keep their indexes
-var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia'];
-var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8', 'Diablo'];
+var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp'];
+var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8', 'Diablo', 'Xeno', 'Alpha'];
 var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow'];
 var COL = {};
 var S = {
@@ -1531,9 +1550,10 @@ function cardType(card) {
   if (card === 'draw_four') return 'd4';
   if (card === 'draw_eight') return 'd8';
   if (card === 'diablo') return 'dia';
+  if (card === 'xeno') return 'xen';
   if (card === 'colorchooser') return 'wild';
   var v = card.indexOf('_') >= 0 ? card.slice(card.indexOf('_') + 1) : card;
-  return { skip: 'skip', reverse: 'rev', draw: 'd2', swap: 'swap', drop: 'drop', plus1: 'p1' }[v] || 'num';
+  return { skip: 'skip', reverse: 'rev', draw: 'd2', swap: 'swap', drop: 'drop', plus1: 'p1', alpha: 'alp' }[v] || 'num';
 }
 function addInto(target, values) { for (var i = 0; i < values.length; i++) target[i] += values[i] || 0; }
 
@@ -2170,7 +2190,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2492,6 +2512,74 @@ function renderDiablo(R) {
   return true;
 }
 
+// The Xeno mode (modes.XENO): numbers, +2s, Alphas and Xenos, wilds whose random color the
+// next player has to play or draw until found, and the X-rule; true when its block shows
+function renderXeno(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'xeno'; });
+  $('sp-xeno').style.display = games.length ? '' : 'none';
+  if (!games.length) return false;
+  var logged = games.filter(function (m) { return m.d && m.d.xeno; });
+  var wins = { a: 0, b: 0 };
+  games.forEach(function (m) { wins[m.w]++; });
+  if (!logged.length) {
+    $('xe-lede').innerHTML = plural(games.length, 'Xeno game') + ' in the selection, none of them logged turn by turn yet.';
+    $('xe-body').style.display = 'none';
+    return true;
+  }
+  $('xe-body').style.display = '';
+  $('xe-lede').innerHTML = 'Numbers and +2s, two Alphas of every color and eight Xenos: wilds whose color the bot picks at random, and the next player ' +
+    'has to play, or draw until they find it. By the X-rule, numbers adding up to 5 go on each other. ' +
+    plural(logged.length, 'of the ' + games.length + ' Xeno game') + ' in the selection were logged.';
+  var keys = ['k', 'p', 'lk', 'al', 'x5', 'hu', 'hc'], tot = {}, fin = { a: 0, b: 0 };
+  var dealt = { yes: { a: [0, 0], b: [0, 0] }, no: { a: [0, 0], b: [0, 0] } };
+  P.forEach(function (p) { tot[p] = { col: [0, 0, 0, 0], big: 0 }; keys.forEach(function (k) { tot[p][k] = 0; }); });
+  logged.forEach(function (m) {
+    var xe = m.d.xeno;
+    P.forEach(function (p) {
+      var mine = xe[p] || {}, key = mine.k ? 'yes' : 'no';
+      keys.forEach(function (k) { tot[p][k] += mine[k] || 0; });
+      addInto(tot[p].col, mine.col || []);
+      tot[p].big = Math.max(tot[p].big, mine.big || 0);
+      dealt[key][p][1]++;
+      if (m.w === p) dealt[key][p][0]++;
+    });
+    if (m.d.fin === 'xeno' && m.w) fin[m.w]++;
+  });
+  var n = logged.length;
+  function f(v) { return (+v).toFixed(1); }
+  var t = [];
+  t.push(pairTile('Win rate in Xeno', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Xeno game in the selection, logged or not.',
+    wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
+  t.push(pairTile('Xenos played', tot.a.p, tot.b.p, 'Xenos played, all logged games added up.', f(tot.a.p / n) + ' per game', f(tot.b.p / n) + ' per game'));
+  t.push(pairTile('Alphas played', tot.a.al, tot.b.al, 'Alphas played, all logged games added up.', f(tot.a.al / n) + ' per game', f(tot.b.al / n) + ' per game'));
+  t.push(pairTile('X-rule plays', tot.a.x5, tot.b.x5, 'Numbers played on a number of another color, the two adding up to 5.', f(tot.a.x5 / n) + ' per game', f(tot.b.x5 / n) + ' per game'));
+  t.push(pairTile('Drawn to find the color', tot.a.hu, tot.b.hu, 'Times a player drew until they found the color of a Xeno.', '+' + tot.a.hc + ' cards', '+' + tot.b.hc + ' cards'));
+  t.push(pairTile('Longest search', tot.a.big || '–', tot.b.big || '–', 'The most cards a player drew to find the color of one Xeno.'));
+  t.push(pairTile('Gave the color held most', tot.a.lk + ' of ' + tot.a.p, tot.b.lk + ' of ' + tot.b.p, 'How often the color a Xeno got was the one its player held the most cards of (ties count).'));
+  t.push(pairTile('Won with a Xeno', fin.a, fin.b, 'Logged wins whose last card was a Xeno.'));
+  $('xe-tiles').innerHTML = t.join('');
+
+  barChart($('c-xe-colors'), {
+    cats: COLOR_LABELS, grouped: true, yFmt: function (v) { return Math.round(v); },
+    stacks: P.map(function (p) { return { color: COL[p], values: tot[p].col }; }),
+    tip: function (ci) {
+      return '<b>Xenos set to ' + COLOR_LABELS[ci].toLowerCase() + '</b>' + P.map(function (p) {
+        var all = sum(tot[p].col);
+        return row(sw(p) + nm(p), tot[p].col[ci] + ' <span class="m">' + pct(share(tot[p].col[ci], all), 0) + ' of ' + all + '</span>');
+      }).join('') + '<div class="m">all logged Xeno games</div>';
+    }
+  });
+
+  var rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  [['Dealt a Xeno', 'yes'], ['Not dealt one', 'no']].forEach(function (r) {
+    var x = dealt[r[1]], sa = share(x.a[0], x.a[1]), sb = share(x.b[0], x.b[1]);
+    rows.push('<tr><td>' + r[0] + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa, 0) + '<span class="meta">won ' + x.a[0] + ' of ' + x.a[1] + '</span></td>' +
+      '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
+  });
+  $('xe-win').innerHTML = rows.join('');
+  return true;
+}
+
 // --- Fair play ----------------------------------------------------------------
 // Statistical tests on the logged games, and the proofs of the provably fair ones
 // (fair.js checks those in the browser, the same way the replay page does)
@@ -2571,10 +2659,10 @@ function holm(ps) {
 }
 
 // Number, action (skip, reverse, +2) and wild (wild, +4) shares of a fresh deck
-var GROUPS = [[0], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
+var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {

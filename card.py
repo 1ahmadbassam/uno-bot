@@ -60,6 +60,9 @@ PLUS_ONE = 'plus1'
 
 STORM_VALUES = (SWAP, DROP, PLUS_ONE)
 
+# The Xeno mode's colored card without a value: it only goes on its color
+ALPHA = 'alpha'
+
 # Special cards
 CHOOSE = 'colorchooser'
 DRAW_FOUR = 'draw_four'
@@ -67,8 +70,13 @@ DRAW_FOUR = 'draw_four'
 DRAW_EIGHT = 'draw_eight'
 # Only in the Diablo mode's deck: a Color Chooser whose color the bot picks at random
 DIABLO = 'diablo'
+# Only in the Xeno mode's deck: a Diablo whose color the next player has to play
+XENO = 'xeno'
 
-SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT, DIABLO)
+SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT, DIABLO, XENO)
+
+# The wilds whose color the bot picks at random (actions.do_play_card)
+BOT_COLOR_WILDS = (DIABLO, XENO)
 
 # Wild cards that make the next player draw, and how many cards they add;
 # the next player may challenge one as a bluff
@@ -354,6 +362,24 @@ STICKERS_DIABLO_GREY = {
     "diablo": "CAACAgQAAxUAAWrlyoJ-h1vi09qmzcStXpK7cYtNAALHGwACuRNxUyTHWGE2BX1OPQQ",
 }
 
+# The Xeno mode's Xeno (UNOBotGamesArenaV pack, position 29 and its grey version 59)
+# and Alphas (positions 61-76 and their grey versions 81-96)
+STICKERS_XENO = {
+    "xeno": "CAACAgQAAxUAAWrlyoKmMm5DT365HF_QtZAP7C3tAALdCwAC81oJUniScUVokGYUPQQ",
+    "b_alpha": "CAACAgQAAxUAAWrlyoIWB_b9l7XnllIbswABrD6V1wACdw4AAkCkEVM5lWboMshoHz0E",
+    "g_alpha": "CAACAgQAAxUAAWrlyoKl6OH5Zfo_fNKu9nF4kCr6AAKTDQAC98cIU5PvUcCp98WoPQQ",
+    "r_alpha": "CAACAgQAAxUAAWrlyoK983T85H0HqFkVr-vx2ilwAAKhDAAC4IsRU_HU8ov1GpN8PQQ",
+    "y_alpha": "CAACAgQAAxUAAWrlyoJkeHxKKrRJNuIAAc7vjTvd5AAC2woAAl_4EFOW9SMhJmrfLj0E",
+}
+
+STICKERS_XENO_GREY = {
+    "xeno": "CAACAgQAAxUAAWrlyoI9qh0JGnSj2034jbNNt021AAJ3DgAC0WkJUv1FkcVQ52Q_PQQ",
+    "b_alpha": "CAACAgQAAxUAAWrlyoLxip3NxSwAATWCgd4j8AOriwACZgoAAnzuEFNemvg5yKxKdj0E",
+    "g_alpha": "CAACAgQAAxUAAWrlyoL9w1q6FN2vVzeVQiWebguvAAIVDAACVwEJU_xPi78r-8UCPQQ",
+    "r_alpha": "CAACAgQAAxUAAWrlyoJoZuGiHRAo78ac_m8Fcy9tAAJ6DQACA2kQU5LZ8tw4d4vDPQQ",
+    "y_alpha": "CAACAgQAAxUAAWrlyoLQROSZMhuDN5Bak87s7kNPAAIZDAAC_PURU1wVpvx7jJFvPQQ",
+}
+
 STICKERS_OPTIONS = {
     "option_draw": "CAACAgQAAxUAAWrlFf9h0bYOTGPFpUp1A4Kv4CBNAAICBAACRjR0DY2i3mgWBOLPPQQ",
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
@@ -374,6 +400,7 @@ STICKERS = {
     **STICKERS_STORM,
     **STICKERS_CRAZY,
     **STICKERS_DIABLO,
+    **STICKERS_XENO,
     **STICKERS_OPTIONS,
 }
 
@@ -382,6 +409,7 @@ STICKERS_GREY = {
     **STICKERS_STORM_GREY,
     **STICKERS_CRAZY_GREY,
     **STICKERS_DIABLO_GREY,
+    **STICKERS_XENO_GREY,
 }
 
 
@@ -436,6 +464,12 @@ def spaced_label(card):
 def is_draw_wild(card):
     """Whether `card` is a wild that makes the next player draw (a +4)"""
     return card is not None and card.special in DRAW_WILDS
+
+
+def sums_to_five(under, card):
+    """The Xeno mode's X-rule: two number cards whose values add up to 5, whatever their colors"""
+    return (under is not None and card is not None and not under.special and not card.special and
+            str(under.value).isdigit() and str(card.value).isdigit() and int(under.value) + int(card.value) == 5)
 
 
 def from_str(string):

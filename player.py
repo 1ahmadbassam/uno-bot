@@ -131,9 +131,15 @@ class Player(object):
         """Draws 1+ cards from the deck, depending on the draw counter"""
         _amount = self.game.draw_counter or 1
         drawn = 0
+        # Xeno: on a Xeno, the player draws until they find its color
+        last = self.game.last_card
+        hunted = last.color if last is not None and last.special == c.XENO and not self.game.draw_counter else None
 
         try:
             for _ in range(_amount):
+                self.cards.append(self.game.deck.draw(seat_label(self)))
+                drawn += 1
+            while hunted and self.cards[-1].color != hunted:
                 self.cards.append(self.game.deck.draw(seat_label(self)))
                 drawn += 1
 
@@ -179,6 +185,15 @@ class Player(object):
         # as their final card to win.
         return playable
 
+    def must_play(self):
+        """Xeno: the card drawn to find a Xeno's color has to be played, so there's no passing"""
+        last = self.game.last_card
+        return bool(self.drew and self.drew_card and last is not None and last.special == c.XENO and
+                    self.playable_cards())
+
+    def can_pass(self):
+        return self.drew and not self.must_play()
+
     def _card_playable(self, card):
         """Check a single card if it can be played"""
 
@@ -191,8 +206,14 @@ class Player(object):
             # state from what is only a playability check.
             self.logger.warning("Last card has no color")
 
-        if (last.color and card.color != last.color and card.value != last.value and
-                not card.special):
+        if last.special == c.XENO and (card.special or card.color != last.color):
+            # Only its color goes on a Xeno: no other wild, nor the X-rule
+            self.logger.debug("Card doesn't have the Xeno's color")
+            is_playable = False
+        elif (last.color and card.color != last.color and not card.special and
+                # An Alpha has no value to match, so only goes on its color
+                (card.value != last.value or card.value == c.ALPHA) and
+                not (self.game.rules.xeno and c.sums_to_five(last, card))):
             self.logger.debug("Card's color or value doesn't match")
             is_playable = False
         elif last.value == c.DRAW_TWO and not \

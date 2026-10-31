@@ -42,7 +42,7 @@ import settings
 import simple_commands
 import storm
 from access_control import access_control
-from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, diablo_announcement, \
+from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, bot_color_announcement, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
     fairness_commitment, reveal_fairness
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED
@@ -698,7 +698,9 @@ def _drawn_card_notice(player, erupted=()):
         notice = _("You drew {card}.").format(card=c.label(drawn))
         if erupted:
             notice += "\n" + _("🌋 The volcano gave you {number} more cards.").format(number=len(erupted))
-        if drawn in player.playable_cards():
+        if player.must_play():
+            notice += "\n" + _("It has the Xeno's color, so you have to play it.")
+        elif drawn in player.playable_cards():
             notice += "\n" + _("You can play it or pass.")
         else:
             notice += "\n" + _("You can't play it, so pass.")
@@ -724,6 +726,9 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
             _answer_callback(bot, query)
             return
         draw_counter_before = getattr(game, 'draw_counter', 0)
+        # Xeno: drawn until finding its color, so maybe more than one card
+        hunted = game.last_card is not None and game.last_card.special == c.XENO and not draw_counter_before
+        before = len(player.cards)
         reset_waiting_time(bot, player)
         erupted = do_draw(bot, player)
 
@@ -736,6 +741,8 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
 
         if game_is_running(game):
             cards_drawn = draw_counter_before or 1
+            if hunted:
+                cards_drawn = max(1, len(player.cards) - before - len(erupted or ()))
             if cards_drawn > 1:
                 draw_action_text = __("📥 {name} drew {number} cards.", multi=game.translate).format(
                     name=player_name, number=cards_drawn
@@ -777,7 +784,7 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
                 start_player_countdown(bot, game, context.job_queue)
 
     elif action == "pass":
-        if not player.drew:
+        if not player.can_pass():
             return
         reset_waiting_time(bot, player)
         rivalry_log.passed(game, player)
@@ -1028,9 +1035,9 @@ def _deal_and_announce(bot, game, chat, job_queue):
             .format(name=display_name(game.current_player.user)))
         markup = make_color_keyboard(chat.id, game)
     else:
-        if game.last_card is not None and game.last_card.special == c.DIABLO:
+        if game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS:
             # The bot picked its color (game._first_card_)
-            revealed += diablo_announcement(game)
+            revealed += bot_color_announcement(game)
         first_message = revealed + (
             __("First player: {name}\n"
                "Use /close to stop people from joining the game.\n"
@@ -1407,7 +1414,7 @@ def reply_to_query(update: Update, context: CallbackContext):
                 if not player.drew:
                     add_draw(player, results)
 
-                else:
+                elif player.can_pass():
                     add_pass(results, game)
 
                 if c.is_draw_wild(game.last_card) and game.draw_counter and game.rules.bluff:
@@ -1547,8 +1554,8 @@ def process_result(update: Update, context: CallbackContext):
         reset_waiting_time(context.bot, player)
         swapped = do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
         played_card = True
-        if game.last_card is not None and game.last_card.special == c.DIABLO and game.last_card.color:
-            color_chosen_announcement = diablo_announcement(game)
+        if game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS and game.last_card.color:
+            color_chosen_announcement = bot_color_announcement(game)
 
     if game_is_running(game):
         gm.persist_game(game)
@@ -1592,7 +1599,7 @@ def _inline_action_allowed(player, game, result_id):
     if result_id == 'draw':
         return not game.choosing_color and not player.drew
     if result_id == 'pass':
-        return not game.choosing_color and player.drew
+        return not game.choosing_color and player.can_pass()
     if result_id in game.colors:
         return game.choosing_color
 

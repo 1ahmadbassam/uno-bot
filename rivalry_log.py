@@ -12,12 +12,14 @@
 # Event keys: k kind, t ms since the start, n turn number, p rival ("a"/"b"),
 # c card, cs cards, h hand size after, th thinking time in ms. Kinds:
 #   deal   hands (h: {"a": [...], "b": [...]}), first card (fc), first rival to act (first)
-#   play   c, bl: 1 for a +4 played while holding the active color
+#   play   c, bl: 1 for a +4 played while holding the active color, x5: 1 a Xeno-mode
+#          X-rule play (a number on another color's number, adding up to 5)
 #   draw   cs, r: "vol" chosen, "pen" a +2/+4, "bluff" caught bluffing, "chal" lost a
 #          challenge, "time" ran out of time; src: rival whose card forced it; ok: 1 when
-#          a chosen draw could be played
+#          a chosen draw could be played; hu: 1 drawn until finding a Xeno's color
 #   pass
-#   color  co, au: 1 picked by the bot, sm: 1 the color held most
+#   color  co, au: 1 picked by the bot, sm: 1 the color held most; dia/xe: 1 the bot's
+#          random color for a Diablo/Xeno, lk: 1 it was the color its player held most
 #   chal   challenger p, vs: the rival challenged, ok: 1 when the bluff was caught
 #   time   p ran out of time
 #   end    winner p, o: "win" or "forfeit"
@@ -115,8 +117,8 @@ def start(game):
             'first': key(game.current_player),
         }],
     }
-    if game.last_card is not None and game.last_card.special == c.DIABLO:
-        # The color the bot picked for a Diablo turned up first
+    if game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS:
+        # The color the bot picked for a Diablo or Xeno turned up first
         game.rivalry_log['ev'][0]['fco'] = game.last_card.color
 
 
@@ -134,8 +136,8 @@ def played(game, player, card, think=None, cancelled=False, pile=0, under=None, 
     `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect;
     `pile`: the cards waiting to be drawn when it was played, and `under`: the card it
     went on, which Tornado games log (the log leaves out the plays of other players); a
-    Diablo logs `under_color`, the color it went on (taken before the play cleared the color
-    of a wild under it), as 'uc'"""
+    Diablo or Xeno logs `under_color`, the color it went on (taken before the play cleared the
+    color of a wild under it), as 'uc'"""
     log = _log(game)
     if log is None:
         return
@@ -145,7 +147,8 @@ def played(game, player, card, think=None, cancelled=False, pile=0, under=None, 
     _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff,
          cx=1 if cancelled else None, pi=pile if stacked else None,
          on=str(under) if (stacked or on_chooser) and under is not None else None,
-         uc=under_color if card.special == c.DIABLO else None)
+         uc=under_color if card.special in c.BOT_COLOR_WILDS else None,
+         x5=1 if game.rules.xeno and card.color != under_color and c.sums_to_five(under, card) else None)
     if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 
@@ -166,8 +169,11 @@ def drew(game, player, before, reason, src=None):
     # stacked), and the log may leave out the play of a third player
     eight = (reason not in ('vol', 'plus1') and (reason != 'time' or len(new) > 1) and game.last_card is not None
              and game.last_card.special == c.DRAW_EIGHT)
+    # Xeno: drawn until finding the color of the Xeno on top (Player.draw)
+    hunt = reason in ('vol', 'time') and game.last_card is not None and game.last_card.special == c.XENO
     _add(game, player, 'draw', reason in ('vol', 'pen'), cs=[str(card) for card in new],
-         h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok, e8=1 if eight else None)
+         h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok, e8=1 if eight else None,
+         hu=1 if hunt else None)
 
 
 @_never_breaks_the_game
@@ -208,17 +214,17 @@ def passed(game, player):
 
 
 @_never_breaks_the_game
-def color(game, player, chosen, auto=False, diablo=False):
+def color(game, player, chosen, auto=False, diablo=False, xeno=False):
     """`chosen` became the color of the wild on top; `auto`: the bot picked it for `player`
-    (a timeout, a winning wild), `diablo`: the bot picked it at random for a Diablo"""
+    (a timeout, a winning wild), `diablo`/`xeno`: the bot picked it at random for a Diablo/Xeno"""
     if _log(game) is None or player is None:
         return
     held = {col: sum(1 for card in player.cards if card.color == col) for col in game.colors}
     smart = 1 if max(held.values()) and held.get(chosen) == max(held.values()) else None
-    if diablo:
+    if diablo or xeno:
         # Nobody chose it, so it's not a player's action: 'lk', the luck of getting the
         # color the player holds most, instead of a smart pick
-        _add(game, player, 'color', co=chosen, dia=1, lk=smart)
+        _add(game, player, 'color', co=chosen, dia=1 if diablo else None, xe=1 if xeno else None, lk=smart)
         return
     _add(game, player, 'color', not auto, co=chosen, au=1 if auto else None, sm=smart)
 
@@ -261,5 +267,8 @@ def finish(game, winner_id, outcome):
     if game.rules.diablo:
         # A Diablo game, even when nobody played a Diablo
         end['db'] = 1
+    if game.rules.xeno:
+        # A Xeno game, even when nobody played a Xeno
+        end['xe'] = 1
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

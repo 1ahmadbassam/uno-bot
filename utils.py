@@ -381,7 +381,7 @@ def make_turn_keyboard(game, chat_id):
             else:
                 draw_text = __("📥 Draw card", multi=game.translate)
             action_row.append(InlineKeyboardButton(text=draw_text, callback_data=f"action:{chat_id}:draw"))
-        else:
+        elif current_player.can_pass():
             action_row.append(InlineKeyboardButton(text=__("⏭️ Pass", multi=game.translate), callback_data=f"action:{chat_id}:pass"))
 
         if action_row:

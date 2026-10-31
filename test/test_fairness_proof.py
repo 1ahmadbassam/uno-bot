@@ -41,6 +41,11 @@ def full_deck(mode):
         values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip', 'swap', 'drop', 'plus1']
         cards = ['%s_%s' % (color, value) for color in 'rbgy' for value in values for _ in range(2)]
         return cards + ['colorchooser', 'draw_four'] * 4
+    if mode == 'xeno':
+        # Numbers, +2s and two Alphas per color, and eight Xenos
+        values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'alpha']
+        cards = ['%s_%s' % (color, value) for color in 'rbgy' for value in values for _ in range(2)]
+        return cards + ['%s_0' % color for color in 'rbgy'] + ['xeno'] * 8
     values = ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip'] if mode == 'wild' else \
         ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip']
     cards = []
@@ -184,8 +189,9 @@ def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
             p.play(card)
             # As actions.do_play_card does; nothing happens outside the Storm mode
             storm.apply(game, p, card)
-            if card.special == c.DIABLO:
-                game.choose_color(game.rng.choose_color(game.colors), diablo=True)
+            if card.special in c.BOT_COLOR_WILDS:
+                game.choose_color(game.rng.choose_color(game.colors), diablo=card.special == c.DIABLO,
+                                  xeno=card.special == c.XENO)
             elif game.choosing_color:
                 if not auto_color:
                     game.turn()  # ran out of time: the bot picks the color
@@ -673,12 +679,12 @@ class TestFairPlayExport(unittest.TestCase):
             {'k': 'end', 't': 10, 'p': 'a', 'o': 'win'},
         ]}
         d = rs.summarize_log(log)
-        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
-        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0])
-        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
-        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0])
 
     def test_fair_status(self):
         import rivalry_stats as rs

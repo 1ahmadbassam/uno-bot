@@ -219,8 +219,8 @@ class Game(object):
         if card.special == c.CHOOSE:
             self.choosing_color = True
             self.opening_color_choice = True
-        elif card.special == c.DIABLO:
-            # Its color comes from the bot (rivalry_log.start logs it with the deal)
+        elif card.special in c.BOT_COLOR_WILDS:
+            # A Diablo's or Xeno's color comes from the bot (rivalry_log.start logs it with the deal)
             card.color = self.rng.choose_color(self.colors)
         elif card.value == c.SKIP:
             self.turn()
@@ -266,11 +266,11 @@ class Game(object):
             self.logger.debug("Choosing Color...")
             self.choosing_color = True
 
-    def choose_color(self, color, auto=False, diablo=False):
+    def choose_color(self, color, auto=False, diablo=False, xeno=False):
         """Carries out the color choosing and turns the game; `auto`: the bot picked it
-        for a player, `diablo`: the bot picked it for a Diablo"""
+        for a player, `diablo`/`xeno`: the bot picked it for a Diablo/Xeno"""
         self.touch()
-        rivalry_log.color(self, self.current_player, color, auto, diablo)
+        rivalry_log.color(self, self.current_player, color, auto, diablo, xeno)
         self.last_card.color = color
         self.choosing_color = False
         if getattr(self, 'opening_color_choice', False):
