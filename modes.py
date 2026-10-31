@@ -16,7 +16,8 @@ def N_(message):
 class Mode(object):
     """The rules of one game mode"""
 
-    def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False):
+    def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False,
+                 bluff=True, tornado=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -29,6 +30,11 @@ class Mode(object):
         self.volcano = volcano
         # Whether Swap, Drop and +1 cards do something (storm.py)
         self.storm = storm
+        # Whether a +4 can be challenged as a bluff (actions.do_call_bluff)
+        self.bluff = bluff
+        # Whether a pending +4 can be answered with another +4, or a +2 of its color
+        # (Player._card_playable)
+        self.tornado = tornado
 
 
 CLASSIC = Mode('classic', N_("🎻 Classic mode"), N_('Classic 🎻'))
@@ -36,9 +42,10 @@ FAST = Mode('fast', N_("🚀 Sanic mode"), N_('Gotta go fast! 🚀'), auto_skip=
 WILD = Mode('wild', N_("🐉 Wild mode"), N_('Into the Wild~ 🐉'), deck='wild')
 VOLCANO = Mode('volcano', N_("🌋 Volcano mode"), N_('Ka-Boom! 🌋'), volcano=True)
 STORM = Mode('storm', N_("🌧️ Storm mode"), N_('Dance in the Rain 🌧️'), deck='storm', storm=True)
+TORNADO = Mode('tornado', N_("🌪️ Tornado mode"), N_('Wind of Revolution 🌪️'), bluff=False, tornado=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

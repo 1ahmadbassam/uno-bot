@@ -305,7 +305,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     rivalry_log.played(game, player, card, think, cancelled=cancelled)
     swapped = storm.apply(game, player, card, cancelled)
 
-    if c.is_draw_wild(card):
+    if c.is_draw_wild(card) and game.rules.bluff:
         game.last_bluffer = player
 
     if len(player.cards) == 1 and notify_uno:
@@ -323,7 +323,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
                        .format(color=display_color_group(auto_color, game)),
                        disable_notification=True)
 
-        if c.is_draw_wild(card) and game.draw_counter > 0:
+        if c.is_draw_wild(card) and game.draw_counter > 0 and game.rules.bluff:
             # F-04: Win is deferred until challenge resolution or draw/skip by next player
             player.pending_win = True
             game.last_bluffer = player

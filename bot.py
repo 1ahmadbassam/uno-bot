@@ -1407,7 +1407,7 @@ def reply_to_query(update: Update, context: CallbackContext):
                 else:
                     add_pass(results, game)
 
-                if c.is_draw_wild(game.last_card) and game.draw_counter:
+                if c.is_draw_wild(game.last_card) and game.draw_counter and game.rules.bluff:
                     add_call_bluff(results, game)
 
                 playable = player.playable_cards()
@@ -1582,7 +1582,7 @@ def _inline_action_allowed(player, game, result_id):
         return False
 
     if result_id == 'call_bluff':
-        return bool(not game.choosing_color and game.last_card and
+        return bool(not game.choosing_color and game.last_card and game.rules.bluff and
                     c.is_draw_wild(game.last_card) and game.draw_counter > 0)
     if result_id == 'draw':
         return not game.choosing_color and not player.drew

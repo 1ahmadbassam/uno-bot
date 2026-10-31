@@ -635,6 +635,26 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
     </div>
+
+    <div id="sp-tornado" class="mode-block">
+    <h3 class="mode-h">🌪️ Tornado</h3>
+    <p class="lede" id="tn-lede"></p>
+    <div id="tn-body">
+    <div class="card"><div class="tiles" id="tn-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Stacks per game</h3><span class="hint" data-tip="+4s played on a +4, +2s played on a +4 and Color Choosers played on a Color Chooser, per logged Tornado game.">?</span></div>
+        <div class="chart" id="c-tn-stacks"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Biggest pile per game</h3><span class="hint" data-tip="The biggest pile of +2s and +4s someone had to draw in each logged Tornado game, colored by who won it.">?</span></div>
+        <div class="chart" id="c-tn-pile"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+    </div>
+    </div>
+    </div>
   </section>
 
   <section id="fair">
@@ -2110,7 +2130,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2247,6 +2267,65 @@ function renderStorm(R) {
   return true;
 }
 
+// The Tornado mode (modes.TORNADO): no bluff challenges, and a pending +4 can be answered
+// with another +4 or a +2 of its color; true when its block shows
+function renderTornado(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'tornado'; });
+  $('sp-tornado').style.display = games.length ? '' : 'none';
+  if (!games.length) return false;
+  var logged = games.filter(function (m) { return m.d && m.d.tornado; });
+  var wins = { a: 0, b: 0 };
+  games.forEach(function (m) { wins[m.w]++; });
+  if (!logged.length) {
+    $('tn-lede').innerHTML = plural(games.length, 'Tornado game') + ' in the selection, none of them logged turn by turn yet.';
+    $('tn-body').style.display = 'none';
+    return true;
+  }
+  $('tn-body').style.display = '';
+  $('tn-lede').innerHTML = 'Classic rules without bluff challenges: a +4 can be answered with another +4 or a +2 of its color, and a Color Chooser ' +
+    'can go on a Color Chooser. ' + plural(logged.length, 'of the ' + games.length + ' Tornado game') + ' in the selection were logged.';
+  var keys = ['s4', 's2', 'ww', 'pen', 'big'], tot = {}, big = {};
+  P.forEach(function (p) { tot[p] = {}; keys.forEach(function (k) { tot[p][k] = 0; }); big[p] = 0; });
+  // The biggest pile of each game, in buckets: none drawn, +2, +4, +6, +8, +10 and more
+  var buckets = ['none', '+2', '+4', '+6', '+8', '+10+'], piles = buckets.map(function () { return { a: 0, b: 0 }; }), most = 0;
+  logged.forEach(function (m) {
+    var tn = m.d.tornado, top = 0;
+    P.forEach(function (p) {
+      var mine = tn[p] || {};
+      keys.forEach(function (k) { if (k !== 'big') tot[p][k] += mine[k] || 0; });
+      big[p] = Math.max(big[p], mine.big || 0);
+      top = Math.max(top, mine.big || 0);
+    });
+    most = Math.max(most, top);
+    piles[Math.min(5, Math.floor(top / 2))][m.w]++;
+  });
+  var n = logged.length;
+  function f(v) { return (+v).toFixed(1); }
+  var t = [];
+  t.push(pairTile('Win rate in Tornado', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Tornado game in the selection, logged or not.',
+    wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
+  t.push(tile('Biggest pile', most ? '+' + most : '–', 'the most cards one draw of +2s and +4s gave', 'Across the logged Tornado games.'));
+  t.push(pairTile('+4 on +4', tot.a.s4, tot.b.s4, 'A +4 played on a pending +4, passing the pile on.', f(tot.a.s4 / n) + ' per game', f(tot.b.s4 / n) + ' per game'));
+  t.push(pairTile('+2 on +4', tot.a.s2, tot.b.s2, 'A +2 of the chosen color played on a pending +4.', f(tot.a.s2 / n) + ' per game', f(tot.b.s2 / n) + ' per game'));
+  t.push(pairTile('Color Chooser on Color Chooser', tot.a.ww, tot.b.ww, 'A Color Chooser played right on top of another one.'));
+  t.push(pairTile('Piles drawn', tot.a.pen, tot.b.pen, 'How often a player had to draw a pile of +2s and +4s, and the biggest one.',
+    big.a ? 'biggest +' + big.a : '', big.b ? 'biggest +' + big.b : ''));
+  $('tn-tiles').innerHTML = t.join('');
+
+  var cats = ['+4 on +4', '+2 on +4', 'Chooser on Chooser'], ks = ['s4', 's2', 'ww'];
+  barChart($('c-tn-stacks'), {
+    cats: cats, grouped: true, yFmt: function (v) { return f(v); },
+    stacks: P.map(function (p) { return { color: COL[p], values: ks.map(function (k) { return tot[p][k] / n; }) }; }),
+    tip: function (ci) {
+      return '<b>' + cats[ci] + '</b>' + P.map(function (p) {
+        return row(sw(p) + nm(p), f(tot[p][ks[ci]] / n) + ' <span class="m">' + tot[p][ks[ci]] + ' in all</span>');
+      }).join('') + '<div class="m">per logged Tornado game</div>';
+    }
+  });
+  stackBy($('c-tn-pile'), buckets, piles, function (ci) { return ci ? 'Biggest pile ' + buckets[ci] : 'No pile drawn'; });
+  return true;
+}
+
 // --- Fair play ----------------------------------------------------------------
 // Statistical tests on the logged games, and the proofs of the provably fair ones
 // (fair.js checks those in the browser, the same way the replay page does)
@@ -2329,7 +2408,7 @@ function holm(ps) {
 var GROUPS = [[0], [1, 2, 3, 6, 7, 8], [4, 5]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {

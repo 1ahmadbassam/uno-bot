@@ -98,6 +98,9 @@ def modes(update: Update, context: CallbackContext):
                                     "hand with the next player's and Drop puts your hand back into the deck and "
                                     "deals you as many new cards. Use /cancel before playing a Swap or Drop to "
                                     "play it without its effect.")
+    modes_explanation += "\n\n" + _("🌪️ The Tornado mode uses the conventional UNO deck without bluff challenges: "
+                                    "a +4 can be answered with another +4, or with a +2 of the color that was "
+                                    "chosen, and the pile goes on to the next player.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,
