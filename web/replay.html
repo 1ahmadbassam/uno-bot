@@ -338,7 +338,8 @@ function describe(e) {
     case 'color':
       return who + ' chose <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) + (e.au ? '<span class="tag">picked by the bot</span>' : '');
     case 'chal':
-      return who + ' challenged the +4 of ' + nm(e.vs) + ' <span class="tag">' + (e.ok ? 'bluff caught' : 'no bluff') + '</span>';
+      // Logs from before 'c' only had +4s to challenge
+      return who + ' challenged the ' + (e.c === 'draw_eight' ? '+8' : '+4') + ' of ' + nm(e.vs) + ' <span class="tag">' + (e.ok ? 'bluff caught' : 'no bluff') + '</span>';
     case 'time':
       return who + ' ran out of time';
     case 'end':

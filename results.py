@@ -154,13 +154,15 @@ def add_card(game, card, results, can_play):
 
 
 def game_info(game):
-    """The game info message: first names only, so nobody gets pinged"""
+    """The game info message: first names only, so nobody gets pinged, and the
+    players in their seats with the direction of play"""
     separator = "\n    — \n"
     return InputTextMessageContent(
         _("Your turn: {name}").format(name=game.current_player.user.first_name) +
         separator +
         _("Card: {card}").format(card=c.spaced_label(game.last_card)) +
         separator +
-        _("Players:") + "\n" +
+        # ⟳: play goes down the list (and from the last back to the first), ⟲: up
+        (_("Players (⟲):") if game.reversed else _("Players (⟳):")) + "\n" +
         "\n".join("• " + player for player in player_list(game))
     )

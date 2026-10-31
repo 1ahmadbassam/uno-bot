@@ -690,8 +690,9 @@ def summarize_log(log):
                 tornado[p]['s4' if kind_of_card == 'd4' else 's2'] += 1
             elif e.get('on') == 'colorchooser' and kind_of_card == 'wild':
                 tornado[p]['ww'] += 1
-            if kind_of_card in ('d2', 'd4', 'd8'):
-                stack += {'d2': 2, 'd4': 4, 'd8': 8}[kind_of_card]
+            # A +8 doesn't stack (the Crazy section counts its piles)
+            if kind_of_card in ('d2', 'd4'):
+                stack += 2 if kind_of_card == 'd2' else 4
             else:
                 stack = 0
             if e['h'] == 1 and hands[p] > 1:

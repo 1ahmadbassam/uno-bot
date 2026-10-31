@@ -212,7 +212,9 @@ def color(game, player, chosen, auto=False):
 
 @_never_breaks_the_game
 def challenge(game, challenger, bluffer, caught):
-    _add(game, challenger, 'chal', True, vs=key(bluffer), ok=1 if caught else None)
+    """`challenger` called the bluff of the +4 (or the Crazy mode's +8) on top"""
+    challenged = str(game.last_card) if game.last_card is not None else None
+    _add(game, challenger, 'chal', True, vs=key(bluffer), ok=1 if caught else None, c=challenged)
 
 
 @_never_breaks_the_game

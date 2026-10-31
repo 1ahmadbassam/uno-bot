@@ -413,6 +413,8 @@ def label(card):
 
 def spaced_label(card):
     """label() with a space between the color and the name, e.g. '❤️ 6' or '💙⬛️ +4'"""
+    if card is None:
+        return '–'
     # repr() starts with these icons
     icons = COLOR_ICONS.get(card.color, '') + (COLOR_ICONS[BLACK] if card.special else '')
     return icons + ' ' + label(card)[len(icons):]
