@@ -288,7 +288,7 @@ function rebuild(events) {
         var at = hands[e.p].indexOf(e.c);
         if (at >= 0) hands[e.p].splice(at, 1);
         top = { c: e.c, color: parts(e.c).color === 'x' ? null : parts(e.c).color };
-      } else if (e.k === 'draw') {
+      } else if (e.k === 'draw' || e.k === 'erupt') {
         hands[e.p] = hands[e.p].concat(e.cs || []);
         fresh[e.p] = e.cs || [];
       } else if (e.k === 'color') {
@@ -315,6 +315,9 @@ function describe(e) {
       var n = (e.cs || []).length;
       if (e.r === 'vol') return who + ' drew a card' + (e.ok ? '<span class="tag">playable</span>' : '');
       return who + ' drew ' + plural(n, 'card') + ' <span class="tag">' + (REASONS[e.r] || e.r) + '</span>';
+    case 'erupt':
+      return '🌋 Ka-Boom! The volcano gave ' + who + ' ' + plural((e.cs || []).length, 'card') +
+        ' <span class="tag">eruption ' + e.i + ' of 5</span>';
     case 'pass':
       return who + ' passed';
     case 'color':
@@ -398,7 +401,7 @@ function drawChart() {
 
 function renderStats() {
   var s = { a: {}, b: {} };
-  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0 }; });
+  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0 }; });
   var hands = { a: (G.events[0].h.a || []).length, b: (G.events[0].h.b || []).length };
   G.events.forEach(function (e) {
     var x = s[e.p];
@@ -413,9 +416,14 @@ function renderStats() {
       if (e.r === 'vol') x.vol++; else x.forced += (e.cs || []).length;
       hands[e.p] = e.h;
       x.max = Math.max(x.max, e.h);
+    } else if (e.k === 'erupt') {
+      x.erupt += (e.cs || []).length;
+      hands[e.p] = e.h;
+      x.max = Math.max(x.max, e.h);
     } else if (e.k === 'pass') x.passes++;
   });
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
+  if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
     rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + s.a[r[1]] + '</td><td class="num">' + s.b[r[1]] + '</td></tr>'; }).join('') +
     '<tr><td>Thinking time per move</td><td class="num">' + (s.a.n ? (s.a.think / s.a.n).toFixed(1) + 's' : '–') + '</td><td class="num">' + (s.b.n ? (s.b.think / s.b.n).toFixed(1) + 's' : '–') + '</td></tr>';
@@ -527,7 +535,7 @@ function hex64(v) { var h = v.toString(16); return '0000000000000000'.slice(h.le
 
 // The "Show the math" section: one row per random pick, built when it is opened
 function renderMath(proof, entropyLabel) {
-  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's' || s.kind === 'm'; });
+  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's' || s.kind === 'm' || s.kind === 'v'; });
   var el = document.createElement('details');
   el.className = 'math';
   el.innerHTML = '<summary>Show the math behind every card (' + plural(steps.length, 'random pick') + ')</summary>' +
@@ -552,6 +560,10 @@ function renderMath(proof, entropyLabel) {
         what = esc(s.op[2]);
         who = '<span class="rej">game mode, out of ' + esc(s.op[1].join(', ')) + '</span>';
         pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.op[1].length;
+      } else if (s.kind === 'v') {
+        what = s.op[2] ? '🌋 Eruption' : 'Volcano quiet';
+        who = '<span class="rej">volcano roll ' + s.roll + ', erupts on 1 of ' + s.op[1] + '</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.op[1];
       } else {
         what = 'Seating';
         who = esc(s.op[2].map(seatName).join(' → '));

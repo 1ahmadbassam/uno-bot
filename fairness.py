@@ -245,7 +245,8 @@ class FairRandom(object):
     # ["d", card, seat] drawn from the pile by seat (null: the first card turned up);
     # ["x", card] to the discard pile; ["b", [cards]] put back into the draw pile;
     # ["c", color] color picked by the bot, out of the colors of the last fresh deck;
-    # ["m", [modes], mode] game mode picked out of [modes] for a random-mode lobby.
+    # ["m", [modes], mode] game mode picked out of [modes] for a random-mode lobby;
+    # ["v", odds, erupted] a volcano roll (volcano.py): erupted when randbelow(odds) is 0.
     # Seats are seat_label()s.
 
     def note(self, kind, *values):

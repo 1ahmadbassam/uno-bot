@@ -59,6 +59,9 @@ class Game(object):
         self.last_bluffer = None
         self.started_at = None  # UTC
         self.turns = 0
+        # Volcano mode (volcano.py): rolls made and eruptions so far
+        self.volcano_rolls = 0
+        self.volcano_eruptions = 0
         self.rivalry_log = None  # See rivalry_log.py
         # Users who left (or were removed from) this game after it started;
         # they can't rejoin it for a fresh hand
@@ -152,6 +155,8 @@ class Game(object):
         self.deck = Deck(self.rng)
         self.last_card = None
         self.draw_counter = 0
+        self.volcano_rolls = 0
+        self.volcano_eruptions = 0
         self.reversed = False
         self.choosing_color = False
         self.opening_color_choice = False

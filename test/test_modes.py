@@ -104,7 +104,7 @@ class TestModes(unittest.TestCase):
     def test_scores_json_says_which_deck_each_mode_uses(self):
         rivals = SimpleNamespace(a_id=1, b_id=2, a_name='A', b_name='B')
         data = rivalry_stats.scores_data(rivals, [], [], rivalry_stats.timezone.utc)
-        self.assertEqual(data['decks'], {'classic': 'classic', 'fast': 'classic', 'wild': 'wild'})
+        self.assertEqual(data['decks'], {'classic': 'classic', 'fast': 'classic', 'wild': 'wild', 'volcano': 'classic'})
 
 
 class TestModeRules(unittest.TestCase):

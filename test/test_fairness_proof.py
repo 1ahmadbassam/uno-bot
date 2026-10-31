@@ -19,6 +19,7 @@ import test.test_rate_limit_mitigations as stubs  # noqa: F401
 import bot
 import card as c
 import fairness
+import volcano
 from errors import DeckEmptyError, GameStartingError
 from fairness import FairRandom
 from game import Game
@@ -71,6 +72,7 @@ def check(proof):
         entropy = proof['beacon']
     stream = Stream(proof['seed'], entropy)
     pile, grave, out, by_seat = [], [], {}, {}
+    rolls = eruptions = 0
     for i, op in enumerate(proof['ops']):
         kind = op[0]
         if kind == 's':
@@ -105,6 +107,13 @@ def check(proof):
         elif kind == 'm':
             if op[1][stream.randbelow(len(op[1]))] != op[2]:
                 return 'mode at %d' % i, None
+        elif kind == 'v':
+            if eruptions >= 5 or op[1] != 10 + rolls:
+                return 'volcano odds at %d' % i, None
+            rolls += 1
+            if (stream.randbelow(op[1]) == 0) != op[2]:
+                return 'volcano at %d' % i, None
+            eruptions += op[2]
         else:
             return 'unknown op at %d' % i, None
     return None, by_seat
@@ -171,6 +180,8 @@ def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
             p.draw()
         except DeckEmptyError:
             break
+        # As actions.do_draw does; nothing happens outside the Volcano mode
+        volcano.roll(game, p)
         game.turn()
     return game
 

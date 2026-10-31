@@ -347,6 +347,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
       <a href="#sessions">Sessions</a>
       <a href="#games">Games</a>
       <a href="#inside">Inside the games</a>
+      <a href="#volcano" id="nav-volcano">Volcano</a>
       <a href="#fair">Fair play</a>
       <a href="#records">Records</a>
       <a href="#compare">Head to head</a>
@@ -586,6 +587,25 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
       <div class="card">
         <div class="ch"><h3>Latest replays</h3><span class="hint" data-tip="Watch a game again turn by turn, with both hands.">?</span></div>
         <div class="tbl"><table id="in-recent"></table></div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section id="volcano">
+    <h2>Volcano</h2>
+    <p class="lede" id="vo-lede"></p>
+    <div id="vo-body">
+    <div class="card"><div class="tiles" id="vo-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Eruptions per game</h3><span class="hint" data-tip="How many logged Volcano games had 0 to 5 eruptions, colored by who won.">?</span></div>
+        <div class="chart" id="c-vo-count"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won</span><span><i class="sw b"></i><span class="nb"></span> won</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Who the volcano hit</h3><span class="hint" data-tip="Win rates in the logged Volcano games, by whether the volcano erupted on a player more or less often than on the other.">?</span></div>
+        <div class="tbl"><table id="vo-hit"></table></div>
       </div>
     </div>
     </div>
@@ -2053,6 +2073,71 @@ function renderInside(R) {
   $('in-recent').innerHTML = rows.join('');
 }
 
+// --- Volcano ---------------------------------------------------------------------
+// Only for the Volcano mode (volcano.py): the section and its link are hidden
+// when the selection has no Volcano game
+function renderVolcano(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'volcano'; });
+  $('volcano').style.display = $('nav-volcano').style.display = games.length ? '' : 'none';
+  if (!games.length) return;
+  var logged = games.filter(function (m) { return m.d && m.d.vol; });
+  var wins = { a: 0, b: 0 };
+  games.forEach(function (m) { wins[m.w]++; });
+  if (!logged.length) {
+    $('vo-lede').innerHTML = plural(games.length, 'Volcano game') + ' in the selection, none of them logged turn by turn yet.';
+    $('vo-body').style.display = 'none';
+    return;
+  }
+  $('vo-body').style.display = '';
+  $('vo-lede').innerHTML = 'Each draw on a player\'s turn can make the volcano erupt and give them 3 more cards: the first roll of a game with a chance of 1 in 10, ' +
+    'then 1 in 11, 1 in 12 and so on, at most 5 times a game. ' + plural(logged.length, 'of the ' + games.length + ' Volcano game') + ' in the selection were logged.';
+  var tot = 0, expected = 0, variance = 0, hitGames = 0, maxed = 0, firsts = [], counts = [0, 0, 0, 0, 0, 0].map(function () { return { a: 0, b: 0 }; });
+  var per = { a: { n: 0, cards: 0, uno: 0, unoW: 0 }, b: { n: 0, cards: 0, uno: 0, unoW: 0 } };
+  var hit = { more: { a: [0, 0], b: [0, 0] }, less: { a: [0, 0], b: [0, 0] }, same: { a: [0, 0], b: [0, 0] } };
+  logged.forEach(function (m) {
+    var v = m.d.vol, n = v.a[0] + v.b[0];
+    tot += n;
+    expected += v.x;
+    for (var k = 0; k < v.r; k++) { var q = 1 / (10 + k); variance += q * (1 - q); }
+    if (n) hitGames++;
+    if (n >= 5) maxed++;
+    if (v.n1 != null) firsts.push(v.n1 + 1);
+    counts[Math.min(n, 5)][m.w]++;
+    P.forEach(function (p) {
+      var o = p === 'a' ? 'b' : 'a', key = v[p][0] > v[o][0] ? 'more' : v[p][0] < v[o][0] ? 'less' : 'same';
+      per[p].n += v[p][0];
+      per[p].cards += v[p][1];
+      per[p].uno += v[p][2];
+      if (v[p][2] && m.w === p) per[p].unoW++;
+      hit[key][p][1]++;
+      if (m.w === p) hit[key][p][0]++;
+    });
+  });
+  function f(v) { return (+v).toFixed(1); }
+  var sd = Math.sqrt(variance), t = [];
+  t.push(tile('Eruptions', tot, f(tot / logged.length) + ' per game', 'All eruptions in the logged Volcano games.'));
+  t.push(tile('Games with an eruption', pct(share(hitGames, logged.length), 0), hitGames + ' of ' + logged.length + (maxed ? ' · ' + maxed + ' hit the limit of 5' : '')));
+  t.push(tile('Expected by the odds', f(expected), 'seen ' + tot + (sd ? ' · ' + f((tot - expected) / sd) + ' standard deviations off' : ''),
+    'The eruptions the rolls of these games should give on average: the chances of every roll added up (1 in 10, 1 in 11, …). A gap of more than about 2 standard deviations would be unusual.'));
+  if (firsts.length) t.push(tile('First eruption', 'turn ' + f(firsts.reduce(function (s, v) { return s + v; }, 0) / firsts.length), 'on average, in the games that had one'));
+  t.push(pairTile('Win rate in Volcano', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Volcano game in the selection, logged or not.',
+    wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
+  t.push(pairTile('Eruptions taken', per.a.n, per.b.n, 'Eruptions that landed on a player, and how many cards they got from them.', per.a.cards + ' cards', per.b.cards + ' cards'));
+  t.push(pairTile('Erupted on while on UNO', per.a.uno, per.b.uno, 'Eruptions that hit a player holding their last card, and how many of those games they still won.',
+    per.a.unoW + ' still won', per.b.unoW + ' still won'));
+  $('vo-tiles').innerHTML = t.join('');
+
+  stackBy($('c-vo-count'), ['0', '1', '2', '3', '4', '5'], counts, function (ci) { return plural(ci, 'eruption'); });
+
+  var rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
+  [['Hit more often', 'more'], ['Hit as often', 'same'], ['Hit less often', 'less']].forEach(function (r) {
+    var x = hit[r[1]], sa = share(x.a[0], x.a[1]), sb = share(x.b[0], x.b[1]);
+    rows.push('<tr><td>' + r[0] + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa, 0) + '<span class="meta">won ' + x.a[0] + ' of ' + x.a[1] + '</span></td>' +
+      '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
+  });
+  $('vo-hit').innerHTML = rows.join('');
+}
+
 // --- Fair play ----------------------------------------------------------------
 // Statistical tests on the logged games, and the proofs of the provably fair ones
 // (fair.js checks those in the browser, the same way the replay page does)
@@ -2135,7 +2220,7 @@ function holm(ps) {
 var GROUPS = [[0], [1, 2, 3], [4, 5]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {
@@ -2642,6 +2727,7 @@ function update() {
   renderSessions(R);
   renderGames(R);
   renderInside(R);
+  renderVolcano(R);
   renderFair(R);
   renderRecords(R);
   renderCompare(R);

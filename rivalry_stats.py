@@ -16,6 +16,7 @@ from html import escape
 from typing import List, Optional
 
 import modes
+import volcano
 
 WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 # (label, first hour, last hour + 1) in local time; Night wraps past midnight
@@ -511,6 +512,8 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     if any(s[key]['ty'][5] for key in s):
         lines.append("+4s played: " + pair({key: "%d (%d bluff%s)" % (s[key]['ty'][5], s[key]['bl'], "" if s[key]['bl'] == 1 else "s")
                                             for key in s}))
+    if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
+        lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
         lines.append("Challenges won: " + pair({key: "%d of %d" % (s[key]['cw'], s[key]['ch']) for key in s}))
 
@@ -591,6 +594,11 @@ def summarize_log(log):
     stack = 2 if card_type(deal.get('fc') or '') == 'd2' else 0
     max_stack = samples = 0
     finisher = {}
+    # Volcano mode: per rival [eruptions, cards they gave, eruptions after a draw made on
+    # one card]; an eruption follows the draw that caused it, so the hand before that draw
+    eruptions = {key: [0, 0, 0] for key in hands}
+    before_draw = dict(hands)
+    first_eruption = None
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if s is None:
@@ -618,6 +626,7 @@ def summarize_log(log):
             finisher[p] = e['c']
         elif kind == 'draw':
             count = len(e.get('cs') or ())
+            before_draw[p] = hands[p]
             _count_cards(e.get('cs') or (), s['dt'], s['dc'])
             if e.get('r') == 'vol':
                 s['dv'] += 1
@@ -632,6 +641,16 @@ def summarize_log(log):
                     # A failed challenge adds 2 to the pile, as do_call_bluff does
                     max_stack = max(max_stack, stack + (2 if e.get('r') == 'chal' else 0))
                 stack = 0
+            hands[p] = e['h']
+            s['mx'] = max(s['mx'], e['h'])
+        elif kind == 'erupt':
+            count = len(e.get('cs') or ())
+            eruptions[p][0] += 1
+            eruptions[p][1] += count
+            if before_draw[p] == 1:
+                eruptions[p][2] += 1
+            if first_eruption is None:
+                first_eruption = e['n']
             hands[p] = e['h']
             s['mx'] = max(s['mx'], e['h'])
         elif kind == 'pass':
@@ -670,6 +689,16 @@ def summarize_log(log):
         'samples': samples,
         'ms': end.get('t', events[-1]['t']),
     }
+    if 'vr' in end:
+        rolls = end['vr']
+        summary['vol'] = {
+            'r': rolls,
+            # The eruptions the rolls made were expected to give: the chance of each roll
+            # added up (the cap ends the rolls, not the sum, so this stays a fair expectation)
+            'x': round(sum(1 / volcano.odds(k) for k in range(rolls)), 4),
+            'n1': first_eruption,
+            **eruptions,
+        }
     summary.update(per)
     return summary
 

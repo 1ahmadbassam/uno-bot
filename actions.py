@@ -3,6 +3,7 @@ import logging
 import card as c
 import rivalry
 import rivalry_log
+import volcano
 from datetime import datetime
 
 from telegram import Message, Chat, InlineKeyboardMarkup
@@ -82,6 +83,7 @@ def do_skip(bot, player, job_queue=None):
         except DeckEmptyError:
             pass
         rivalry_log.drew(game, skipped_player, before, 'time')
+        volcano.erupt(bot, game, skipped_player)
         if was_choosing:
             game.draw_counter = draw_counter
         elif draw_counter and c.is_draw_wild(game.last_card):
@@ -342,6 +344,7 @@ def do_draw(bot, player):
                    text=__("There are no more cards in the deck.",
                            multi=game.translate))
     rivalry_log.drew(game, player, before, 'pen' if draw_counter_before else 'vol')
+    volcano.erupt(bot, game, player)
 
     if (game.last_card.value == c.DRAW_TWO or
         c.is_draw_wild(game.last_card)) and \
@@ -418,6 +421,7 @@ def do_call_bluff(bot, player):
                        text=__("There are no more cards in the deck.",
                                multi=game.translate))
         rivalry_log.drew(game, player, before, 'chal', src=rivalry_log.key(bluffer))
+        volcano.erupt(bot, game, player)
 
         game.turn()
         # F-04: If bluffer was innocent and had pending win, award the win now!

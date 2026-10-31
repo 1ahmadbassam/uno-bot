@@ -85,7 +85,10 @@ def modes(update: Update, context: CallbackContext):
       " 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n\n"
       "To change the game mode, the GAME CREATOR has to type the bot nickname and a space, "
       "just like when playing a card, and all gamemode options should appear.")
-    # Its own message, so the translations of the text above still apply
+    # Their own messages, so the translations of the text above still apply
+    modes_explanation += "\n\n" + _("🌋 The Volcano mode uses the conventional UNO deck, and each time you draw on your "
+                                    "turn the volcano may erupt and give you 3 more cards: a 1 in 10 chance at first, "
+                                    "lower with every draw of the game, and at most 5 eruptions per game.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

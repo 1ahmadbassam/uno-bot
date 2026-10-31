@@ -154,6 +154,15 @@ def drew(game, player, before, reason, src=None):
 
 
 @_never_breaks_the_game
+def erupted(game, player, cards, number):
+    """The volcano gave `player` `cards`, in the game's `number`-th eruption (volcano.py)"""
+    log = _log(game)
+    if log is None:
+        return
+    _add(game, player, 'erupt', cs=[str(card) for card in cards], h=len(player.cards), i=number)
+
+
+@_never_breaks_the_game
 def passed(game, player):
     _add(game, player, 'pass', True, h=len(player.cards))
 
@@ -184,6 +193,10 @@ def finish(game, winner_id, outcome):
     game.rivalry_log = None
     if log is None:
         return None
-    log['ev'].append({'k': 'end', 't': _now_ms() - log['t0'], 'n': getattr(game, 'turns', 0),
-                      'p': KEYS.get(winner_id), 'o': outcome})
+    end = {'k': 'end', 't': _now_ms() - log['t0'], 'n': getattr(game, 'turns', 0),
+           'p': KEYS.get(winner_id), 'o': outcome}
+    if game.rules.volcano:
+        # Every roll of the game, the other players' too, for the website's expected eruptions
+        end['vr'] = getattr(game, 'volcano_rolls', 0)
+    log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

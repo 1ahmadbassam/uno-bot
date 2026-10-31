@@ -124,6 +124,8 @@ class GameManager(object):
             'fair': game.rng.to_dict(),
             'started_at': game.started_at.isoformat() if getattr(game, 'started_at', None) else None,
             'turns': getattr(game, 'turns', 0),
+            'volcano_rolls': getattr(game, 'volcano_rolls', 0),
+            'volcano_eruptions': getattr(game, 'volcano_eruptions', 0),
             'rivalry_log': getattr(game, 'rivalry_log', None),
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
@@ -153,6 +155,8 @@ class GameManager(object):
         game.deck.rng = game.rng
         game.started_at = datetime.fromisoformat(data['started_at']) if data.get('started_at') else None
         game.turns = data.get('turns', 0)
+        game.volcano_rolls = data.get('volcano_rolls', 0)
+        game.volcano_eruptions = data.get('volcano_eruptions', 0)
         game.rivalry_log = data.get('rivalry_log')
         game.job = None
 

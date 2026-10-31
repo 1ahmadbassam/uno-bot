@@ -96,10 +96,13 @@ async function fetchBeacon(chain, round) {
   return null;
 }
 
+// The volcano mode's rolls (volcano.py)
+var VOLCANO = { base: 10, max: 5 };
+
 // Replays the card movements; returns null when everything matches, or what went wrong.
 // Fills proof._draws (every card drawn, in order) and proof._bySeat (seat -> cards drawn, in order).
 async function replayOps(proof, stream) {
-  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], colors = FAIR_COLORS, i, j;
+  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], colors = FAIR_COLORS, rolls = 0, eruptions = 0, i, j;
   proof._steps = steps;
   for (i = 0; i < proof.ops.length; i++) {
     var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ', from = stream.trace ? stream.trace.length : 0;
@@ -139,6 +142,15 @@ async function replayOps(proof, stream) {
     } else if (kind === 'm') {
       var mode = op[1][await stream.randbelow(op[1].length)];
       if (mode !== op[2]) return where + 'the bot picked a different game mode than the seed gives';
+    } else if (kind === 'v') {
+      // Volcano mode: roll k (from 0) erupts with a chance of 1 in 10 + k, at most 5 times a game
+      if (eruptions >= VOLCANO.max) return where + 'the volcano rolled after its last eruption';
+      if (op[1] !== VOLCANO.base + rolls) return where + 'the volcano rolled with odds of 1 in ' + op[1] + ' instead of 1 in ' + (VOLCANO.base + rolls);
+      step.roll = rolls + 1;
+      rolls++;
+      var erupted = (await stream.randbelow(op[1])) === 0;
+      if (erupted !== op[2]) return where + 'the volcano ' + (op[2] ? 'erupted' : 'stayed quiet') + ' but the seed says it ' + (erupted ? 'erupts' : 'stays quiet');
+      if (erupted) eruptions++;
     } else {
       return where + 'unknown entry "' + kind + '"';
     }
@@ -154,7 +166,7 @@ function replayReceived(events) {
   var got = {}, first = null;
   events.forEach(function (e) {
     if (e.k === 'deal') { Object.keys(e.h).forEach(function (p) { got[p] = e.h[p].slice(); }); first = e.fc || null; }
-    if (e.k === 'draw' && e.cs && e.p) got[e.p] = (got[e.p] || []).concat(e.cs);
+    if ((e.k === 'draw' || e.k === 'erupt') && e.cs && e.p) got[e.p] = (got[e.p] || []).concat(e.cs);
   });
   return { bySeat: got, first: first };
 }
