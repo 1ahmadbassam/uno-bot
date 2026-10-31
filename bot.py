@@ -42,7 +42,7 @@ import settings
 import simple_commands
 import storm
 from access_control import access_control
-from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
+from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, diablo_announcement, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
     fairness_commitment, reveal_fairness
 from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED
@@ -1544,6 +1544,8 @@ def process_result(update: Update, context: CallbackContext):
         reset_waiting_time(context.bot, player)
         swapped = do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
         played_card = True
+        if game.last_card is not None and game.last_card.special == c.DIABLO and game.last_card.color:
+            color_chosen_announcement = diablo_announcement(game)
 
     if game_is_running(game):
         gm.persist_game(game)

@@ -115,6 +115,9 @@ def start(game):
             'first': key(game.current_player),
         }],
     }
+    if game.last_card is not None and game.last_card.special == c.DIABLO:
+        # The color the bot picked for a Diablo turned up first
+        game.rivalry_log['ev'][0]['fco'] = game.last_card.color
 
 
 @_never_breaks_the_game
@@ -130,7 +133,8 @@ def played(game, player, card, think=None, cancelled=False, pile=0, under=None):
     """`player` played `card`; `think`: think_time() taken before the card ended the turn;
     `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect;
     `pile`: the cards waiting to be drawn when it was played, and `under`: the card it
-    went on, which Tornado games log (the log leaves out the plays of other players)"""
+    went on, which Tornado games log (the log leaves out the plays of other players); a
+    Diablo logs the color it went on as 'uc'"""
     log = _log(game)
     if log is None:
         return
@@ -139,7 +143,8 @@ def played(game, player, card, think=None, cancelled=False, pile=0, under=None):
     on_chooser = game.rules.tornado and card.special == c.CHOOSE and under is not None and under.special == c.CHOOSE
     _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff,
          cx=1 if cancelled else None, pi=pile if stacked else None,
-         on=str(under) if (stacked or on_chooser) and under is not None else None)
+         on=str(under) if (stacked or on_chooser) and under is not None else None,
+         uc=under.color if card.special == c.DIABLO and under is not None else None)
     if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 
@@ -202,11 +207,18 @@ def passed(game, player):
 
 
 @_never_breaks_the_game
-def color(game, player, chosen, auto=False):
+def color(game, player, chosen, auto=False, diablo=False):
+    """`chosen` became the color of the wild on top; `auto`: the bot picked it for `player`
+    (a timeout, a winning wild), `diablo`: the bot picked it at random for a Diablo"""
     if _log(game) is None or player is None:
         return
     held = {col: sum(1 for card in player.cards if card.color == col) for col in game.colors}
     smart = 1 if max(held.values()) and held.get(chosen) == max(held.values()) else None
+    if diablo:
+        # Nobody chose it, so it's not a player's action: 'lk', the luck of getting the
+        # color the player holds most, instead of a smart pick
+        _add(game, player, 'color', co=chosen, dia=1, lk=smart)
+        return
     _add(game, player, 'color', not auto, co=chosen, au=1 if auto else None, sm=smart)
 
 
@@ -245,5 +257,8 @@ def finish(game, winner_id, outcome):
     if game.rules.hide_counts:
         # A Crazy game, even when nobody played a +8
         end['cz'] = 1
+    if game.rules.diablo:
+        # A Diablo game, even when nobody played a Diablo
+        end['db'] = 1
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

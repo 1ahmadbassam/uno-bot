@@ -105,7 +105,8 @@ class TestModes(unittest.TestCase):
         rivals = SimpleNamespace(a_id=1, b_id=2, a_name='A', b_name='B')
         data = rivalry_stats.scores_data(rivals, [], [], rivalry_stats.timezone.utc)
         self.assertEqual(data['decks'], {'classic': 'classic', 'fast': 'classic', 'wild': 'wild', 'volcano': 'classic',
-                                         'storm': 'storm', 'tornado': 'classic', 'crazy': 'crazy'})
+                                         'storm': 'storm', 'tornado': 'classic', 'crazy': 'crazy',
+                                         'diablo': 'diablo'})
 
 
 class TestModeRules(unittest.TestCase):
@@ -175,7 +176,7 @@ class TestRandomMode(unittest.TestCase):
     def test_start_picks_a_real_mode_with_the_game_seed(self):
         picked = set()
         # Enough games that each of the modes comes up (all but certainly)
-        for _ in range(80):
+        for _ in range(100):
             game = play_a_game('random', players=2, max_turns=5)
             self.assertIn(game.mode, modes.MODES)
             self.assertTrue(game.random_mode)

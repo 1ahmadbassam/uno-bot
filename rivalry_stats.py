@@ -449,8 +449,8 @@ def inline_data(page, data):
 
 # --- Game logs (rivalry_log.py) -------------------------------------------
 
-# The Storm cards come last, so older summaries (6 types) keep their indexes
-CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8')
+# New types come last, so older summaries (6 types) keep their indexes
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia')
 ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
 LOG_COLORS = ('r', 'b', 'g', 'y')
 
@@ -537,6 +537,11 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
                                                for key in s}))
         if any(cz[key]['n8'] for key in s):
             lines.append("Cards drawn from +8s: " + pair({key: cz[key]['t8'] for key in s}))
+    if d.get('diablo'):
+        db = d['diablo']
+        lines.append("💀 Diablos played: " + pair({key: db[key]['p'] for key in s}))
+        if any(db[key]['p'] for key in s):
+            lines.append("Diablo gave the color held most: " + pair({key: "%d of %d" % (db[key]['lk'], db[key]['p']) for key in s}))
     if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
         lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
@@ -567,6 +572,8 @@ def card_type(card):
         return 'd4'
     if card == 'draw_eight':
         return 'd8'
+    if card == 'diablo':
+        return 'dia'
     if card == 'colorchooser':
         return 'wild'
     value = card.split('_', 1)[1] if '_' in card else card
@@ -586,7 +593,7 @@ def _player_summary(hand):
         'mx': hand,              # largest hand
         'uno': 0, 'den': 0,      # times down to one card; penalties taken on one card
         'pk': [0] * 4, 'sm': 0,  # colors picked, by LOG_COLORS; picks of the color held most
-        'au': 0,                 # colors the bot picked after a timeout
+        'au': 0,                 # colors the bot picked after a timeout (not for a Diablo)
         'bl': 0,                 # +4s played while holding the active color
         'ch': 0, 'cw': 0,        # challenges made, and won
         'to': 0,                 # timeouts
@@ -641,6 +648,11 @@ def summarize_log(log):
     # were bluffs, and the +8 piles they drew and their cards (draws logged with 'e8')
     crazy = {key: {'k8': sum(1 for card in cards if card == 'draw_eight'), 'p8': 0, 'b8': 0, 'n8': 0, 't8': 0}
              for key, cards in deal['h'].items()}
+    # Diablo mode, per rival: Diablos dealt in the starting hand and played, the colors the
+    # bot set for them (by LOG_COLORS), how often that was the color they went on, and how
+    # often the color the player held most (the 'dia' color events)
+    diablo = {key: {'k': sum(1 for card in cards if card == 'diablo'), 'p': 0, 'col': [0] * 4, 'same': 0, 'lk': 0}
+              for key, cards in deal['h'].items()}
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if kind == 'swap':
@@ -683,6 +695,9 @@ def summarize_log(log):
                 s['co'][LOG_COLORS.index(e['c'][0])] += 1
             if kind_of_card == 'd4' and e.get('bl'):
                 s['bl'] += 1
+            if kind_of_card == 'dia':
+                diablo[p]['p'] += 1
+                diablo[p]['on'] = e.get('uc')
             if kind_of_card == 'd8':
                 crazy[p]['p8'] += 1
                 crazy[p]['b8'] += 1 if e.get('bl') else 0
@@ -744,7 +759,13 @@ def summarize_log(log):
         elif kind == 'pass':
             s['ps'] += 1
         elif kind == 'color':
-            if e.get('au'):
+            if e.get('dia'):
+                db = diablo[p]
+                if e.get('co') in LOG_COLORS:
+                    db['col'][LOG_COLORS.index(e['co'])] += 1
+                db['same'] += 1 if db.pop('on', None) == e.get('co') else 0
+                db['lk'] += e.get('lk', 0)
+            elif e.get('au'):
                 s['au'] += 1
             elif e.get('co') in LOG_COLORS:
                 s['pk'][LOG_COLORS.index(e['co'])] += 1
@@ -770,7 +791,7 @@ def summarize_log(log):
         'fc': deal.get('fc'),
         # (action cards, wild cards) in each starting hand
         'deal': {key: [sum(1 for card in cards if card_type(card) in ACTION_TYPES),
-                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8'))]
+                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8', 'dia'))]
                  for key, cards in deal['h'].items()},
         'fin': finisher.get(winner) if end.get('o') == 'win' else None,
         'stack': max_stack,
@@ -783,6 +804,10 @@ def summarize_log(log):
         summary['tornado'] = tornado
     if end.get('cz'):
         summary['crazy'] = crazy
+    if end.get('db'):
+        for db in diablo.values():
+            db.pop('on', None)
+        summary['diablo'] = diablo
     if 'vr' in end:
         rolls = end['vr']
         summary['vol'] = {

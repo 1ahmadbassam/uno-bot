@@ -52,6 +52,9 @@ def full_deck(mode):
     if mode == 'crazy':
         # The classic deck and two +8s
         cards += ['draw_eight'] * 2
+    if mode == 'diablo':
+        # The classic deck and eight Diablos
+        cards += ['diablo'] * 8
     return cards
 
 
@@ -668,12 +671,12 @@ class TestFairPlayExport(unittest.TestCase):
             {'k': 'end', 't': 10, 'p': 'a', 'o': 'win'},
         ]}
         d = rs.summarize_log(log)
-        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0])
+        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0])
         self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
-        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0])
-        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
-        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
 
     def test_fair_status(self):
         import rivalry_stats as rs

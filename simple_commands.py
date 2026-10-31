@@ -104,6 +104,9 @@ def modes(update: Update, context: CallbackContext):
     modes_explanation += "\n\n" + _("👻 The Crazy mode deals 8 starting cards from the conventional UNO deck "
                                     "with two Wild +8s added, and the game info doesn't show how many cards "
                                     "the other players hold.")
+    modes_explanation += "\n\n" + _("💀 The Diablo mode uses the conventional UNO deck with eight Diablos added "
+                                    "and without bluff challenges: a Diablo is a wild card whose color the bot "
+                                    "picks at random.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

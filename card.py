@@ -65,8 +65,10 @@ CHOOSE = 'colorchooser'
 DRAW_FOUR = 'draw_four'
 # Only in the Crazy mode's deck
 DRAW_EIGHT = 'draw_eight'
+# Only in the Diablo mode's deck: a Color Chooser whose color the bot picks at random
+DIABLO = 'diablo'
 
-SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT)
+SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT, DIABLO)
 
 # Wild cards that make the next player draw, and how many cards they add;
 # the next player may challenge one as a bluff
@@ -343,6 +345,15 @@ STICKERS_CRAZY_GREY = {
     "draw_eight": "CAACAgQAAxUAAWrlyoKioDAFAc4SHzzK4HKK0ihzAAIfAwACRjR0Da67rJTdG6KJPQQ",
 }
 
+# The Diablo mode's Diablo (UNOBotGamesArenaV pack, position 28 and its grey version 58)
+STICKERS_DIABLO = {
+    "diablo": "CAACAgQAAxUAAWrlyoLel-Nzo6ad5Vl8_gqESGqkAAJJGwACvypoUz0Y0VFRmynMPQQ",
+}
+
+STICKERS_DIABLO_GREY = {
+    "diablo": "CAACAgQAAxUAAWrlyoJ-h1vi09qmzcStXpK7cYtNAALHGwACuRNxUyTHWGE2BX1OPQQ",
+}
+
 STICKERS_OPTIONS = {
     "option_draw": "CAACAgQAAxUAAWrlFf9h0bYOTGPFpUp1A4Kv4CBNAAICBAACRjR0DY2i3mgWBOLPPQQ",
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
@@ -362,6 +373,7 @@ STICKERS = {
     **_selected_cardset["normal"],
     **STICKERS_STORM,
     **STICKERS_CRAZY,
+    **STICKERS_DIABLO,
     **STICKERS_OPTIONS,
 }
 
@@ -369,6 +381,7 @@ STICKERS_GREY = {
     **_selected_cardset["not_playable"],
     **STICKERS_STORM_GREY,
     **STICKERS_CRAZY_GREY,
+    **STICKERS_DIABLO_GREY,
 }
 
 

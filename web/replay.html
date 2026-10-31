@@ -254,6 +254,7 @@ function think(e) { return e.th == null ? null : Math.max(0, e.th - (G.pacing ||
 function parts(card) {
   if (card === 'draw_four') return { color: 'x', label: '+4' };
   if (card === 'draw_eight') return { color: 'x', label: '+8' };
+  if (card === 'diablo') return { color: 'x', label: '💀' };
   if (card === 'colorchooser') return { color: 'x', label: 'W' };
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇅', drop: '⤓', plus1: '+1' }[v] || v };
@@ -267,6 +268,7 @@ function chip(card, o) {
 function cardName(card) {
   if (card === 'draw_four') return 'Wild +4';
   if (card === 'draw_eight') return 'Wild +8';
+  if (card === 'diablo') return 'Diablo';
   if (card === 'colorchooser') return 'Wild';
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return (COLOR_NAMES[card.slice(0, i)] || '') + ' ' + ({ skip: 'skip', reverse: 'reverse', draw: '+2', plus1: '+1' }[v] || v);
@@ -281,7 +283,7 @@ function sortHand(cards) {
 
 // --- Rebuilding the game ----------------------------------------------------
 function rebuild(events) {
-  var deal = events[0], hands = {}, top = { c: deal.fc, color: deal.fc ? parts(deal.fc).color : null }, out = [], turnOf = deal.first;
+  var deal = events[0], hands = {}, top = { c: deal.fc, color: deal.fco || (deal.fc ? parts(deal.fc).color : null) }, out = [], turnOf = deal.first;
   Object.keys(deal.h).forEach(function (p) { hands[p] = deal.h[p].slice(); });
   events.forEach(function (e, i) {
     var fresh = {};
@@ -316,7 +318,8 @@ function describe(e) {
   var who = '<i class="sw ' + e.p + '"></i>' + nm(e.p);
   switch (e.k) {
     case 'deal':
-      return 'Cards dealt. First card ' + (e.fc ? chip(e.fc) : '–') + (e.first ? ', ' + nm(e.first) + ' starts.' : '.');
+      return 'Cards dealt. First card ' + (e.fc ? chip(e.fc) : '–') +
+        (e.fco ? ' <span class="tag">💀 ' + (COLOR_NAMES[e.fco] || e.fco) + '</span>' : '') + (e.first ? ', ' + nm(e.first) + ' starts.' : '.');
     case 'play':
       return who + ' played ' + chip(e.c) + (e.bl ? '<span class="tag">bluff</span>' : '') + (e.cx ? '<span class="tag">cancelled</span>' : '') +
         (e._pile ? '<span class="tag">🌪️ stacked, now +' + e._pile + '</span>' : '') + (e._ww ? '<span class="tag">🌪️ on a Color Chooser</span>' : '') +
@@ -336,6 +339,8 @@ function describe(e) {
     case 'pass':
       return who + ' passed';
     case 'color':
+      if (e.dia) return '💀 The Diablo of ' + who + ' set the color to <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) +
+        '<span class="tag">random</span>' + (e.lk ? '<span class="tag">their best color</span>' : '');
       return who + ' chose <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) + (e.au ? '<span class="tag">picked by the bot</span>' : '');
     case 'chal':
       // Logs from before 'c' only had +4s to challenge
@@ -417,7 +422,7 @@ function drawChart() {
 
 function renderStats() {
   var s = { a: {}, b: {} };
-  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0, p8: 0, t8: 0 }; });
+  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0, p8: 0, t8: 0, dia: 0, lk: 0 }; });
   var hands = { a: (G.events[0].h.a || []).length, b: (G.events[0].h.b || []).length };
   G.events.forEach(function (e) {
     if (e.k === 'swap') {
@@ -434,6 +439,7 @@ function renderStats() {
       x.played++;
       if (e.cx) x.cancels++;
       if (e.c === 'draw_eight') x.p8++;
+      if (e.c === 'diablo') x.dia++;
       if (e._pile) x.stacks++;
       if (e._ww) x.ww++;
       if (!/_\d$/.test(e.c)) x.actions++;
@@ -450,10 +456,12 @@ function renderStats() {
       hands[e.p] = e.h;
       x.max = Math.max(x.max, e.h);
     } else if (e.k === 'pass') x.passes++;
+    else if (e.k === 'color' && e.dia && e.lk) x.lk++;
   });
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
   if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
   if (G.mode === 'tornado') rows.splice(4, 0, ['🌪️ Stacked on a +4', 'stacks'], ['🌪️ Color Chooser on Color Chooser', 'ww'], ['🌪️ Biggest pile drawn', 'big']);
+  if (G.mode === 'diablo') rows.splice(4, 0, ['💀 Diablos played', 'dia'], ['💀 Diablos on their best color', 'lk']);
   if (G.mode === 'crazy') rows.splice(4, 0, ['👻 +8s played', 'p8'], ['👻 Cards drawn from +8s', 't8']);
   if (G.mode === 'storm') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
