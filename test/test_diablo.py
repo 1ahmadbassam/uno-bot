@@ -51,6 +51,11 @@ class TestDiabloMode(unittest.TestCase):
     def test_games_play_through_and_pass_the_fairness_check(self):
         game = play_a_game('diablo', players=3)
         self.assertEqual(check(game.rng.proof())[0], None)
+        # Every Diablo played got its color from the seed
+        ops = game.rng.ops
+        diablos = [i for i, op in enumerate(ops) if op[0] == 'x' and op[1] == 'diablo']
+        self.assertTrue(diablos)
+        self.assertGreaterEqual(sum(1 for op in ops if op[0] == 'c'), len(diablos))
 
 
 class TestDiabloCard(unittest.TestCase):
@@ -140,6 +145,24 @@ class TestDiabloMessage(unittest.TestCase):
         self.assertTrue(text.startswith("💀 Diablo set the color to "), text)
         self.assertIn("Next player: Ivan", text)
 
+    def test_the_first_message_says_the_color_of_an_opening_diablo(self):
+        game = Game(stubs.MockChat(-1))
+        game.mode = 'diablo'
+        for i, name in enumerate(("Alice", "Ivan")):
+            Player(game, stubs.MockUser(i + 1, name))
+
+        def first_card():
+            game.last_card = c.Card(c.YELLOW, None, c.DIABLO)
+
+        sent = MagicMock()
+        with patch.object(game, '_first_card_', first_card), patch('bot.gm'), \
+                patch('bot.start_player_countdown'), patch('bot.dispatcher') as dispatcher:
+            bot._deal_and_announce(sent, game, game.chat, None)
+            dispatcher.run_async.call_args[0][0]()
+        text = sent.sendMessage.call_args[1]['text']
+        self.assertTrue(text.startswith("💀 Diablo set the color to "), text)
+        self.assertIn("First player: ", text)
+
 
 class TestDiabloLog(LoggedGame):
 
@@ -175,6 +198,16 @@ class TestDiabloLog(LoggedGame):
         self.assertEqual(d['a']['ty'][rs.CARD_TYPES.index('dia')], 2)
         # Not the timeout stat, nor the colors players chose
         self.assertEqual((d['a']['au'], d['a']['pk']), (0, [0, 0, 0, 0]))
+
+    def test_the_color_under_it_survives_a_wild_being_dismissed(self):
+        for under in (c.Card(c.GREEN, None, c.CHOOSE), c.Card(c.GREEN, None, c.DRAW_FOUR),
+                      c.Card(c.GREEN, None, c.DIABLO)):
+            self.game.last_card = under
+            self.game.current_player = self.alice
+            self.play_diablo(c.GREEN)
+            self.assertEqual(self.events('play')[-1]['uc'], c.GREEN)
+        end = rivalry_log.finish(self.game, A_ID, 'win')
+        self.assertEqual(rs.summarize_log(end)['diablo']['a']['same'], 3)
 
     def test_a_diablo_turned_up_first_logs_its_color(self):
         self.game.last_card = c.Card(c.YELLOW, None, c.DIABLO)

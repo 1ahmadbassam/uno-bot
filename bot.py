@@ -1028,6 +1028,9 @@ def _deal_and_announce(bot, game, chat, job_queue):
             .format(name=display_name(game.current_player.user)))
         markup = make_color_keyboard(chat.id, game)
     else:
+        if game.last_card is not None and game.last_card.special == c.DIABLO:
+            # The bot picked its color (game._first_card_)
+            revealed += diablo_announcement(game)
         first_message = revealed + (
             __("First player: {name}\n"
                "Use /close to stop people from joining the game.\n"

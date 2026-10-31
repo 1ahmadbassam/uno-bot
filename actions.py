@@ -305,10 +305,13 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     player.game.storm_cancel = False
     # What the card goes on, for the Tornado statistics (rivalry_log.played)
     pile, under = player.game.draw_counter, player.game.last_card
+    # Taken now: playing the card dismisses the one under it, which clears a wild's color
+    under_color = under.color if under is not None else None
     player.play(card)
     game = player.game
     chat = game.chat
-    rivalry_log.played(game, player, card, think, cancelled=cancelled, pile=pile, under=under)
+    rivalry_log.played(game, player, card, think, cancelled=cancelled, pile=pile, under=under,
+                       under_color=under_color)
     swapped = storm.apply(game, player, card, cancelled)
 
     if c.is_draw_wild(card) and game.rules.bluff:

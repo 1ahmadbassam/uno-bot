@@ -129,12 +129,13 @@ def turn(game):
 
 
 @_never_breaks_the_game
-def played(game, player, card, think=None, cancelled=False, pile=0, under=None):
+def played(game, player, card, think=None, cancelled=False, pile=0, under=None, under_color=None):
     """`player` played `card`; `think`: think_time() taken before the card ended the turn;
     `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect;
     `pile`: the cards waiting to be drawn when it was played, and `under`: the card it
     went on, which Tornado games log (the log leaves out the plays of other players); a
-    Diablo logs the color it went on as 'uc'"""
+    Diablo logs `under_color`, the color it went on (taken before the play cleared the color
+    of a wild under it), as 'uc'"""
     log = _log(game)
     if log is None:
         return
@@ -144,7 +145,7 @@ def played(game, player, card, think=None, cancelled=False, pile=0, under=None):
     _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff,
          cx=1 if cancelled else None, pi=pile if stacked else None,
          on=str(under) if (stacked or on_chooser) and under is not None else None,
-         uc=under.color if card.special == c.DIABLO and under is not None else None)
+         uc=under_color if card.special == c.DIABLO else None)
     if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 

@@ -184,7 +184,9 @@ def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
             p.play(card)
             # As actions.do_play_card does; nothing happens outside the Storm mode
             storm.apply(game, p, card)
-            if game.choosing_color:
+            if card.special == c.DIABLO:
+                game.choose_color(game.rng.choose_color(game.colors), diablo=True)
+            elif game.choosing_color:
                 if not auto_color:
                     game.turn()  # ran out of time: the bot picks the color
                     auto_color = True
