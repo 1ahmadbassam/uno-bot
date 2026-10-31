@@ -49,6 +49,8 @@ class Game(object):
         self.players_won = 0
         self.starter = None
         self.mode = DEFAULT_GAMEMODE
+        # Whether start() picked the mode because the lobby was set to random
+        self.random_mode = False
         self.job = None
         self.owner = set(ADMIN_LIST or [])
         self.open = OPEN_LOBBY
@@ -119,6 +121,8 @@ class Game(object):
             self.rng.use_system()
         if SHUFFLE_PLAYERS:
             self.shuffle_players()
+        if self.mode == modes.RANDOM.id:
+            self.pick_random_mode()
 
         self.deck.fill(self.rules.deck)
 
@@ -127,9 +131,20 @@ class Game(object):
         self.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.turns = 0
 
+    def pick_random_mode(self):
+        """Play one of the modes, picked with the game's random source like the seats and cards"""
+        candidates = list(modes.MODES)
+        self.mode = candidates[self.rng.randbelow(len(candidates))]
+        self.rng.note('m', candidates, self.mode)
+        self.random_mode = True
+
     def abort_start(self):
         """Undo start() when dealing failed, so the lobby can still be started"""
         self.touch()
+        if self.random_mode:
+            # The next attempt picks again, with the new seed
+            self.mode = modes.RANDOM.id
+            self.random_mode = False
         for player in self.players:
             player.cards = list()
         # The used seed can't be reused: a restarted lobby gets a new commitment

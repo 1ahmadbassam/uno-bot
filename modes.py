@@ -34,7 +34,15 @@ WILD = Mode('wild', N_("🐉 Wild mode"), N_('Into the Wild~ 🐉'), deck='wild'
 # In the order the inline menu offers them
 MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD)}
 
+# Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
+# with the game's random source (Game.start), so results only ever name a real mode
+RANDOM = Mode('random', N_("🎲 Random mode"), N_('Leave it to chance 🎲'))
+
+# What the creator can pick in the inline menu, and the config's default_gamemode
+CHOICES = {**MODES, RANDOM.id: RANDOM}
+
 
 def get(mode_id):
-    """The mode called `mode_id`; classic for a game without a known mode"""
+    """The mode called `mode_id`; classic for a game without a known mode
+    (or a random one that hasn't been picked yet)"""
     return MODES.get(mode_id, CLASSIC)

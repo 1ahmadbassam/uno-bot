@@ -527,7 +527,7 @@ function hex64(v) { var h = v.toString(16); return '0000000000000000'.slice(h.le
 
 // The "Show the math" section: one row per random pick, built when it is opened
 function renderMath(proof, entropyLabel) {
-  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's'; });
+  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's' || s.kind === 'm'; });
   var el = document.createElement('details');
   el.className = 'math';
   el.innerHTML = '<summary>Show the math behind every card (' + plural(steps.length, 'random pick') + ')</summary>' +
@@ -547,7 +547,11 @@ function renderMath(proof, entropyLabel) {
       } else if (s.kind === 'c') {
         what = esc(COLOR_NAMES[s.op[1]] || s.op[1]);
         who = '<span class="rej">color the bot picked</span>';
-        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of 4';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + (picks[0] ? picks[0].n : 1);
+      } else if (s.kind === 'm') {
+        what = esc(s.op[2]);
+        who = '<span class="rej">game mode, out of ' + esc(s.op[1].join(', ')) + '</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.op[1].length;
       } else {
         what = 'Seating';
         who = esc(s.op[2].map(seatName).join(' → '));

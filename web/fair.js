@@ -136,6 +136,9 @@ async function replayOps(proof, stream) {
     } else if (kind === 'c') {
       var color = colors[await stream.randbelow(colors.length)];
       if (color !== op[1]) return where + 'the bot picked a different color than the seed gives';
+    } else if (kind === 'm') {
+      var mode = op[1][await stream.randbelow(op[1].length)];
+      if (mode !== op[2]) return where + 'the bot picked a different game mode than the seed gives';
     } else {
       return where + 'unknown entry "' + kind + '"';
     }

@@ -85,6 +85,9 @@ def modes(update: Update, context: CallbackContext):
       " 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n\n"
       "To change the game mode, the GAME CREATOR has to type the bot nickname and a space, "
       "just like when playing a card, and all gamemode options should appear.")
+    # Its own message, so the translations of the text above still apply
+    modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
+                                    "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,
                parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 

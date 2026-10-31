@@ -102,6 +102,9 @@ def check(proof):
         elif kind == 'c':
             if c.COLORS[stream.randbelow(4)] != op[1]:
                 return 'color at %d' % i, None
+        elif kind == 'm':
+            if op[1][stream.randbelow(len(op[1]))] != op[2]:
+                return 'mode at %d' % i, None
         else:
             return 'unknown op at %d' % i, None
     return None, by_seat

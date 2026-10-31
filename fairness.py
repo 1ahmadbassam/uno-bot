@@ -13,7 +13,8 @@
 # 3. If drand can't be reached, each player sends /seed <anything> instead and
 #    the hash of those texts takes the drand value's place. The seed was
 #    committed first, so the bot can't adapt it to the players' texts.
-# 4. Every random choice (seating, deal, draws, colors the bot picks) comes from
+# 4. Every random choice (seating, a random game mode, deal, draws, colors the bot
+#    picks) comes from
 #
 #      block i = HMAC-SHA256(key=seed, msg=b"uno-fair-v1" + entropy + i as 8 bytes big-endian)
 #      value i = first 8 bytes of block i, big-endian
@@ -243,7 +244,8 @@ class FairRandom(object):
     # ops: ["s", seats before, seats after] seating; ["f", deck name in web/decks.js] fresh deck;
     # ["d", card, seat] drawn from the pile by seat (null: the first card turned up);
     # ["x", card] to the discard pile; ["b", [cards]] put back into the draw pile;
-    # ["c", color] color picked by the bot, out of the colors of the last fresh deck.
+    # ["c", color] color picked by the bot, out of the colors of the last fresh deck;
+    # ["m", [modes], mode] game mode picked out of [modes] for a random-mode lobby.
     # Seats are seat_label()s.
 
     def note(self, kind, *values):

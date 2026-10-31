@@ -995,8 +995,12 @@ def _deal_and_announce(bot, game, chat, job_queue):
         return
     rivalry_log.start(game)
     gm.persist_game(game)
+    # A random-mode lobby learns its mode only now
+    revealed = ""
+    if game.random_mode:
+        revealed = __("🎲 The random pick is {mode}!\n", multi=game.translate).format(mode=_(game.rules.title))
     if game.choosing_color:
-        first_message = (
+        first_message = revealed + (
             __("First card is Wild!\n"
                "First player: {name}\n"
                "Please choose the starting color.\n"
@@ -1006,7 +1010,7 @@ def _deal_and_announce(bot, game, chat, job_queue):
             .format(name=display_name(game.current_player.user)))
         markup = make_color_keyboard(chat.id, game)
     else:
-        first_message = (
+        first_message = revealed + (
             __("First player: {name}\n"
                "Use /close to stop people from joining the game.\n"
                "Enable multi-translations with /enable_translations",
@@ -1256,7 +1260,7 @@ def skip_player(update: Update, context: CallbackContext):
 
 def _add_mode_results(results):
     """The game modes offered in the inline menu"""
-    for mode in modes.MODES.values():
+    for mode in modes.CHOICES.values():
         add_mode(results, mode)
 
 
@@ -1288,7 +1292,7 @@ def _lobby_mode_result(result_id):
 
 def _change_mode(bot, user, game, mode):
     """Set the mode of a game that hasn't started, if `user` may"""
-    if not user_can_change_mode(user, game, bot) or mode not in modes.MODES:
+    if not user_can_change_mode(user, game, bot) or mode not in modes.CHOICES:
         logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
         return
     game.set_mode(mode)
