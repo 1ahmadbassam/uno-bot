@@ -2095,7 +2095,8 @@ function renderVolcano(R) {
   var per = { a: { n: 0, cards: 0, uno: 0, unoW: 0 }, b: { n: 0, cards: 0, uno: 0, unoW: 0 } };
   var hit = { more: { a: [0, 0], b: [0, 0] }, less: { a: [0, 0], b: [0, 0] }, same: { a: [0, 0], b: [0, 0] } };
   logged.forEach(function (m) {
-    var v = m.d.vol, n = v.a[0] + v.b[0];
+    // n: all of the game's eruptions, like the rolls v.r (another player can be hit too)
+    var v = m.d.vol, n = v.e != null ? v.e : v.a[0] + v.b[0];
     tot += n;
     expected += v.x;
     for (var k = 0; k < v.r; k++) { var q = 1 / (10 + k); variance += q * (1 - q); }
@@ -2115,7 +2116,7 @@ function renderVolcano(R) {
   });
   function f(v) { return (+v).toFixed(1); }
   var sd = Math.sqrt(variance), t = [];
-  t.push(tile('Eruptions', tot, f(tot / logged.length) + ' per game', 'All eruptions in the logged Volcano games.'));
+  t.push(tile('Eruptions', tot, f(tot / logged.length) + ' per game', 'All eruptions in the logged Volcano games, also those that hit a third player in bigger games.'));
   t.push(tile('Games with an eruption', pct(share(hitGames, logged.length), 0), hitGames + ' of ' + logged.length + (maxed ? ' · ' + maxed + ' hit the limit of 5' : '')));
   t.push(tile('Expected by the odds', f(expected), 'seen ' + tot + (sd ? ' · ' + f((tot - expected) / sd) + ' standard deviations off' : ''),
     'The eruptions the rolls of these games should give on average: the chances of every roll added up (1 in 10, 1 in 11, …). A gap of more than about 2 standard deviations would be unusual.'));

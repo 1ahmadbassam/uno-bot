@@ -36,32 +36,37 @@ def odds(rolls):
     return BASE_ODDS + rolls
 
 
-def roll(game, player):
+def roll(game, player, chosen=False):
     """
     After `player` drew on their turn: roll for an eruption in a volcano game.
-    Returns the eruption's number (1 to MAX_ERUPTIONS), or 0 when the volcano stays quiet.
+    `chosen`: a draw by choice, whose one card stays the card they may play.
+    Returns the cards the eruption gave (none when the volcano stays quiet).
     """
     if not game.rules.volcano or game.volcano_eruptions >= MAX_ERUPTIONS:
-        return 0
+        return []
     n = odds(game.volcano_rolls)
     hit = game.rng.randbelow(n) == 0
     game.rng.note('v', n, hit)
     game.volcano_rolls += 1
     if not hit:
-        return 0
+        return []
+    # Counts even when the deck is out of cards: the proof has the roll as an eruption,
+    # and the checker counts those toward the limit
     game.volcano_eruptions += 1
 
-    # Ahead of a card the player just drew, which stays the one they may play
-    at = len(player.cards) - 1 if player.drew_card and player.cards else len(player.cards)
     cards = []
     for _ in range(CARDS):
         try:
             cards.append(game.deck.draw(seat_label(player)))
         except DeckEmptyError:
             break
+    if not cards:
+        return []
+    # playable_cards() lets a player who drew by choice play only the last card of their hand
+    at = len(player.cards) - 1 if chosen and player.drew_card and player.cards else len(player.cards)
     player.cards[at:at] = cards
     rivalry_log.erupted(game, player, cards, game.volcano_eruptions)
-    return game.volcano_eruptions
+    return cards
 
 
 def send_sticker(bot, chat_id, eruption):
@@ -78,8 +83,9 @@ def send_sticker(bot, chat_id, eruption):
         logger.exception("Failed to schedule the volcano sticker")
 
 
-def erupt(bot, game, player):
-    """roll() and, on an eruption, its sticker"""
-    eruption = roll(game, player)
-    send_sticker(bot, game.chat.id, eruption)
-    return eruption
+def erupt(bot, game, player, chosen=False):
+    """roll() and, on an eruption that gave cards, its sticker"""
+    cards = roll(game, player, chosen)
+    if cards:
+        send_sticker(bot, game.chat.id, game.volcano_eruptions)
+    return cards

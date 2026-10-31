@@ -332,7 +332,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
 
 
 def do_draw(bot, player):
-    """Does the drawing"""
+    """Does the drawing; returns the cards a Volcano eruption added (volcano.py)"""
     game = player.game
     draw_counter_before = game.draw_counter
     before = len(player.cards)
@@ -344,7 +344,7 @@ def do_draw(bot, player):
                    text=__("There are no more cards in the deck.",
                            multi=game.translate))
     rivalry_log.drew(game, player, before, 'pen' if draw_counter_before else 'vol')
-    volcano.erupt(bot, game, player)
+    erupted = volcano.erupt(bot, game, player, chosen=not draw_counter_before)
 
     if (game.last_card.value == c.DRAW_TWO or
         c.is_draw_wild(game.last_card)) and \
@@ -362,6 +362,7 @@ def do_draw(bot, player):
         game.last_bluffer = None
 
     gm.persist_game(game)
+    return erupted
 
 
 def do_call_bluff(bot, player):

@@ -317,7 +317,8 @@ function describe(e) {
       return who + ' drew ' + plural(n, 'card') + ' <span class="tag">' + (REASONS[e.r] || e.r) + '</span>';
     case 'erupt':
       return '🌋 Ka-Boom! The volcano gave ' + who + ' ' + plural((e.cs || []).length, 'card') +
-        ' <span class="tag">eruption ' + e.i + ' of 5</span>';
+        ' <span class="tag">eruption ' + e.i + ' of 5</span>' +
+        (e._others ? '<span class="tag">' + plural(e._others, 'earlier eruption') + ' hit other players</span>' : '');
     case 'pass':
       return who + ' passed';
     case 'color':
@@ -434,6 +435,9 @@ function renderGame(data, id, step) {
   ['a', 'b'].forEach(function (p) {
     if (G.colors && /^#[0-9a-fA-F]{6}$/.test(G.colors[p] || '')) document.documentElement.style.setProperty('--' + p, G.colors[p]);
   });
+  // Eruptions of players the log leaves out (games of more than two) only show as a gap in the numbers
+  var seen = 0;
+  G.events.forEach(function (e) { if (e.k === 'erupt') { e._others = Math.max(0, e.i - seen - 1); seen = e.i; } });
   STATES = rebuild(G.events);
   var end = G.events[G.events.length - 1], ms = end.t;
   document.title = 'Game #' + G.n + ' · ' + G.players.a + ' vs ' + G.players.b + ' · UNO Replay';

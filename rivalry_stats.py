@@ -693,6 +693,8 @@ def summarize_log(log):
         rolls = end['vr']
         summary['vol'] = {
             'r': rolls,
+            # Every eruption of the game; logs from before 've' only had the rivals' ones
+            'e': end.get('ve', eruptions.get('a', [0])[0] + eruptions.get('b', [0])[0]),
             # The eruptions the rolls made were expected to give: the chance of each roll
             # added up (the cap ends the rolls, not the sum, so this stays a fair expectation)
             'x': round(sum(1 / volcano.odds(k) for k in range(rolls)), 4),

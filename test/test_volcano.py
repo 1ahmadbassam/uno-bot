@@ -51,7 +51,7 @@ class TestVolcanoMode(unittest.TestCase):
     def test_other_modes_never_roll(self):
         game, player = volcano_game()
         game.mode = 'classic'
-        self.assertEqual(volcano.roll(game, player), 0)
+        self.assertEqual(volcano.roll(game, player), [])
         self.assertEqual((game.volcano_rolls, rolls(game.rng.ops)), (0, []))
 
     def test_odds_fall_with_every_roll_and_stop_after_five_eruptions(self):
@@ -62,7 +62,7 @@ class TestVolcanoMode(unittest.TestCase):
         # randbelow is 0 (an eruption) on the 1st, 3rd, ... calls of the volcano
         with patch.object(game.rng, 'randbelow', side_effect=lambda n: 0 if n % 2 == 0 else 1):
             for _ in range(30):
-                hits.append(volcano.roll(game, player))
+                hits.append(game.volcano_eruptions if volcano.roll(game, player) else 0)
         ops = rolls(game.rng.ops)
         self.assertEqual([op[1] for op in ops], list(range(10, 10 + len(ops))))
         self.assertEqual([h for h in hits if h], [1, 2, 3, 4, 5])
@@ -78,11 +78,42 @@ class TestVolcanoMode(unittest.TestCase):
         player.draw()
         drawn = player.cards[-1]
         with patch.object(game.rng, 'randbelow', return_value=0):
-            self.assertEqual(volcano.roll(game, player), 1)
+            self.assertEqual(len(volcano.roll(game, player, chosen=True)), 3)
         self.assertEqual(len(player.cards), 5)
         self.assertIs(player.cards[-1], drawn)
         # Only the drawn card may be played, not the volcano's
         self.assertTrue(all(card is drawn for card in player.playable_cards()))
+
+    def test_after_a_penalty_the_eruption_comes_after_every_drawn_card(self):
+        game, player = volcano_game()
+        game.last_card = c.Card(c.RED, c.DRAW_TWO)
+        game.draw_counter = 4
+        player.cards = [c.Card(c.RED, '1')]
+        player.draw()
+        penalty = list(player.cards)
+        with patch.object(game.rng, 'randbelow', return_value=0):
+            cards = volcano.roll(game, player)
+        self.assertEqual(player.cards, penalty + cards)
+        self.assertTrue(all(a is b for a, b in zip(player.cards, penalty)))
+
+    def test_an_eruption_with_no_cards_left_counts_but_shows_nothing(self):
+        game, player = volcano_game()
+        game.deck.cards, game.deck.graveyard = [], []
+        player.cards = [c.Card(c.RED, '1')]
+        with patch.object(game.rng, 'randbelow', return_value=0),                 patch('volcano.send_sticker') as sticker, patch('rivalry_log.erupted') as logged:
+            self.assertEqual(volcano.erupt(MagicMock(), game, player), [])
+        self.assertEqual((game.volcano_eruptions, len(player.cards)), (1, 1))
+        sticker.assert_not_called()
+        logged.assert_not_called()
+
+    def test_the_drawing_player_is_told_privately(self):
+        import bot
+        game, player = volcano_game()
+        game.last_card = c.Card(c.RED, '5')
+        player.cards = [c.Card(c.RED, '1'), c.Card(c.BLUE, '7')]
+        notice = bot._drawn_card_notice(player, [c.Card(c.GREEN, '1')] * 3)
+        self.assertIn("🌋 The volcano gave you 3 more cards.", notice)
+        self.assertNotIn("volcano", bot._drawn_card_notice(player))
 
     def test_stickers_follow_the_eruption_number(self):
         game, player = volcano_game()
@@ -198,6 +229,7 @@ class TestVolcanoLog(LoggedGame):
         self.game.volcano_rolls = 12
         log = rivalry_log.finish(self.game, A, 'win')
         self.assertEqual(log['ev'][-1]['vr'], 12)
+        self.assertEqual(log['ev'][-1]['ve'], 0)
         self.game.mode = 'classic'
         rivalry_log.start(self.game)
         self.assertNotIn('vr', rivalry_log.finish(self.game, A, 'win')['ev'][-1])
@@ -218,7 +250,7 @@ class TestVolcanoSummary(unittest.TestCase):
         d = rs.summarize_log(log)
         self.assertEqual(d['vol']['a'], [1, 3, 0])
         self.assertEqual(d['vol']['b'], [1, 2, 1])
-        self.assertEqual((d['vol']['r'], d['vol']['n1']), (3, 0))
+        self.assertEqual((d['vol']['r'], d['vol']['n1'], d['vol']['e']), (3, 0, 2))
         self.assertAlmostEqual(d['vol']['x'], 1 / 10 + 1 / 11 + 1 / 12, places=4)
         self.assertEqual(d['a']['mx'], 7)
 
@@ -232,6 +264,14 @@ class TestVolcanoSummary(unittest.TestCase):
         )
         # On one card before the penalty draw that set it off
         self.assertEqual(rs.summarize_log(log)['vol']['b'], [1, 3, 1])
+
+    def test_eruptions_of_other_players_count_toward_the_odds(self):
+        log = log_of(
+            {'k': 'erupt', 'p': 'a', 'cs': ['b_1', 'b_2', 'b_3'], 'h': 6, 't': 1, 'n': 2, 'i': 2},
+            {'k': 'end', 'p': 'a', 'o': 'win', 't': 8, 'n': 5, 'vr': 9, 've': 2},
+        )
+        d = rs.summarize_log(log)['vol']
+        self.assertEqual((d['e'], d['a'][0], d['b'][0]), (2, 1, 0))
 
     def test_other_modes_have_no_volcano_summary(self):
         log = log_of({'k': 'end', 'p': 'a', 'o': 'win', 't': 8, 'n': 5})

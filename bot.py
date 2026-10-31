@@ -670,11 +670,14 @@ def _handle_action_callback(bot, query, chat_id, action, context):
         _action_callback_for_game(bot, query, game, chat_id, action, context)
 
 
-def _drawn_card_notice(player):
-    """Private popup text naming the card the player just drew, in their own language"""
+def _drawn_card_notice(player, erupted=()):
+    """Private popup text naming the card the player just drew, in their own language;
+    `erupted`: the cards a Volcano eruption added (the group only gets its sticker)"""
     drawn = player.cards[-1]
     with locale_for_user(player.user.id):
         notice = _("You drew {card}.").format(card=c.label(drawn))
+        if erupted:
+            notice += "\n" + _("🌋 The volcano gave you {number} more cards.").format(number=len(erupted))
         if drawn in player.playable_cards():
             notice += "\n" + _("You can play it or pass.")
         else:
@@ -702,13 +705,13 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
             return
         draw_counter_before = getattr(game, 'draw_counter', 0)
         reset_waiting_time(bot, player)
-        do_draw(bot, player)
+        erupted = do_draw(bot, player)
         gm.persist_game(game)
 
         # Tell only the drawing player which card they got (the callback answer
         # is private), so they can decide to play or pass without the inline menu
         if game_is_running(game) and game.current_player is player and player.drew_card:
-            _answer_callback(bot, query, _drawn_card_notice(player), show_alert=True)
+            _answer_callback(bot, query, _drawn_card_notice(player, erupted), show_alert=True)
         else:
             _answer_callback(bot, query)
 

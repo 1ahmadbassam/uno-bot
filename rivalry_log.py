@@ -198,5 +198,7 @@ def finish(game, winner_id, outcome):
     if game.rules.volcano:
         # Every roll of the game, the other players' too, for the website's expected eruptions
         end['vr'] = getattr(game, 'volcano_rolls', 0)
+        # And eruptions: with more players, some may have hit a player the log leaves out
+        end['ve'] = getattr(game, 'volcano_eruptions', 0)
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}
