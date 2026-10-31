@@ -18,6 +18,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+import json
+import os
 import secrets
 import logging
 
@@ -28,6 +30,21 @@ from errors import DeckEmptyError
 # Cryptographically secure RNG backed by the OS entropy pool (getrandom /
 # BCryptGenRandom). randrange() uses rejection sampling, so picks have no modulo bias.
 csprng = secrets.SystemRandom()
+
+DECKS_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'decks.js')
+
+
+def load_decks(path=DECKS_JS):
+    """The decks of web/decks.js, which the fairness checker reads too: {name: spec}"""
+    with open(path, encoding='utf-8') as f:
+        text = f.read()
+    # The declaration starts a line; the comment above it mentions it too
+    declaration = '\nvar DECKS ='
+    start = text.index(declaration) + len(declaration)
+    return json.loads(text[start:text.rindex(';')])
+
+
+DECKS = load_decks()
 
 
 class SystemSource(object):
@@ -86,27 +103,16 @@ class Deck(object):
         if cards:
             self.rng.note('b', [str(card) for card in cards])
 
-    def _fill_classic_(self):
-        # Fill deck with the classic card set
-        self.rng.note('f', 'classic')
+    def fill(self, name):
+        """Fill the deck with the cards of deck `name` from web/decks.js"""
+        self.rng.note('f', name)
         self.cards.clear()
-        for color in c.COLORS:
-            for value in c.VALUES:
-                self.cards.append(Card(color, value))
-                if not value == c.ZERO:
-                    self.cards.append(Card(color, value))
-        for special in c.SPECIALS:
-            for _ in range(4):
-                self.cards.append(Card(None, None, special=special))
-
-    def _fill_wild_(self):
-        # Fill deck with a wild card set
-        self.rng.note('f', 'wild')
-        self.cards.clear()
-        for color in c.COLORS:
-            for value in c.WILD_VALUES:
-                for _ in range(4):
-                    self.cards.append(Card(color, value))
-        for special in c.SPECIALS:
-            for _ in range(6):
+        spec = DECKS[name]
+        for color in spec['colors']:
+            for group in spec['values']:
+                for value in group['values']:
+                    for _ in range(group['copies']):
+                        self.cards.append(Card(color, value))
+        for special, copies in spec['specials'].items():
+            for _ in range(copies):
                 self.cards.append(Card(None, None, special=special))

@@ -653,7 +653,7 @@ class TestFairnessFixes(unittest.TestCase):
             # Start game with a number card. start() refills and shuffles the deck,
             # so keep the fixed deck; a random Skip/Reverse opener would change the order.
             test_game.deck.cards = [c.Card(c.RED, '3')]
-            with patch.object(test_game.deck, '_fill_classic_', lambda: None):
+            with patch.object(test_game.deck, 'fill', lambda name: None):
                 test_game.start()
 
             # Starting player must remain Player A (first joined)
@@ -738,7 +738,7 @@ class TestFairnessFixes(unittest.TestCase):
         deck_logger = logging.getLogger('deck')
         with self.assertLogs(deck_logger, level='DEBUG') as log:
             d = Deck()
-            d._fill_classic_()
+            d.fill('classic')
             for msg in log.output:
                 # Ensure the string representation of the full list of cards is never logged
                 self.assertNotIn("Card(None, None", msg)

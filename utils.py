@@ -46,6 +46,7 @@ except ImportError:
             self.retry_after = retry_after
 from telegram.ext import CallbackContext
 
+import card as c
 from game_threads import game_thread_runner
 from internationalization import _, __
 from mwt import MWT
@@ -318,30 +319,20 @@ def get_admin_ids(bot, chat_id):
 
 
 def make_color_keyboard(chat_id, game=None):
-    """Create inline keyboard for choosing a color"""
+    """Create inline keyboard for choosing one of the game's colors, two per row"""
+    colors = game.colors if game else c.COLORS
     if game and getattr(game, 'translate', False):
-        r_text = display_color_group('r', game)
-        b_text = display_color_group('b', game)
-        g_text = display_color_group('g', game)
-        y_text = display_color_group('y', game)
+        texts = [display_color_group(color, game) for color in colors]
     else:
-        r_text = _("{emoji} Red").format(emoji='❤️')
-        b_text = _("{emoji} Blue").format(emoji='💙')
-        g_text = _("{emoji} Green").format(emoji='💚')
-        y_text = _("{emoji} Yellow").format(emoji='💛')
+        texts = [display_color(color) for color in colors]
+    buttons = [InlineKeyboardButton(text=text, callback_data=f"color:{chat_id}:{color}")
+               for color, text in zip(colors, texts)]
 
-    return InlineKeyboardMarkup([
+    return InlineKeyboardMarkup(
         # Opens the inline menu in this chat so the player can look at their hand
-        [InlineKeyboardButton(text=_("🃏 Show my cards"), switch_inline_query_current_chat='')],
-        [
-            InlineKeyboardButton(text=r_text, callback_data=f"color:{chat_id}:r"),
-            InlineKeyboardButton(text=b_text, callback_data=f"color:{chat_id}:b"),
-        ],
-        [
-            InlineKeyboardButton(text=g_text, callback_data=f"color:{chat_id}:g"),
-            InlineKeyboardButton(text=y_text, callback_data=f"color:{chat_id}:y"),
-        ],
-    ])
+        [[InlineKeyboardButton(text=_("🃏 Show my cards"), switch_inline_query_current_chat='')]] +
+        [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+    )
 
 
 class _CopyTextButton(InlineKeyboardButton):

@@ -27,6 +27,7 @@ from player import Player
 
 BEACON = "143ac4a3ef744631cc9815a2c3218bfa3179dc5c56bb999a9f1c24c1a5aa0c10"
 FAIR_JS = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'fair.js')
+DECKS_JS = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'decks.js')
 INDEX_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'index.html')
 
 
@@ -574,8 +575,10 @@ class TestReplayPageChecker(unittest.TestCase):
     """Runs the website's checker (web/fair.js) on real proofs, so the page and the bot agree"""
 
     def run_page(self, cases):
-        with open(FAIR_JS, encoding='utf-8') as f:
-            js = f.read()
+        js = ''
+        for path in (DECKS_JS, FAIR_JS):
+            with open(path, encoding='utf-8') as f:
+                js += f.read() + '\n'
         script = (
             js + "\n(async function () {\n  var cases = " + json.dumps(cases) + ";\n  var out = {};\n"
             "  for (var k in cases) {\n    var p = cases[k].proof;\n"

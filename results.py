@@ -65,38 +65,14 @@ def add_not_started(results):
     )
 
 
-def add_mode_classic(results):
-    """Change mode to classic"""
+def add_mode(results, mode):
+    """Add the option to change to the modes.Mode `mode`"""
     results.append(
         InlineQueryResultArticle(
-            "mode_classic",
-            title=_("🎻 Classic mode"),
+            "mode_" + mode.id,
+            title=_(mode.title),
             input_message_content=
-            InputTextMessageContent(_('Classic 🎻'))
-        )
-    )
-
-
-def add_mode_fast(results):
-    """Change mode to classic"""
-    results.append(
-        InlineQueryResultArticle(
-            "mode_fast",
-            title=_("🚀 Sanic mode"),
-            input_message_content=
-            InputTextMessageContent(_('Gotta go fast! 🚀'))
-        )
-    )
-
-
-def add_mode_wild(results):
-    """Change mode to classic"""
-    results.append(
-        InlineQueryResultArticle(
-            "mode_wild",
-            title=_("🐉 Wild mode"),
-            input_message_content=
-            InputTextMessageContent(_('Into the Wild~ 🐉'))
+            InputTextMessageContent(_(mode.message))
         )
     )
 

@@ -8,7 +8,8 @@
 <!--
   Turn-by-turn replays of the games the bot logged (rivalry_log.py).
   replay.html#<id> shows games/<id>.json; without an id it lists every replay
-  from scores.json. The fairness checker is in fair.js, shared with index.html.
+  from scores.json. The fairness checker is in fair.js, shared with index.html
+  (with the decks in decks.js).
 -->
 <style>
 :root {
@@ -220,6 +221,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0 40px; }
 </div>
 <div id="tip"></div>
 
+<script src="decks.js"></script>
 <script src="fair.js"></script>
 <script>
 (function () {

@@ -131,9 +131,9 @@ def played(game, player, card, think=None):
     log = _log(game)
     if log is None:
         return
-    bluff = 1 if card.special == c.DRAW_FOUR and getattr(player, 'bluffing', False) else None
+    bluff = 1 if c.is_draw_wild(card) and getattr(player, 'bluffing', False) else None
     _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff)
-    if card.value == c.DRAW_TWO or card.special == c.DRAW_FOUR:
+    if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 
 
@@ -162,7 +162,7 @@ def passed(game, player):
 def color(game, player, chosen, auto=False):
     if _log(game) is None or player is None:
         return
-    held = {col: sum(1 for card in player.cards if card.color == col) for col in c.COLORS}
+    held = {col: sum(1 for card in player.cards if card.color == col) for col in game.colors}
     smart = 1 if max(held.values()) and held.get(chosen) == max(held.values()) else None
     _add(game, player, 'color', not auto, co=chosen, au=1 if auto else None, sm=smart)
 

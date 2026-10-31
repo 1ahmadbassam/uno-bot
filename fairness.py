@@ -233,17 +233,18 @@ class FairRandom(object):
             j = self.randbelow(i + 1)
             items[i], items[j] = items[j], items[i]
 
-    def choose_color(self):
-        """A color the bot picks for a player (timeouts, a winning Wild)"""
-        color = c.COLORS[self.randbelow(len(c.COLORS))]
+    def choose_color(self, colors=c.COLORS):
+        """One of the game's `colors`, picked by the bot for a player (timeouts, a winning Wild)"""
+        color = colors[self.randbelow(len(colors))]
         self.note('c', color)
         return color
 
     # --- Log of card movements --------------------------------------------
-    # ops: ["s", seats before, seats after] seating; ["f", "classic"|"wild"] fresh deck;
+    # ops: ["s", seats before, seats after] seating; ["f", deck name in web/decks.js] fresh deck;
     # ["d", card, seat] drawn from the pile by seat (null: the first card turned up);
     # ["x", card] to the discard pile; ["b", [cards]] put back into the draw pile;
-    # ["c", color] color picked by the bot. Seats are seat_label()s.
+    # ["c", color] color picked by the bot, out of the colors of the last fresh deck.
+    # Seats are seat_label()s.
 
     def note(self, kind, *values):
         if self.source is not None:

@@ -217,6 +217,7 @@ class TestRateLimitMitigations(unittest.TestCase):
         game = MagicMock()
         game.started = True
         game.choosing_color = True
+        game.colors = c.COLORS
         game.current_player = MagicMock(user=MockUser(111))
         mock_gm.chatid_games.get.return_value = [game]
 

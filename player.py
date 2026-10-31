@@ -63,7 +63,7 @@ class Player(object):
 
     def draw_first_hand(self):
         try:
-            for _ in range(7):
+            for _ in range(self.game.rules.hand_size):
                 self.cards.append(self.game.deck.draw(seat_label(self)))
         except DeckEmptyError:
             for card in self.cards:
@@ -151,7 +151,7 @@ class Player(object):
         """Plays a card and removes it from hand"""
         # Determine bluffing status at the exact moment a Wild Draw 4 is played
         # by checking the player's full hand against the active color.
-        if card.special == c.DRAW_FOUR:
+        if c.is_draw_wild(card):
             active_color = self.game.last_card.color if self.game.last_card else None
             self.bluffing = any(hand_card.color == active_color for hand_card in self.cards if hand_card.color)
         else:
@@ -199,7 +199,7 @@ class Player(object):
                 card.value == c.DRAW_TWO and self.game.draw_counter:
             self.logger.debug("Player has to draw and can't counter")
             is_playable = False
-        elif last.special == c.DRAW_FOUR and self.game.draw_counter:
+        elif c.is_draw_wild(last) and self.game.draw_counter:
             self.logger.debug("Player has to draw and can't counter")
             is_playable = False
 

@@ -658,6 +658,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
 
 <div id="tip" role="tooltip"></div>
 
+<script src="decks.js"></script>
 <script src="fair.js"></script>
 <script>
 (function () {
@@ -2133,15 +2134,17 @@ function holm(ps) {
 // Number, action (skip, reverse, +2) and wild (wild, +4) shares of a fresh deck
 var GROUPS = [[0], [1, 2, 3], [4, 5]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
-var DECK_MIX = {};
+// The deck of each game mode, from scores.json; data written before it was there only knew these
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild' }, DECK_MIX = {};
 function deckMix(mode) {
-  mode = mode === 'wild' ? 'wild' : 'classic';
-  if (!DECK_MIX[mode] && typeof fullDeck === 'function') {
-    var ty = [0, 0, 0, 0, 0, 0], cards = fullDeck(mode);
+  var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
+  if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {
+    var ty = [0, 0, 0, 0, 0, 0], cards = fullDeck(deck);
+    if (!cards) return null;
     cards.forEach(function (c) { ty[CARD_TYPES.indexOf(cardType(c))]++; });
-    DECK_MIX[mode] = grouped(ty).map(function (v) { return v / cards.length; });
+    DECK_MIX[deck] = grouped(ty).map(function (v) { return v / cards.length; });
   }
-  return DECK_MIX[mode] || null;
+  return deck ? DECK_MIX[deck] || null : null;
 }
 
 function pairText(va, vb) { return sw('a') + va + ' <span class="m">·</span> ' + sw('b') + vb; }
@@ -2197,7 +2200,7 @@ function fairTests(list) {
   });
   tests.push({
     name: 'Kinds of card dealt', games: hands.length,
-    tip: 'Number, action and wild cards across both opening hands, against their share of a fresh deck (classic or wild).',
+    tip: 'Number, action and wild cards across both opening hands, against their share of a fresh deck of the game mode.',
     expect: listText(GROUP_LABELS, expTypes.map(f1)), seen: listText(GROUP_LABELS, seenTypes),
     p: hands.length ? chiTest(seenTypes, expTypes) : null
   });
@@ -2742,6 +2745,7 @@ function bind() {
 
 // --- Loading and live updates -----------------------------------------------
 function apply(d) {
+  if (d.decks) MODE_DECKS = d.decks;
   parse(d);
   if (d.colors) {
     ['a', 'b'].forEach(function (p) {

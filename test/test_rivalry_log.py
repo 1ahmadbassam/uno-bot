@@ -51,7 +51,7 @@ class LoggedGame(unittest.TestCase):
         self.alice = Player(self.game, stubs.MockUser(A, "Alice"))
         self.ivan = Player(self.game, stubs.MockUser(I, "Ivan"))
         self.game.started = True
-        self.game.deck._fill_classic_()
+        self.game.deck.fill('classic')
         self.game.current_player = self.alice
         self.game.last_card = c.Card(c.RED, '5')
         self.alice.cards = [c.Card(c.RED, '7'), c.Card(c.RED, c.DRAW_TWO), c.Card(c.BLUE, '3')]
@@ -241,6 +241,7 @@ class TestReplayExport(unittest.TestCase):
             self.assertEqual(replay['events'], log['ev'])
             self.assertTrue(os.path.exists(os.path.join(directory, 'replay.html')))
             self.assertTrue(os.path.exists(os.path.join(directory, 'fair.js')))
+            self.assertTrue(os.path.exists(os.path.join(directory, 'decks.js')))
             with open(os.path.join(directory, 'scores.json'), encoding='utf-8') as f:
                 matches = json.load(f)['matches']
             self.assertNotIn('g', matches[0])

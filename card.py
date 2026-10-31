@@ -52,13 +52,16 @@ SKIP = 'skip'
 
 VALUES = (ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, DRAW_TWO,
           REVERSE, SKIP)
-WILD_VALUES = (ONE, TWO, THREE, FOUR, FIVE, DRAW_TWO, REVERSE, SKIP)
 
 # Special cards
 CHOOSE = 'colorchooser'
 DRAW_FOUR = 'draw_four'
 
 SPECIALS = (CHOOSE, DRAW_FOUR)
+
+# Wild cards that make the next player draw, and how many cards they add;
+# the next player may challenge one as a bluff
+DRAW_WILDS = {DRAW_FOUR: 4}
 
 CARDS_CLASSIC = {
     "normal": {
@@ -351,6 +354,11 @@ def label(card):
     """Readable card name for plain-text messages, e.g. '💚+2' or '⬛️+4'"""
     return (repr(card).replace('Draw Four', '+4').replace('Draw', '+2')
             .replace('Colorchooser', 'Color Chooser'))
+
+
+def is_draw_wild(card):
+    """Whether `card` is a wild that makes the next player draw (a +4)"""
+    return card is not None and card.special in DRAW_WILDS
 
 
 def from_str(string):

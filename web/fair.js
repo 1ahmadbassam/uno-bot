@@ -1,7 +1,8 @@
 // The fairness checker shared by index.html and replay.html.
 // Recomputes every random choice of a game from its revealed seed and its
 // public randomness (see fairness.py in the bot). Nothing here trusts the bot:
-// the drand round is fetched from drand itself and the deck is rebuilt from the rules.
+// the drand round is fetched from drand itself and the deck is rebuilt from the rules
+// in decks.js, which the page loads first.
 'use strict';
 // How cards and seats are named in messages; each page sets its own
 var FairNames = {
@@ -10,6 +11,7 @@ var FairNames = {
 };
 var DRAND_URLS = ['https://api.drand.sh', 'https://api2.drand.sh', 'https://api3.drand.sh', 'https://drand.cloudflare.com'];
 var DRAND_GENESIS = 1692803367, DRAND_PERIOD = 3;
+// The colors before the first fresh deck; each deck in decks.js has its own
 var FAIR_COLORS = ['r', 'b', 'g', 'y'];
 
 function hexBytes(hex) {
@@ -23,17 +25,16 @@ function bytesHex(buf) {
 async function sha256Hex(bytes) { return bytesHex(await crypto.subtle.digest('SHA-256', bytes)); }
 function roundTime(round) { return DRAND_GENESIS + (round - 1) * DRAND_PERIOD; }
 
-function fullDeck(mode) {
-  var cards = [], c, v, i;
-  var values = mode === 'wild' ? ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip']
-    : ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip'];
-  for (c = 0; c < 4; c++) {
-    for (v = 0; v < values.length; v++) {
-      var copies = mode === 'wild' ? 4 : (values[v] === '0' ? 1 : 2);
-      for (i = 0; i < copies; i++) cards.push(FAIR_COLORS[c] + '_' + values[v]);
-    }
-  }
-  ['colorchooser', 'draw_four'].forEach(function (s) { for (i = 0; i < (mode === 'wild' ? 6 : 4); i++) cards.push(s); });
+// Every card of the deck called `name` in decks.js (Deck.fill in the bot), or null for an unknown deck
+function fullDeck(name) {
+  var spec = DECKS[name], cards = [], i;
+  if (!spec) return null;
+  spec.colors.forEach(function (color) {
+    spec.values.forEach(function (group) {
+      group.values.forEach(function (value) { for (i = 0; i < group.copies; i++) cards.push(color + '_' + value); });
+    });
+  });
+  Object.keys(spec.specials).forEach(function (s) { for (i = 0; i < spec.specials[s]; i++) cards.push(s); });
   return cards;
 }
 
@@ -98,7 +99,7 @@ async function fetchBeacon(chain, round) {
 // Replays the card movements; returns null when everything matches, or what went wrong.
 // Fills proof._draws (every card drawn, in order) and proof._bySeat (seat -> cards drawn, in order).
 async function replayOps(proof, stream) {
-  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], i, j;
+  var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], colors = FAIR_COLORS, i, j;
   proof._steps = steps;
   for (i = 0; i < proof.ops.length; i++) {
     var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ', from = stream.trace ? stream.trace.length : 0;
@@ -112,6 +113,8 @@ async function replayOps(proof, stream) {
       if (JSON.stringify(seats) !== JSON.stringify(op[2])) return where + 'the seating order is not the one the seed gives';
     } else if (kind === 'f') {
       pile = fullDeck(op[1]); grave = []; out = {};
+      if (!pile) return where + 'unknown deck "' + op[1] + '"';
+      colors = DECKS[op[1]].colors;
     } else if (kind === 'd') {
       if (!pile.length) { step.recycled = grave.length; pile = grave; grave = []; }
       if (!pile.length) return where + 'a card was drawn from an empty deck';
@@ -131,7 +134,7 @@ async function replayOps(proof, stream) {
         (kind === 'x' ? grave : pile).push(cards[j]);
       }
     } else if (kind === 'c') {
-      var color = FAIR_COLORS[await stream.randbelow(4)];
+      var color = colors[await stream.randbelow(colors.length)];
       if (color !== op[1]) return where + 'the bot picked a different color than the seed gives';
     } else {
       return where + 'unknown entry "' + kind + '"';

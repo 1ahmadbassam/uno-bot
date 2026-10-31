@@ -15,6 +15,8 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from typing import List, Optional
 
+import modes
+
 WEEKDAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 # (label, first hour, last hour + 1) in local time; Night wraps past midnight
 DAYPARTS = (('Morning', 5, 12), ('Afternoon', 12, 17), ('Evening', 17, 22), ('Night', 22, 29))
@@ -377,6 +379,8 @@ def scores_data(rivals, seasons: List[Season], results, tz, colors=None, logs=No
         'pacing': pacing,
         'players': {'a': rivals.a_name, 'b': rivals.b_name},
         'colors': {'a': valid_color(colors[0]), 'b': valid_color(colors[1])},
+        # The deck of each mode (web/decks.js), for the website's fairness tests
+        'decks': {mode.id: mode.deck for mode in modes.MODES.values()},
         'seasons': [{'name': s.name, 'started_at': stamp(s.started_at)} for s in seasons],
         'matches': [{
             'n': number,

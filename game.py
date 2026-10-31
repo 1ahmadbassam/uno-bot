@@ -23,9 +23,10 @@ import secrets
 from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS
 from datetime import datetime, timezone
 
-from deck import Deck
+from deck import Deck, DECKS
 from fairness import FairRandom, seat_label
 import card as c
+import modes
 import rivalry_log
 from errors import DeckEmptyError
 
@@ -62,6 +63,16 @@ class Game(object):
         self.left_users = set()
 
         self.logger = logging.getLogger(__name__)
+
+    @property
+    def rules(self):
+        """The modes.Mode this game plays by"""
+        return modes.get(self.mode)
+
+    @property
+    def colors(self):
+        """The colors of this game's deck"""
+        return tuple(DECKS[self.rules.deck]['colors'])
 
     def touch(self):
         self.last_activity = datetime.now()
@@ -109,10 +120,7 @@ class Game(object):
         if SHUFFLE_PLAYERS:
             self.shuffle_players()
 
-        if self.mode == None or self.mode != "wild":
-            self.deck._fill_classic_()
-        else:
-            self.deck._fill_wild_()
+        self.deck.fill(self.rules.deck)
 
         self._first_card_()
         self.started = True
@@ -151,7 +159,7 @@ class Game(object):
         self.turns += 1
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
-            self.last_card.color = self.rng.choose_color()
+            self.last_card.color = self.rng.choose_color(self.colors)
             rivalry_log.color(self, self.current_player, self.last_card.color, auto=True)
         self.current_player = self.current_player.next
         self.current_player.drew = False
@@ -174,7 +182,7 @@ class Game(object):
         card = None
         while True:
             card = self.deck.draw()
-            if card.special == c.DRAW_FOUR:
+            if c.is_draw_wild(card):
                 temp_draw_fours.append(card)
             else:
                 break
@@ -211,9 +219,9 @@ class Game(object):
 
         if card.value == c.SKIP:
             self.turn()
-        elif card.special == c.DRAW_FOUR:
-            self.draw_counter += 4
-            self.logger.debug("Draw counter increased by 4")
+        elif c.is_draw_wild(card):
+            self.draw_counter += c.DRAW_WILDS[card.special]
+            self.logger.debug("Draw counter increased by %d", c.DRAW_WILDS[card.special])
         elif card.value == c.DRAW_TWO:
             self.draw_counter += 2
             self.logger.debug("Draw counter increased by 2")
@@ -225,7 +233,7 @@ class Game(object):
                 self.reverse()
 
         # Don't turn if the current player has to choose a color
-        if card.special not in (c.CHOOSE, c.DRAW_FOUR):
+        if card.special not in c.SPECIALS:
             self.turn()
         else:
             self.logger.debug("Choosing Color...")

@@ -45,7 +45,7 @@ def do_skip(bot, player, job_queue=None):
     # any draw counter is the next player's penalty, not theirs.
     was_choosing = game.choosing_color or (game.last_card and not game.last_card.color)
     if was_choosing:
-        auto_color = game.rng.choose_color()
+        auto_color = game.rng.choose_color(game.colors)
         rivalry_log.color(game, skipped_player, auto_color, auto=True)
         game.last_card.color = auto_color
         game.choosing_color = False
@@ -84,7 +84,7 @@ def do_skip(bot, player, job_queue=None):
         rivalry_log.drew(game, skipped_player, before, 'time')
         if was_choosing:
             game.draw_counter = draw_counter
-        elif draw_counter and game.last_card.special == c.DRAW_FOUR:
+        elif draw_counter and c.is_draw_wild(game.last_card):
             # The +4 penalty was taken, so it can't be challenged any more
             game.last_bluffer = None
 
@@ -263,8 +263,7 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
         return False
 
     if left_player is bluffer:
-        unanswered = (game.last_card and game.last_card.special == c.DRAW_FOUR
-                      and game.draw_counter > 0)
+        unanswered = c.is_draw_wild(game.last_card) and game.draw_counter > 0
         bluffer.pending_win = False
         game.last_bluffer = None
         if unanswered:
@@ -298,7 +297,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     chat = game.chat
     rivalry_log.played(game, player, card, think)
 
-    if card.special == c.DRAW_FOUR:
+    if c.is_draw_wild(card):
         game.last_bluffer = player
 
     if len(player.cards) == 1 and notify_uno:
@@ -308,7 +307,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
         # If the winning card was a Wild card, automatically assign a color
         # so remaining players can continue without deadlock
         if game.choosing_color:
-            auto_color = game.rng.choose_color()
+            auto_color = game.rng.choose_color(game.colors)
             game.choose_color(auto_color, auto=True)
             send_async(bot, chat.id,
                        text=__("Winning card was Wild! Color set to {color}.",
@@ -316,7 +315,7 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
                        .format(color=display_color_group(auto_color, game)),
                        disable_notification=True)
 
-        if card.special == c.DRAW_FOUR and game.draw_counter > 0:
+        if c.is_draw_wild(card) and game.draw_counter > 0:
             # F-04: Win is deferred until challenge resolution or draw/skip by next player
             player.pending_win = True
             game.last_bluffer = player
@@ -345,7 +344,7 @@ def do_draw(bot, player):
     rivalry_log.drew(game, player, before, 'pen' if draw_counter_before else 'vol')
 
     if (game.last_card.value == c.DRAW_TWO or
-        game.last_card.special == c.DRAW_FOUR) and \
+        c.is_draw_wild(game.last_card)) and \
             draw_counter_before > 0:
         game.turn()
 
@@ -355,7 +354,7 @@ def do_draw(bot, player):
         bluffer.pending_win = False
         game.last_bluffer = None
         player_won(bot, bluffer)
-    elif game.last_card.special == c.DRAW_FOUR and draw_counter_before > 0:
+    elif c.is_draw_wild(game.last_card) and draw_counter_before > 0:
         # The +4 penalty was taken, so it can't be challenged any more
         game.last_bluffer = None
 
@@ -436,7 +435,7 @@ def start_player_countdown(bot, game, job_queue):
     if time < MIN_FAST_TURN_TIME:
         time = MIN_FAST_TURN_TIME
 
-    if game.mode == 'fast':
+    if game.rules.auto_skip:
         if game.job:
             try:
                 game.job.schedule_removal()

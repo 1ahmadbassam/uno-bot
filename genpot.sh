@@ -9,4 +9,5 @@ xgettext *.py -o ./locales/unobot.pot --foreign-user \
   --keyword=__ \
   --keyword=_ \
   --keyword=_:1,2 \
-  --keyword=__:1,2
+  --keyword=__:1,2 \
+  --keyword=N_

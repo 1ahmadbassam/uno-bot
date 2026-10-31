@@ -35,6 +35,7 @@ from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
 
 import card as c
 import fairness
+import modes
 import rivalry
 import rivalry_log
 import settings
@@ -50,7 +51,7 @@ from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_pass,
-                     add_card, add_mode_classic, add_mode_fast, add_mode_wild)
+                     add_card, add_mode)
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
@@ -68,10 +69,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logging.getLogger('apscheduler').setLevel(logging.WARNING)
-
-# Game modes offered by the mode_* inline results
-GAME_MODES = ('classic', 'fast', 'wild')
-
 
 def _chat_key(update: Update):
     chat = update.effective_chat
@@ -620,7 +617,7 @@ def _handle_color_callback(bot, query, chat_id, color, context):
 
 
 def _color_callback_for_game(bot, query, game, chat_id, color, context):
-    if not game.started or not game.choosing_color or color not in c.COLORS:
+    if not game.started or not game.choosing_color or color not in game.colors:
         _answer_callback(bot, query, _("This button is no longer valid."))
         return
 
@@ -1259,9 +1256,8 @@ def skip_player(update: Update, context: CallbackContext):
 
 def _add_mode_results(results):
     """The game modes offered in the inline menu"""
-    add_mode_classic(results)
-    add_mode_fast(results)
-    add_mode_wild(results)
+    for mode in modes.MODES.values():
+        add_mode(results, mode)
 
 
 def _lobby_for_mode(user, bot):
@@ -1292,7 +1288,7 @@ def _lobby_mode_result(result_id):
 
 def _change_mode(bot, user, game, mode):
     """Set the mode of a game that hasn't started, if `user` may"""
-    if not user_can_change_mode(user, game, bot) or mode not in GAME_MODES:
+    if not user_can_change_mode(user, game, bot) or mode not in modes.MODES:
         logger.info("Ignoring mode change to %s by %s", mode, display_name(user))
         return
     game.set_mode(mode)
@@ -1361,7 +1357,7 @@ def reply_to_query(update: Update, context: CallbackContext):
                 else:
                     add_pass(results, game)
 
-                if game.last_card.special == c.DRAW_FOUR and game.draw_counter:
+                if c.is_draw_wild(game.last_card) and game.draw_counter:
                     add_call_bluff(results, game)
 
                 playable = player.playable_cards()
@@ -1465,7 +1461,7 @@ def process_result(update: Update, context: CallbackContext):
     elif result_id == 'call_bluff':
         if (player == game.current_player and
                 game.last_card and
-                game.last_card.special == c.DRAW_FOUR and
+                c.is_draw_wild(game.last_card) and
                 game.draw_counter > 0):
             reset_waiting_time(context.bot, player)
             do_call_bluff(context.bot, player)
@@ -1478,7 +1474,7 @@ def process_result(update: Update, context: CallbackContext):
         reset_waiting_time(context.bot, player)
         rivalry_log.passed(game, player)
         game.turn()
-    elif result_id in c.COLORS:
+    elif result_id in game.colors:
         if game.choosing_color and player == game.current_player:
             reset_waiting_time(context.bot, player)
             is_opening = getattr(game, 'opening_color_choice', False)
@@ -1532,12 +1528,12 @@ def _inline_action_allowed(player, game, result_id):
 
     if result_id == 'call_bluff':
         return bool(not game.choosing_color and game.last_card and
-                    game.last_card.special == c.DRAW_FOUR and game.draw_counter > 0)
+                    c.is_draw_wild(game.last_card) and game.draw_counter > 0)
     if result_id == 'draw':
         return not game.choosing_color and not player.drew
     if result_id == 'pass':
         return not game.choosing_color and player.drew
-    if result_id in c.COLORS:
+    if result_id in game.colors:
         return game.choosing_color
 
     if game.choosing_color:
