@@ -621,7 +621,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     <h3 class="mode-h">🌧️ Storm</h3>
     <p class="lede" id="st-lede"></p>
     <div id="st-body">
-    <div class="card"><div class="tiles" id="st-tiles" style="margin-top:0"></div></div>
+    <div class="card"><div class="tiles" id="storm-tiles" style="margin-top:0"></div></div>
     <div class="grid two" style="margin-top:14px">
       <div class="card">
         <div class="ch"><h3>Storm cards per game</h3><span class="hint" data-tip="Swaps, Drops and +1s played with their effect, per logged Storm game. Cards played after /cancel are left out.">?</span></div>
@@ -2224,7 +2224,7 @@ function renderStorm(R) {
     plural(tot.a.back, 'card'), plural(tot.b.back, 'card')));
   t.push(pairTile('+1s played', tot.a.p1, tot.b.p1, 'Each one made the other player draw a card at once.', f(tot.a.p1 / n) + ' per game', f(tot.b.p1 / n) + ' per game'));
   t.push(pairTile('Cancelled with /cancel', tot.a.cx, tot.b.cx, 'Swaps and Drops played after /cancel, so without their effect.'));
-  $('st-tiles').innerHTML = t.join('');
+  $('storm-tiles').innerHTML = t.join('');
 
   var cats = ['Swaps', 'Drops', '+1s'], ks = ['sw', 'dr', 'p1'];
   barChart($('c-st-cards'), {

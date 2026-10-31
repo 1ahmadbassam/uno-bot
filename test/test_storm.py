@@ -72,6 +72,8 @@ class TestStormCards(unittest.TestCase):
         self.assertEqual(c.STICKERS['r_plus1'], 'CAACAgQAAxUAAWrlyoIRk17Jetf8DGQ_OoHN9SxwAAIWAwACRjR0DQYYbdQqcyB-PQQ')
         self.assertEqual(c.STICKERS_GREY['y_swap'], 'CAACAgQAAxUAAWrlyoIObsaysE-30o4YmsB_YeTqAAKDEAACEKnBU_VUEqxc-yVMPQQ')
         self.assertEqual(c.label(c.Card(c.BLUE, c.PLUS_ONE)), '💙+1')
+        # repr() is what the "Last card" line of the game info shows
+        self.assertEqual(repr(c.Card(c.BLUE, c.PLUS_ONE)), '💙+1')
 
     def test_mode(self):
         mode = modes.get('storm')

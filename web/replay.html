@@ -255,7 +255,7 @@ function parts(card) {
   if (card === 'draw_four') return { color: 'x', label: '+4' };
   if (card === 'colorchooser') return { color: 'x', label: 'W' };
   var i = card.indexOf('_'), v = card.slice(i + 1);
-  return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇆', drop: '⤓', plus1: '+1' }[v] || v };
+  return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇅', drop: '⤓', plus1: '+1' }[v] || v };
 }
 function chip(card, o) {
   o = o || {};

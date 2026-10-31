@@ -380,7 +380,8 @@ class Card(object):
                                ' '.join([s.capitalize()
                                          for s in self.special.split('_')]))
         else:
-            return '%s%s' % (COLOR_ICONS[self.color], self.value.capitalize())
+            value = '+1' if self.value == PLUS_ONE else self.value.capitalize()
+            return '%s%s' % (COLOR_ICONS[self.color], value)
 
     def __eq__(self, other):
         """Needed for sorting the cards"""
@@ -394,7 +395,7 @@ class Card(object):
 def label(card):
     """Readable card name for plain-text messages, e.g. '💚+2' or '⬛️+4'"""
     return (repr(card).replace('Draw Four', '+4').replace('Draw', '+2')
-            .replace('Colorchooser', 'Color Chooser').replace('Plus1', '+1'))
+            .replace('Colorchooser', 'Color Chooser'))
 
 
 def is_draw_wild(card):
