@@ -1297,8 +1297,8 @@ def _change_mode(bot, user, game, mode):
         return
     game.set_mode(mode)
     gm.persist_game(game)
-    logger.info("Gamemode changed to {mode}".format(mode=mode))
-    send_async(bot, game.chat.id, text=__("Gamemode changed to {mode}", multi=game.translate).format(mode=mode))
+    logger.info("Gamemode changed to: {mode}".format(mode=mode.capitalize()))
+    send_async(bot, game.chat.id, text=__("Gamemode changed to: {mode}", multi=game.translate).format(mode=mode.capitalize()))
 
 
 @game_locales

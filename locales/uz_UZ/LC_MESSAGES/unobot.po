@@ -365,7 +365,7 @@ msgstr "Joriy oʻyin: {game}"
 
 #: bot.py:1127
 #, python-brace-format
-msgid "Gamemode changed to {mode}"
+msgid "Gamemode changed to: {mode}"
 msgstr "Oʻyin rejimi {mode}ga oʻzgartirildi"
 
 #: bot.py:1183

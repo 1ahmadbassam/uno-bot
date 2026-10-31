@@ -350,7 +350,7 @@ msgstr "Mevcut oyun: {game}"
 
 #: bot.py:1127
 #, python-brace-format
-msgid "Gamemode changed to {mode}"
+msgid "Gamemode changed to: {mode}"
 msgstr "Oyun modu değiştirildi: {mode}"
 
 #: bot.py:1183

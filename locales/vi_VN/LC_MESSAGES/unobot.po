@@ -354,7 +354,7 @@ msgstr "Ván hiện tại: {game}"
 
 #: bot.py:1127
 #, python-brace-format
-msgid "Gamemode changed to {mode}"
+msgid "Gamemode changed to: {mode}"
 msgstr "Chế độ trò chơi thay đổi thành {mode}"
 
 #: bot.py:1183

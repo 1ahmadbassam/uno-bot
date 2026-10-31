@@ -157,9 +157,14 @@ class TestRandomMode(unittest.TestCase):
         _add_mode_results(results)
         self.assertEqual(results[-1].id, 'mode_random')
         game = Game(SimpleNamespace(id=-1, title="Test", type="group"))
-        with patch('bot.user_can_change_mode', return_value=True), patch('bot.gm'), patch('bot.send_async'):
+        with patch('bot.user_can_change_mode', return_value=True), patch('bot.gm'), patch('bot.send_async') as send_async:
             bot._change_mode(MagicMock(), SimpleNamespace(id=1, first_name='A', username=None), game, 'random')
-        self.assertEqual(game.mode, 'random')
+            self.assertEqual(game.mode, 'random')
+            self.assertEqual(send_async.call_args[1]['text'], "Gamemode changed to: Random")
+
+            bot._change_mode(MagicMock(), SimpleNamespace(id=1, first_name='A', username=None), game, 'wild')
+            self.assertEqual(game.mode, 'wild')
+            self.assertEqual(send_async.call_args[1]['text'], "Gamemode changed to: Wild")
 
     def test_default_mode_can_be_random(self):
         with patch('game.DEFAULT_GAMEMODE', 'random'):

@@ -368,7 +368,7 @@ msgstr "वर्तमान खेल: {game}"
 
 #: bot.py:1127
 #, python-brace-format
-msgid "Gamemode changed to {mode}"
+msgid "Gamemode changed to: {mode}"
 msgstr "खेल मोड बदलकर {mode} किया गया"
 
 #: bot.py:1183
