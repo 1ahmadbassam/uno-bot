@@ -3,6 +3,7 @@ import logging
 import card as c
 import rivalry
 import rivalry_log
+import storm
 import volcano
 from datetime import datetime
 
@@ -294,10 +295,14 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     """Plays the selected card and sends an update to the group if needed"""
     card = c.from_str(result_id)
     think = rivalry_log.think_time(player.game, player)
+    # /cancel only holds for the card played next, whatever it is (game.turn() clears it)
+    cancelled = player.game.storm_cancel and player.game.rules.storm and storm.can_cancel(card)
+    player.game.storm_cancel = False
     player.play(card)
     game = player.game
     chat = game.chat
-    rivalry_log.played(game, player, card, think)
+    rivalry_log.played(game, player, card, think, cancelled=cancelled)
+    storm.apply(game, player, card, cancelled)
 
     if c.is_draw_wild(card):
         game.last_bluffer = player
@@ -336,6 +341,8 @@ def do_draw(bot, player):
     game = player.game
     draw_counter_before = game.draw_counter
     before = len(player.cards)
+    # A /cancel ends with the draw (storm.py)
+    game.storm_cancel = False
 
     try:
         player.draw()

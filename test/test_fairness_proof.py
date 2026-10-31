@@ -19,6 +19,7 @@ import test.test_rate_limit_mitigations as stubs  # noqa: F401
 import bot
 import card as c
 import fairness
+import storm
 import volcano
 from errors import DeckEmptyError, GameStartingError
 from fairness import FairRandom
@@ -35,6 +36,11 @@ INDEX_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'index.ht
 # --- A reference checker: the same algorithm as web/fair.js -------------
 
 def full_deck(mode):
+    if mode == 'storm':
+        # No 0s; two of each of the Storm cards per color
+        values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip', 'swap', 'drop', 'plus1']
+        cards = ['%s_%s' % (color, value) for color in 'rbgy' for value in values for _ in range(2)]
+        return cards + ['colorchooser', 'draw_four'] * 4
     values = ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip'] if mode == 'wild' else \
         ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip']
     cards = []
@@ -168,7 +174,10 @@ def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
         playable = p.playable_cards()
         # Keep a few cards in hand so the game runs long enough to go through the deck
         if playable and len(p.cards) > 3:
-            p.play(playable[0])
+            card = playable[0]
+            p.play(card)
+            # As actions.do_play_card does; nothing happens outside the Storm mode
+            storm.apply(game, p, card)
             if game.choosing_color:
                 if not auto_color:
                     game.turn()  # ran out of time: the bot picks the color
@@ -656,12 +665,12 @@ class TestFairPlayExport(unittest.TestCase):
             {'k': 'end', 't': 10, 'p': 'a', 'o': 'win'},
         ]}
         d = rs.summarize_log(log)
-        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1])
+        self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0])
         self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
-        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0])
-        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0])
+        self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0])
+        self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
-        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0])
+        self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0])
 
     def test_fair_status(self):
         import rivalry_stats as rs

@@ -16,7 +16,7 @@ def N_(message):
 class Mode(object):
     """The rules of one game mode"""
 
-    def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False):
+    def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -27,15 +27,18 @@ class Mode(object):
         self.auto_skip = auto_skip
         # Whether draws can make the volcano erupt (volcano.py)
         self.volcano = volcano
+        # Whether Swap, Drop and +1 cards do something (storm.py)
+        self.storm = storm
 
 
 CLASSIC = Mode('classic', N_("🎻 Classic mode"), N_('Classic 🎻'))
 FAST = Mode('fast', N_("🚀 Sanic mode"), N_('Gotta go fast! 🚀'), auto_skip=True)
 WILD = Mode('wild', N_("🐉 Wild mode"), N_('Into the Wild~ 🐉'), deck='wild')
 VOLCANO = Mode('volcano', N_("🌋 Volcano mode"), N_('Ka-Boom! 🌋'), volcano=True)
+STORM = Mode('storm', N_("🌧️ Storm mode"), N_('Dance in the Rain 🌧️'), deck='storm', storm=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

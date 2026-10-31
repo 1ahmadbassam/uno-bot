@@ -180,7 +180,7 @@ class TestSummary(unittest.TestCase):
         self.assertEqual((d['first'], d['fc'], d['fin'], d['stack'], d['ms']), ('a', 'r_5', 'r_1', 2, 8))
         self.assertEqual(d['deal'], {'a': [1, 1], 'b': [1, 0]})
         a, b = d['a'], d['b']
-        self.assertEqual((a['pl'], a['ty'], a['co']), (3, [1, 0, 0, 1, 1, 0], [2, 0, 0, 0]))
+        self.assertEqual((a['pl'], a['ty'], a['co']), (3, [1, 0, 0, 1, 1, 0, 0, 0, 0], [2, 0, 0, 0]))
         self.assertEqual((a['dealt'], a['uno'], a['pk'], a['sm'], a['th']), (2, 1, [1, 0, 0, 0], 1, [11500, 4, 5000]))
         self.assertEqual((b['fd'], b['dv'], b['dk'], b['mx'], b['back']), (2, 1, 1, 6, 5))
         self.assertEqual((a['ahead'], b['ahead'], d['samples']), (6, 0, 6))
@@ -220,7 +220,8 @@ class TestSummary(unittest.TestCase):
         self.assertEqual((d['a']['den'], d['a']['fd'], d['b']['dealt'], d['fin']), (1, 4, 4, None))
 
     def test_card_types(self):
-        self.assertEqual([rs.card_type(card) for card in ('r_5', 'g_skip', 'b_reverse', 'y_draw', 'colorchooser', 'draw_four')],
+        self.assertEqual([rs.card_type(card) for card in ('r_5', 'g_skip', 'b_reverse', 'y_draw', 'colorchooser', 'draw_four',
+                                                          'b_swap', 'g_drop', 'y_plus1')],
                          list(rs.CARD_TYPES))
 
 

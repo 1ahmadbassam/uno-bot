@@ -166,7 +166,7 @@ function replayReceived(events) {
   var got = {}, first = null;
   events.forEach(function (e) {
     if (e.k === 'deal') { Object.keys(e.h).forEach(function (p) { got[p] = e.h[p].slice(); }); first = e.fc || null; }
-    if ((e.k === 'draw' || e.k === 'erupt') && e.cs && e.p) got[e.p] = (got[e.p] || []).concat(e.cs);
+    if ((e.k === 'draw' || e.k === 'erupt' || e.k === 'drop') && e.cs && e.p) got[e.p] = (got[e.p] || []).concat(e.cs);
   });
   return { bySeat: got, first: first };
 }

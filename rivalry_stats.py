@@ -449,7 +449,9 @@ def inline_data(page, data):
 
 # --- Game logs (rivalry_log.py) -------------------------------------------
 
-CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4')
+# The Storm cards come last, so older summaries (6 types) keep their indexes
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1')
+ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
 LOG_COLORS = ('r', 'b', 'g', 'y')
 
 
@@ -512,6 +514,12 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     if any(s[key]['ty'][5] for key in s):
         lines.append("+4s played: " + pair({key: "%d (%d bluff%s)" % (s[key]['ty'][5], s[key]['bl'], "" if s[key]['bl'] == 1 else "s")
                                             for key in s}))
+    if d.get('storm'):
+        st = d['storm']
+        lines.append("🌧️ Swaps · Drops · +1s: " + pair({key: "%d · %d · %d" % (st[key]['sw'], st[key]['dr'], st[key]['p1'])
+                                                       for key in s}))
+        if any(st[key]['cx'] for key in s):
+            lines.append("Cancelled with /cancel: " + pair({key: st[key]['cx'] for key in s}))
     if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
         lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
@@ -543,13 +551,14 @@ def card_type(card):
     if card == 'colorchooser':
         return 'wild'
     value = card.split('_', 1)[1] if '_' in card else card
-    return {'skip': 'skip', 'reverse': 'rev', 'draw': 'd2'}.get(value, 'num')
+    return {'skip': 'skip', 'reverse': 'rev', 'draw': 'd2', 'swap': 'swap', 'drop': 'drop',
+            'plus1': 'p1'}.get(value, 'num')
 
 
 def _player_summary(hand):
     return {
         'pl': 0,                 # cards played
-        'ty': [0] * 6,           # of each CARD_TYPES
+        'ty': [0] * len(CARD_TYPES),           # of each CARD_TYPES
         'co': [0] * 4,           # colored cards played, by LOG_COLORS
         'dv': 0, 'dk': 0,        # chosen draws, and how many of those could be played
         'ps': 0,                 # passes
@@ -565,9 +574,9 @@ def _player_summary(hand):
         'th': [0, 0, 0],         # thinking time: total ms, decisions, longest ms
         'ahead': 0,              # plays and draws after which this rival held fewer cards
         'back': 0,               # most cards behind the other rival at any point
-        'hd': [0] * 6,           # opening hand, by CARD_TYPES
+        'hd': [0] * len(CARD_TYPES),           # opening hand, by CARD_TYPES
         'hc': [0] * 4,           # colored cards in the opening hand, by LOG_COLORS
-        'dt': [0] * 6,           # cards drawn, by CARD_TYPES
+        'dt': [0] * len(CARD_TYPES),           # cards drawn, by CARD_TYPES
         'dc': [0] * 4,           # colored cards drawn, by LOG_COLORS
     }
 
@@ -599,8 +608,33 @@ def summarize_log(log):
     eruptions = {key: [0, 0, 0] for key in hands}
     before_draw = dict(hands)
     first_eruption = None
+    # Storm mode, per rival: Swap, Drop and +1 cards played with their effect, Swaps and Drops
+    # played after /cancel, cards gained by swapping (less than 0: lost), cards a Drop put
+    # back, swaps to a smaller hand, and swaps that left the other player on one card
+    storm = {key: {'sw': 0, 'dr': 0, 'p1': 0, 'cx': 0, 'gain': 0, 'back': 0, 'up': 0, 'uno': 0}
+             for key in hands}
+    storm_game = False
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
+        if kind == 'swap':
+            # Before the rival check: a player the log leaves out may have swapped with a rival
+            storm_game = True
+            p, vs = e.get('p'), e.get('vs')
+            mine, theirs = hands.get(p), hands.get(vs)
+            if p in storm:
+                st = storm[p]
+                st['sw'] += 1
+                st['gain'] += e['h'] - mine
+                if theirs is not None and theirs < mine:
+                    st['up'] += 1
+                if e['h2'] == 1:
+                    st['uno'] += 1
+                hands[p] = e['h']
+                s['mx'] = max(s['mx'], e['h'])
+            if vs in per:
+                hands[vs] = e['h2']
+                per[vs]['mx'] = max(per[vs]['mx'], e['h2'])
+            continue
         if s is None:
             continue
         p = e['p']
@@ -610,6 +644,12 @@ def summarize_log(log):
             s['th'][2] = max(s['th'][2], e['th'])
         if kind == 'play':
             kind_of_card = card_type(e['c'])
+            if kind_of_card in ('swap', 'drop', 'p1'):
+                storm_game = True
+                if e.get('cx'):
+                    storm[p]['cx'] += 1
+                elif kind_of_card == 'p1' and e['h']:
+                    storm[p]['p1'] += 1
             s['pl'] += 1
             s['ty'][CARD_TYPES.index(kind_of_card)] += 1
             if e['c'][:1] in LOG_COLORS and '_' in e['c']:
@@ -643,6 +683,12 @@ def summarize_log(log):
                 stack = 0
             hands[p] = e['h']
             s['mx'] = max(s['mx'], e['h'])
+        elif kind == 'drop':
+            storm_game = True
+            storm[p]['dr'] += 1
+            storm[p]['back'] += len(e.get('out') or ())
+            _count_cards(e.get('cs') or (), s['dt'], s['dc'])
+            hands[p] = e['h']
         elif kind == 'erupt':
             count = len(e.get('cs') or ())
             eruptions[p][0] += 1
@@ -681,7 +727,7 @@ def summarize_log(log):
         'first': deal.get('first'),
         'fc': deal.get('fc'),
         # (action cards, wild cards) in each starting hand
-        'deal': {key: [sum(1 for card in cards if card_type(card) in ('skip', 'rev', 'd2')),
+        'deal': {key: [sum(1 for card in cards if card_type(card) in ACTION_TYPES),
                        sum(1 for card in cards if card_type(card) in ('wild', 'd4'))]
                  for key, cards in deal['h'].items()},
         'fin': finisher.get(winner) if end.get('o') == 'win' else None,
@@ -689,6 +735,8 @@ def summarize_log(log):
         'samples': samples,
         'ms': end.get('t', events[-1]['t']),
     }
+    if storm_game:
+        summary['storm'] = storm
     if 'vr' in end:
         rolls = end['vr']
         summary['vol'] = {

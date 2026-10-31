@@ -40,6 +40,7 @@ import rivalry
 import rivalry_log
 import settings
 import simple_commands
+import storm
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
@@ -1261,6 +1262,32 @@ def skip_player(update: Update, context: CallbackContext):
         do_skip(context.bot, skipped_player, context.job_queue)
 
 
+@game_locales
+@user_locale
+def cancel_effect(update: Update, context: CallbackContext):
+    """Handler for the /cancel command: in Storm mode, the current player turns the
+    effect of their next Swap or Drop off, or back on (storm.py)"""
+    chat = update.message.chat
+    user = update.message.from_user
+    games = gm.chatid_games.get(chat.id)
+    game = games[-1] if games else None
+    reply = update.message.message_id
+
+    if not game or not game.rules.storm:
+        text = _("Command exclusively available in Storm mode!")
+    elif not game.started:
+        text = _("The game hasn't started yet.")
+    elif not game.current_player or game.current_player.user.id != user.id:
+        text = _("Not your turn!")
+    elif storm.toggle_cancel(game):
+        gm.persist_game(game)
+        text = _("Cards exchange disabled!")
+    else:
+        gm.persist_game(game)
+        text = _("Cards exchange enabled!")
+    send_async(context.bot, chat.id, text=text, reply_to_message_id=reply)
+
+
 def _add_mode_results(results):
     """The game modes offered in the inline menu"""
     for mode in modes.CHOICES.values():
@@ -1575,6 +1602,7 @@ threaded_open_game = _threaded_by(_chat_key, require_message=True)(open_game)
 threaded_enable_translations = _threaded_by(_chat_key, require_message=True)(enable_translations)
 threaded_disable_translations = _threaded_by(_chat_key, require_message=True)(disable_translations)
 threaded_skip_player = _threaded_by(_chat_key, require_message=True)(skip_player)
+threaded_cancel_effect = _threaded_by(_chat_key, require_message=True)(cancel_effect)
 threaded_status_update = _threaded_by(_chat_key, require_message=True)(status_update)
 threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
@@ -1611,6 +1639,7 @@ dispatcher.add_handler(CommandHandler('enable_translations',
 dispatcher.add_handler(CommandHandler('disable_translations',
                                       threaded_disable_translations))
 dispatcher.add_handler(CommandHandler('skip', threaded_skip_player))
+dispatcher.add_handler(CommandHandler('cancel', threaded_cancel_effect))
 dispatcher.add_handler(CommandHandler('notify_me', threaded_notify_me))
 simple_commands.register()
 settings.register()

@@ -18,5 +18,12 @@ var DECKS = {
    {"values": ["1", "2", "3", "4", "5", "draw", "reverse", "skip"], "copies": 4}
   ],
   "specials": {"colorchooser": 6, "draw_four": 6}
+ },
+ "storm": {
+  "colors": ["r", "b", "g", "y"],
+  "values": [
+   {"values": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "draw", "reverse", "skip", "swap", "drop", "plus1"], "copies": 2}
+  ],
+  "specials": {"colorchooser": 4, "draw_four": 4}
  }
 };

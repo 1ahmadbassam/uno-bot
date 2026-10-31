@@ -227,7 +227,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0 40px; }
 (function () {
 'use strict';
 var COLOR_NAMES = { r: 'red', b: 'blue', g: 'green', y: 'yellow' };
-var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time' };
+var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time', plus1: '+1' };
 var G = null, STATES = [], STEP = 0, TIMER = null, LIST = [];
 
 function $(id) { return document.getElementById(id); }
@@ -255,7 +255,7 @@ function parts(card) {
   if (card === 'draw_four') return { color: 'x', label: '+4' };
   if (card === 'colorchooser') return { color: 'x', label: 'W' };
   var i = card.indexOf('_'), v = card.slice(i + 1);
-  return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2' }[v] || v };
+  return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇆', drop: '⤓', plus1: '+1' }[v] || v };
 }
 function chip(card, o) {
   o = o || {};
@@ -267,7 +267,7 @@ function cardName(card) {
   if (card === 'draw_four') return 'Wild +4';
   if (card === 'colorchooser') return 'Wild';
   var i = card.indexOf('_'), v = card.slice(i + 1);
-  return (COLOR_NAMES[card.slice(0, i)] || '') + ' ' + ({ skip: 'skip', reverse: 'reverse', draw: '+2' }[v] || v);
+  return (COLOR_NAMES[card.slice(0, i)] || '') + ' ' + ({ skip: 'skip', reverse: 'reverse', draw: '+2', plus1: '+1' }[v] || v);
 }
 var ORDER = { r: 0, y: 1, g: 2, b: 3, x: 4 };
 function sortHand(cards) {
@@ -291,6 +291,12 @@ function rebuild(events) {
       } else if (e.k === 'draw' || e.k === 'erupt') {
         hands[e.p] = hands[e.p].concat(e.cs || []);
         fresh[e.p] = e.cs || [];
+      } else if (e.k === 'swap') {
+        // Storm: the new hand of each rival in the swap
+        Object.keys(e.hs || {}).forEach(function (p) { hands[p] = e.hs[p].slice(); });
+      } else if (e.k === 'drop') {
+        hands[e.p] = (e.cs || []).slice();
+        fresh[e.p] = e.cs || [];
       } else if (e.k === 'color') {
         top = { c: top.c, color: e.co };
       }
@@ -310,7 +316,8 @@ function describe(e) {
     case 'deal':
       return 'Cards dealt. First card ' + (e.fc ? chip(e.fc) : '–') + (e.first ? ', ' + nm(e.first) + ' starts.' : '.');
     case 'play':
-      return who + ' played ' + chip(e.c) + (e.bl ? '<span class="tag">bluff</span>' : '') + (e.h === 1 ? '<span class="tag">UNO</span>' : '');
+      return who + ' played ' + chip(e.c) + (e.bl ? '<span class="tag">bluff</span>' : '') + (e.cx ? '<span class="tag">cancelled</span>' : '') +
+        (e.h === 1 ? '<span class="tag">UNO</span>' : '');
     case 'draw':
       var n = (e.cs || []).length;
       if (e.r === 'vol') return who + ' drew a card' + (e.ok ? '<span class="tag">playable</span>' : '');
@@ -319,6 +326,10 @@ function describe(e) {
       return '🌋 Ka-Boom! The volcano gave ' + who + ' ' + plural((e.cs || []).length, 'card') +
         ' <span class="tag">eruption ' + e.i + ' of 5</span>' +
         (e._others ? '<span class="tag">' + plural(e._others, 'earlier eruption') + ' hit other players</span>' : '');
+    case 'swap':
+      return (e.p ? who : 'Someone') + ' swapped hands with ' + nm(e.vs) + ' <span class="tag">now ' + e.h + ' and ' + e.h2 + ' cards</span>';
+    case 'drop':
+      return who + ' dropped ' + plural((e.out || []).length, 'card') + ' back into the deck and drew new ones';
     case 'pass':
       return who + ' passed';
     case 'color':
@@ -402,14 +413,22 @@ function drawChart() {
 
 function renderStats() {
   var s = { a: {}, b: {} };
-  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0 }; });
+  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0 }; });
   var hands = { a: (G.events[0].h.a || []).length, b: (G.events[0].h.b || []).length };
   G.events.forEach(function (e) {
+    if (e.k === 'swap') {
+      // Before the rival check: the player who swapped may be one the log leaves out
+      if (s[e.p]) { s[e.p].swaps++; hands[e.p] = e.h; s[e.p].max = Math.max(s[e.p].max, e.h); }
+      if (s[e.vs]) { hands[e.vs] = e.h2; s[e.vs].max = Math.max(s[e.vs].max, e.h2); }
+      return;
+    }
     var x = s[e.p];
     if (!x) return;
     if (e.th != null) { x.think += think(e); x.n++; }
+    if (e.k === 'drop') { x.drops++; hands[e.p] = e.h; return; }
     if (e.k === 'play') {
       x.played++;
+      if (e.cx) x.cancels++;
       if (!/_\d$/.test(e.c)) x.actions++;
       if (e.h === 1 && hands[e.p] > 1) x.uno++;
       hands[e.p] = e.h;
@@ -425,6 +444,7 @@ function renderStats() {
   });
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
   if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
+  if (G.mode === 'storm') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
     rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + s.a[r[1]] + '</td><td class="num">' + s.b[r[1]] + '</td></tr>'; }).join('') +
     '<tr><td>Thinking time per move</td><td class="num">' + (s.a.n ? (s.a.think / s.a.n).toFixed(1) + 's' : '–') + '</td><td class="num">' + (s.b.n ? (s.b.think / s.b.n).toFixed(1) + 's' : '–') + '</td></tr>';

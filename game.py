@@ -62,6 +62,8 @@ class Game(object):
         # Volcano mode (volcano.py): rolls made and eruptions so far
         self.volcano_rolls = 0
         self.volcano_eruptions = 0
+        # Storm mode (storm.py): the current player used /cancel for their next card
+        self.storm_cancel = False
         self.rivalry_log = None  # See rivalry_log.py
         # Users who left (or were removed from) this game after it started;
         # they can't rejoin it for a fresh hand
@@ -157,6 +159,7 @@ class Game(object):
         self.draw_counter = 0
         self.volcano_rolls = 0
         self.volcano_eruptions = 0
+        self.storm_cancel = False
         self.reversed = False
         self.choosing_color = False
         self.opening_color_choice = False
@@ -183,6 +186,7 @@ class Game(object):
             rivalry_log.color(self, self.current_player, self.last_card.color, auto=True)
         self.current_player = self.current_player.next
         self.current_player.drew = False
+        self.storm_cancel = False
         self.current_player.turn_started = datetime.now()
         rivalry_log.turn(self)
         self.choosing_color = False

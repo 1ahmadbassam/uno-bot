@@ -126,13 +126,15 @@ def turn(game):
 
 
 @_never_breaks_the_game
-def played(game, player, card, think=None):
-    """`player` played `card`; `think`: think_time() taken before the card ended the turn"""
+def played(game, player, card, think=None, cancelled=False):
+    """`player` played `card`; `think`: think_time() taken before the card ended the turn;
+    `cancelled`: a Storm Swap or Drop played after /cancel, so without its effect"""
     log = _log(game)
     if log is None:
         return
     bluff = 1 if c.is_draw_wild(card) and getattr(player, 'bluffing', False) else None
-    _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff)
+    _add(game, player, 'play', True, think, c=str(card), h=len(player.cards), bl=bluff,
+         cx=1 if cancelled else None)
     if card.value == c.DRAW_TWO or c.is_draw_wild(card):
         log['by'] = key(player)
 
@@ -160,6 +162,29 @@ def erupted(game, player, cards, number):
     if log is None:
         return
     _add(game, player, 'erupt', cs=[str(card) for card in cards], h=len(player.cards), i=number)
+
+
+@_never_breaks_the_game
+def swapped(game, player, other):
+    """Storm: `player` exchanged hands with `other`; 'hs' holds the new hand of each rival of the two"""
+    log = _log(game)
+    if log is None:
+        return
+    who, vs = key(player), key(other)
+    if who is None and vs is None:
+        return
+    hands = {k: [str(card) for card in p.cards] for k, p in ((who, player), (vs, other)) if k}
+    # Not _add: the player may not be a rival while the one they swapped with is
+    event = {'k': 'swap', 't': _now_ms() - log['t0'], 'n': getattr(game, 'turns', 0), 'p': who,
+             'vs': vs, 'hs': hands, 'h': len(player.cards), 'h2': len(other.cards)}
+    log['ev'].append({k: v for k, v in event.items() if v is not None})
+
+
+@_never_breaks_the_game
+def dropped(game, player, returned):
+    """Storm: `player` put `returned` back into the deck and drew their new hand"""
+    _add(game, player, 'drop', out=[str(card) for card in returned],
+         cs=[str(card) for card in player.cards], h=len(player.cards))
 
 
 @_never_breaks_the_game

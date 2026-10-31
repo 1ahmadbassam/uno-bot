@@ -63,6 +63,10 @@ def help_handler(update: Update, context: CallbackContext):
         "/modes - The game modes\n"
         "/source - Source code and credits\n"
         "/help - This message").format(min_players=MIN_PLAYERS)
+    # Its own message, so the translations of the text above still apply
+    help_text += "\n\n" + _("<b>Storm mode</b>\n"
+                            "/cancel - On your turn: play your next Swap or Drop without its effect "
+                            "(/cancel again turns it back on)")
     rivalry_help = rivalry.help_text()
     if rivalry_help:
         help_text += "\n\n" + rivalry_help
@@ -89,6 +93,11 @@ def modes(update: Update, context: CallbackContext):
     modes_explanation += "\n\n" + _("🌋 The Volcano mode uses the conventional UNO deck, and each time you draw on your "
                                     "turn the volcano may erupt and give you 3 more cards: a 1 in 10 chance at first, "
                                     "lower with every draw of the game, and at most 5 eruptions per game.")
+    modes_explanation += "\n\n" + _("🌧️ The Storm mode uses a deck without 0s and with three cards of its own: "
+                                    "+1 gives each opponent a card at once (it doesn't stack), Swap exchanges your "
+                                    "hand with the next player's and Drop puts your hand back into the deck and "
+                                    "deals you as many new cards. Use /cancel before playing a Swap or Drop to "
+                                    "play it without its effect.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

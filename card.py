@@ -53,6 +53,13 @@ SKIP = 'skip'
 VALUES = (ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, DRAW_TWO,
           REVERSE, SKIP)
 
+# Colored cards of the Storm mode (storm.py)
+SWAP = 'swap'
+DROP = 'drop'
+PLUS_ONE = 'plus1'
+
+STORM_VALUES = (SWAP, DROP, PLUS_ONE)
+
 # Special cards
 CHOOSE = 'colorchooser'
 DRAW_FOUR = 'draw_four'
@@ -293,6 +300,38 @@ CARDS_CLASSIC_COLORBLIND = {
     },
 }
 
+# The Storm cards (UNOBotGamesArenaV pack, positions 63-80 and their grey versions 83-100),
+# the same in every card set
+STICKERS_STORM = {
+    "b_swap": "CAACAgQAAxUAAWrlyoKWS1Bjg7yL23OMI--RDaMYAAL2EAACmT3BU2VPSY1MTrvJPQQ",
+    "b_drop": "CAACAgQAAxUAAWrlyoLiq743ZxfMRAVTSTFxJsKPAAIaEgACD9apU7YlVqm7OWVrPQQ",
+    "b_plus1": "CAACAgQAAxUAAWrlyoKaP7u5MLryTA9Z3u7BkytDAAISAwACRjR0DbXufZIxCfEJPQQ",
+    "g_swap": "CAACAgQAAxUAAWrlyoIOXhseDXm7zHy0xMSw6KjsAAKGEAACeWjBU0dntrBFC-poPQQ",
+    "g_drop": "CAACAgQAAxUAAWrlyoI6hz1bnqnlmLBGDRw8B_F5AALpEgAC9OOgUyuq_z5X2FchPQQ",
+    "g_plus1": "CAACAgQAAxUAAWrlyoJr_Vik7kxYDdX8ex54-zlsAAIUAwACRjR0DdFSlwRZPvgPPQQ",
+    "r_swap": "CAACAgQAAxUAAWrlyoIuHeC9mMInQX8xtvnAhqqUAAKLGQAC5ce5U1oEJ2DXMrHsPQQ",
+    "r_drop": "CAACAgQAAxUAAWrlyoKpD1pqwD3SRInCMq99CjvdAAIZGQAC9NCgU8BSJZIiZe1LPQQ",
+    "r_plus1": "CAACAgQAAxUAAWrlyoIRk17Jetf8DGQ_OoHN9SxwAAIWAwACRjR0DQYYbdQqcyB-PQQ",
+    "y_swap": "CAACAgQAAxUAAWrlyoKkJcHnBnb6ARA5PMh1J1gwAAIdEgACKnHBU4wRW_T_nGDmPQQ",
+    "y_drop": "CAACAgQAAxUAAWrlyoLhjW8hVdKirX7RgylgNG0FAAIMFgACL-OoU6oF6icl9tClPQQ",
+    "y_plus1": "CAACAgQAAxUAAWrlyoK8LNmomKa8N0PC2blHqNbeAAIYAwACRjR0Dadt_AuXiMIdPQQ",
+}
+
+STICKERS_STORM_GREY = {
+    "b_swap": "CAACAgQAAxUAAWrlyoKz5I8IDPFWfoOz8Kc9a97yAAJuEwACT2zBUwHKogu3o8ZqPQQ",
+    "b_drop": "CAACAgQAAxUAAWrlyoI4-rbmsJlKwZhBnX7D-esIAAIOFAACz1eoU3vpJmvbx_n0PQQ",
+    "b_plus1": "CAACAgQAAxUAAWrlyoKKirTTGSIxQt9s5vI1SaulAAITAwACRjR0Dd_KuaRWO8qQPQQ",
+    "g_swap": "CAACAgQAAxUAAWrlyoIB5DftuLz4aGANwMqz3yTDAAL7DQACVQ7AU89I2SQj3QeNPQQ",
+    "g_drop": "CAACAgQAAxUAAWrlyoJCsPLhH42UGZhEzEoTCv0iAAI5EgACD62gUwm16witpyYXPQQ",
+    "g_plus1": "CAACAgQAAxUAAWrlyoJYRVscktYuZdBNoXZKHHH4AAIVAwACRjR0DbfdlUnwGecJPQQ",
+    "r_swap": "CAACAgQAAxUAAWrlyoKLsadFFZhCN-2A2nf-qb5wAAKUEQACZrbAUyCUj5ZT-yPbPQQ",
+    "r_drop": "CAACAgQAAxUAAWrlyoLAAzyz5HVJHSd1yjsGR07KAAKXFAACfo-gU8vFYersPCezPQQ",
+    "r_plus1": "CAACAgQAAxUAAWrlyoIX4AABzGni_QeB7EqQwflWBwACFwMAAkY0dA1FGO-G_Pq9vD0E",
+    "y_swap": "CAACAgQAAxUAAWrlyoIObsaysE-30o4YmsB_YeTqAAKDEAACEKnBU_VUEqxc-yVMPQQ",
+    "y_drop": "CAACAgQAAxUAAWrlyoIwduwGP_1czG6qYw0wtYzbAALXEwACfjSoU5rufV2Mq9FyPQQ",
+    "y_plus1": "CAACAgQAAxUAAWrlyoJao_Or3YCJi34j03KqS6cIAAIZAwACRjR0DVg9rMreSVSIPQQ",
+}
+
 STICKERS_OPTIONS = {
     "option_draw": "CAACAgQAAxUAAWrlFf9h0bYOTGPFpUp1A4Kv4CBNAAICBAACRjR0DY2i3mgWBOLPPQQ",
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
@@ -310,11 +349,13 @@ _selected_cardset = CARDSETS.get(DEFAULT_CARDSET, CARDS_CLASSIC)
 
 STICKERS = {
     **_selected_cardset["normal"],
+    **STICKERS_STORM,
     **STICKERS_OPTIONS,
 }
 
 STICKERS_GREY = {
     **_selected_cardset["not_playable"],
+    **STICKERS_STORM_GREY,
 }
 
 
@@ -353,7 +394,7 @@ class Card(object):
 def label(card):
     """Readable card name for plain-text messages, e.g. '💚+2' or '⬛️+4'"""
     return (repr(card).replace('Draw Four', '+4').replace('Draw', '+2')
-            .replace('Colorchooser', 'Color Chooser'))
+            .replace('Colorchooser', 'Color Chooser').replace('Plus1', '+1'))
 
 
 def is_draw_wild(card):
