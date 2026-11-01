@@ -196,10 +196,10 @@ class TestDiabloLog(LoggedGame):
         end = rivalry_log.finish(self.game, A_ID, 'win')
         self.assertEqual(end['ev'][-1]['db'], 1)
         d = rs.summarize_log(end)
-        self.assertEqual(d['diablo']['a'], {'k': 0, 'p': 2, 'col': [0, 1, 1, 0], 'same': 1, 'lk': 0})
+        self.assertEqual(d['diablo']['a'], {'k': 0, 'p': 2, 'col': [0, 1, 1, 0, 0, 0], 'same': 1, 'lk': 0})
         self.assertEqual(d['a']['ty'][rs.CARD_TYPES.index('dia')], 2)
         # Not the timeout stat, nor the colors players chose
-        self.assertEqual((d['a']['au'], d['a']['pk']), (0, [0, 0, 0, 0]))
+        self.assertEqual((d['a']['au'], d['a']['pk']), (0, [0, 0, 0, 0, 0, 0]))
 
     def test_the_color_under_it_survives_a_wild_being_dismissed(self):
         for under in (c.Card(c.GREEN, None, c.CHOOSE), c.Card(c.GREEN, None, c.DRAW_FOUR),

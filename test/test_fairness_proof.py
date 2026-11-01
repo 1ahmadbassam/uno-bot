@@ -36,6 +36,9 @@ INDEX_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'index.ht
 # --- A reference checker: the same algorithm as web/fair.js -------------
 
 def full_deck(mode):
+    if mode == 'rainbow':
+        values = ['1', '2', '3', '4', '5', '6', 'draw', 'reverse', 'skip']
+        return ['%s_%s' % (color, value) for color in 'rbgypo' for value in values for _ in range(2)] + ['colorchooser', 'draw_four'] * 4
     if mode == 'storm':
         # No 0s; two of each of the Storm cards per color
         values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip', 'swap', 'drop', 'plus1']
@@ -90,6 +93,7 @@ def check(proof):
     stream = Stream(proof['seed'], entropy)
     pile, grave, out, by_seat = [], [], {}, {}
     rolls = eruptions = 0
+    colors = c.COLORS
     for i, op in enumerate(proof['ops']):
         kind = op[0]
         if kind == 's':
@@ -101,6 +105,7 @@ def check(proof):
                 return 'seating at %d' % i, None
         elif kind == 'f':
             pile, grave, out = full_deck(op[1]), [], {}
+            colors = c.ALL_COLORS if op[1] == 'rainbow' else c.COLORS
         elif kind == 'd':
             if not pile:
                 pile, grave = grave, []
@@ -119,7 +124,7 @@ def check(proof):
                 out[card] -= 1
                 (grave if kind == 'x' else pile).append(card)
         elif kind == 'c':
-            if c.COLORS[stream.randbelow(4)] != op[1]:
+            if colors[stream.randbelow(len(colors))] != op[1]:
                 return 'color at %d' % i, None
         elif kind == 'm':
             if op[1][stream.randbelow(len(op[1]))] != op[2]:
@@ -197,7 +202,7 @@ def play_a_game(mode='classic', players=3, max_turns=600, rng=None):
                     game.turn()  # ran out of time: the bot picks the color
                     auto_color = True
                 else:
-                    game.choose_color(c.COLORS[turn % 4])
+                    game.choose_color(game.colors[turn % len(game.colors)])
             continue
         try:
             p.draw()
@@ -680,10 +685,10 @@ class TestFairPlayExport(unittest.TestCase):
         ]}
         d = rs.summarize_log(log)
         self.assertEqual(d['a']['hd'], [1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])
-        self.assertEqual(d['a']['hc'], [1, 0, 1, 0])
+        self.assertEqual(d['a']['hc'], [1, 0, 1, 0, 0, 0])
         self.assertEqual(d['b']['hd'], [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(d['b']['dt'], [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.assertEqual(d['b']['dc'], [0, 0, 1, 1])
+        self.assertEqual(d['b']['dc'], [0, 0, 1, 1, 0, 0])
         self.assertEqual(d['a']['dt'], [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0])
 
     def test_fair_status(self):

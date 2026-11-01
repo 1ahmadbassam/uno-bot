@@ -117,6 +117,8 @@ def modes(update: Update, context: CallbackContext):
                                     "until they find one and play it. An Alpha has no value, so it only goes on "
                                     "its color. And by the X-rule, two numbers adding up to 5 go on each other "
                                     "whatever their colors.")
+    modes_explanation += "\n\n" + _("🌈 Rainbow follows Classic rules with six colors: red, blue, green, "
+                                    "yellow, purple and orange. Number cards run from 1 to 6.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

@@ -136,7 +136,7 @@ class TestModes(unittest.TestCase):
         data = rivalry_stats.scores_data(rivals, [], [], rivalry_stats.timezone.utc)
         self.assertEqual(data['decks'], {'classic': 'classic', 'fast': 'classic', 'wild': 'wild', 'volcano': 'classic',
                                          'storm': 'storm', 'tornado': 'classic', 'crazy': 'crazy',
-                                         'diablo': 'diablo', 'xeno': 'xeno'})
+                                         'diablo': 'diablo', 'xeno': 'xeno', 'rainbow': 'rainbow'})
 
 
 class TestModeRules(unittest.TestCase):

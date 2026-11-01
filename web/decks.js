@@ -12,6 +12,14 @@ var DECKS = {
   ],
   "specials": {"colorchooser": 4, "draw_four": 4}
  },
+ "rainbow": {
+  "colors": ["r", "b", "g", "y", "p", "o"],
+  "values": [
+   {"values": ["1", "2", "3", "4", "5", "6"], "copies": 2},
+   {"values": ["draw", "reverse", "skip"], "copies": 2}
+  ],
+  "specials": {"colorchooser": 4, "draw_four": 4}
+ },
  "wild": {
   "colors": ["r", "b", "g", "y"],
   "values": [

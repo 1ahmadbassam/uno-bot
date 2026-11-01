@@ -345,11 +345,11 @@ class TestXenoLog(LoggedGame):
         end = rivalry_log.finish(self.game, A_ID, 'win')
         self.assertEqual(end['ev'][-1]['xe'], 1)
         d = rs.summarize_log(end)
-        self.assertEqual(d['xeno']['a'], {'k': 0, 'p': 1, 'col': [0, 1, 0, 0], 'lk': 0, 'al': 1, 'x5': 1,
+        self.assertEqual(d['xeno']['a'], {'k': 0, 'p': 1, 'col': [0, 1, 0, 0, 0, 0], 'lk': 0, 'al': 1, 'x5': 1,
                                           'hu': 1, 'hc': 3, 'big': 3})
         self.assertEqual(d['a']['ty'][rs.CARD_TYPES.index('xen')], 1)
         self.assertEqual(d['a']['ty'][rs.CARD_TYPES.index('alp')], 1)
-        self.assertEqual((d['a']['au'], d['a']['pk']), (0, [0, 0, 0, 0]))
+        self.assertEqual((d['a']['au'], d['a']['pk']), (0, [0, 0, 0, 0, 0, 0]))
 
     def test_a_xeno_turned_up_first_logs_its_color(self):
         self.game.last_card = c.Card(c.YELLOW, None, c.XENO)

@@ -1084,7 +1084,7 @@ def _deal_and_announce(bot, game, chat, job_queue):
         """Send the first card and player"""
 
         bot.sendSticker(chat.id,
-                        sticker=c.STICKERS[str(game.last_card)],
+                        sticker=c.sticker_for(game.last_card, game),
                         timeout=TIMEOUT,
                         disable_notification=True)
 

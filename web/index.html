@@ -810,7 +810,8 @@ var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], SIG = '', P
 // The Storm cards come last, so older summaries (6 types) keep their indexes
 var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp'];
 var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8', 'Diablo', 'Xeno', 'Alpha'];
-var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow'];
+var COLOR_KEYS = ['r', 'b', 'g', 'y', 'p', 'o'];
+var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'];
 var COL = {};
 var S = {
   season: null, mode: 'all', pl: 'all', out: { win: true, forfeit: true, manual: true, imported: true },
@@ -1560,7 +1561,7 @@ function cardType(card) {
   var v = card.indexOf('_') >= 0 ? card.slice(card.indexOf('_') + 1) : card;
   return { skip: 'skip', reverse: 'rev', draw: 'd2', swap: 'swap', drop: 'drop', plus1: 'p1', alpha: 'alp' }[v] || 'num';
 }
-function addInto(target, values) { for (var i = 0; i < values.length; i++) target[i] += values[i] || 0; }
+function addInto(target, values) { for (var i = 0; i < values.length; i++) target[i] = (target[i] || 0) + (values[i] || 0); }
 
 // Totals over the games the bot logged turn by turn (see rivalry_log.py)
 function aggLogs(list) {
@@ -1568,7 +1569,7 @@ function aggLogs(list) {
   P.forEach(function (p) {
     L[p] = {
       games: 0, wins: 0, first: 0, firstW: 0, better: 0, betterW: 0, worse: 0, worseW: 0,
-      pl: 0, ty: CARD_TYPES.map(function () { return 0; }), co: [0, 0, 0, 0], pk: [0, 0, 0, 0],
+      pl: 0, ty: CARD_TYPES.map(function () { return 0; }), co: COLOR_KEYS.map(function () { return 0; }), pk: COLOR_KEYS.map(function () { return 0; }),
       dv: 0, dk: 0, ps: 0, fd: 0, dealt: 0, den: 0, sm: 0, au: 0, bl: 0, ch: 0, cw: 0, to: 0,
       uno: 0, unoG: 0, unoW: 0, thSum: 0, thN: 0, ahead: 0, samples: 0,
       mx: null, thMax: null, back: null, dealtMax: null
@@ -2472,7 +2473,7 @@ function renderDiablo(R) {
     plural(logged.length, 'of the ' + games.length + ' Diablo game') + ' in the selection were logged.';
   var keys = ['k', 'p', 'same', 'lk'], tot = {}, fin = { a: 0, b: 0 };
   var dealt = { yes: { a: [0, 0], b: [0, 0] }, no: { a: [0, 0], b: [0, 0] } };
-  P.forEach(function (p) { tot[p] = { col: [0, 0, 0, 0] }; keys.forEach(function (k) { tot[p][k] = 0; }); });
+  P.forEach(function (p) { tot[p] = { col: COLOR_KEYS.map(function () { return 0; }) }; keys.forEach(function (k) { tot[p][k] = 0; }); });
   logged.forEach(function (m) {
     var db = m.d.diablo;
     P.forEach(function (p) {
@@ -2497,7 +2498,7 @@ function renderDiablo(R) {
   $('db-tiles').innerHTML = t.join('');
 
   barChart($('c-db-colors'), {
-    cats: COLOR_LABELS, grouped: true, yFmt: function (v) { return Math.round(v); },
+    cats: COLOR_LABELS.slice(0, 4), grouped: true, yFmt: function (v) { return Math.round(v); },
     stacks: P.map(function (p) { return { color: COL[p], values: tot[p].col }; }),
     tip: function (ci) {
       return '<b>Diablos set to ' + COLOR_LABELS[ci].toLowerCase() + '</b>' + P.map(function (p) {
@@ -2562,7 +2563,7 @@ function renderXeno(R) {
     plural(logged.length, 'of the ' + games.length + ' Xeno game') + ' in the selection were logged.';
   var keys = ['k', 'p', 'lk', 'al', 'x5', 'hu', 'hc'], tot = {}, fin = { a: 0, b: 0 };
   var dealt = { yes: { a: [0, 0], b: [0, 0] }, no: { a: [0, 0], b: [0, 0] } };
-  P.forEach(function (p) { tot[p] = { col: [0, 0, 0, 0], big: 0 }; keys.forEach(function (k) { tot[p][k] = 0; }); });
+  P.forEach(function (p) { tot[p] = { col: COLOR_KEYS.map(function () { return 0; }), big: 0 }; keys.forEach(function (k) { tot[p][k] = 0; }); });
   logged.forEach(function (m) {
     var xe = m.d.xeno;
     P.forEach(function (p) {
@@ -2590,7 +2591,7 @@ function renderXeno(R) {
   $('xe-tiles').innerHTML = t.join('');
 
   barChart($('c-xe-colors'), {
-    cats: COLOR_LABELS, grouped: true, yFmt: function (v) { return Math.round(v); },
+    cats: COLOR_LABELS.slice(0, 4), grouped: true, yFmt: function (v) { return Math.round(v); },
     stacks: P.map(function (p) { return { color: COL[p], values: tot[p].col }; }),
     tip: function (ci) {
       return '<b>Xenos set to ' + COLOR_LABELS[ci].toLowerCase() + '</b>' + P.map(function (p) {
@@ -2692,7 +2693,7 @@ function holm(ps) {
 var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {
@@ -2750,11 +2751,14 @@ function fairTests(list) {
     }).filter(function (g) { return g.nA && g.nB; }));
 
   var hands = two.filter(function (m) { return m.d.a.hd && m.d.b.hd && deckMix(m.mode); });
-  var seenTypes = [0, 0, 0], expTypes = [0, 0, 0], seenColors = [0, 0, 0, 0];
+  var seenTypes = [0, 0, 0], expTypes = [0, 0, 0], seenColors = COLOR_KEYS.map(function () { return 0; }), expColors = COLOR_KEYS.map(function () { return 0; });
   hands.forEach(function (m) {
     var g = grouped(m.d.a.hd), h = grouped(m.d.b.hd), mix = deckMix(m.mode), n = sum(m.d.a.hd) + sum(m.d.b.hd);
     for (var i = 0; i < 3; i++) { seenTypes[i] += g[i] + h[i]; expTypes[i] += n * mix[i]; }
     addInto(seenColors, m.d.a.hc); addInto(seenColors, m.d.b.hc);
+    var spec = DECKS[MODE_DECKS[m.mode] || 'classic'];
+    var total = sum(m.d.a.hc || []) + sum(m.d.b.hc || []);
+    spec.colors.forEach(function (color) { expColors[COLOR_KEYS.indexOf(color)] += total / spec.colors.length; });
   });
   tests.push({
     name: 'Kinds of card dealt', games: hands.length,
@@ -2765,9 +2769,9 @@ function fairTests(list) {
   var colorTotal = sum(seenColors);
   tests.push({
     name: 'Colors dealt', games: hands.length,
-    tip: 'The colors of the colored cards in both opening hands. The deck holds the same number of each color.',
-    expect: listText(COLOR_LABELS, [0, 1, 2, 3].map(function () { return f1(colorTotal / 4); })), seen: listText(COLOR_LABELS, seenColors),
-    p: colorTotal ? chiTest(seenColors, [0, 1, 2, 3].map(function () { return colorTotal / 4; })) : null
+    tip: 'The colors of the colored cards in both opening hands. Each deck holds equal numbers of its colors; Rainbow has six, the other modes four.',
+    expect: listText(COLOR_LABELS, expColors.map(f1)), seen: listText(COLOR_LABELS, seenColors),
+    p: colorTotal ? chiTest(seenColors, expColors) : null
   });
   return tests;
 }

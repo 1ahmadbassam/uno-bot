@@ -85,6 +85,10 @@ def display_color(color):
         return _("{emoji} Green").format(emoji='💚')
     if color == "y":
         return _("{emoji} Yellow").format(emoji='💛')
+    if color == "p":
+        return _("{emoji} Purple").format(emoji='💜')
+    if color == "o":
+        return _("{emoji} Orange").format(emoji='🧡')
 
 
 def display_color_group(color, game):
@@ -101,6 +105,10 @@ def display_color_group(color, game):
     if color == "y":
         return __("{emoji} Yellow", game.translate).format(
             emoji='💛')
+    if color == "p":
+        return __("{emoji} Purple", game.translate).format(emoji='💜')
+    if color == "o":
+        return __("{emoji} Orange", game.translate).format(emoji='🧡')
 
 
 def error(update: Update, context: CallbackContext):

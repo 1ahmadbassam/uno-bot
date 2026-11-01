@@ -156,11 +156,11 @@ def add_card(game, card, results, can_play):
 
     if can_play:
         results.append(
-            Sticker(str(card), sticker_file_id=c.STICKERS[str(card)])
+            Sticker(str(card), sticker_file_id=c.sticker_for(card, game))
         )
     else:
         results.append(
-            Sticker(str(uuid4()), sticker_file_id=c.STICKERS_GREY[str(card)],
+            Sticker(str(uuid4()), sticker_file_id=c.sticker_for(card, game, playable=False),
                     input_message_content=game_info(game))
         )
 

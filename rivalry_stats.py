@@ -452,7 +452,8 @@ def inline_data(page, data):
 # New types come last, so older summaries (6 types) keep their indexes
 CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp')
 ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
-LOG_COLORS = ('r', 'b', 'g', 'y')
+# Keep the original four indexes stable for previously exported summaries.
+LOG_COLORS = ('r', 'b', 'g', 'y', 'p', 'o')
 
 
 def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pacing=0, link=None):
@@ -601,14 +602,14 @@ def _player_summary(hand):
     return {
         'pl': 0,                 # cards played
         'ty': [0] * len(CARD_TYPES),           # of each CARD_TYPES
-        'co': [0] * 4,           # colored cards played, by LOG_COLORS
+        'co': [0] * len(LOG_COLORS),           # colored cards played, by LOG_COLORS
         'dv': 0, 'dk': 0,        # chosen draws, and how many of those could be played
         'ps': 0,                 # passes
         'fd': 0,                 # cards drawn as a penalty
         'dealt': 0,              # penalty cards the other rival drew because of this one
         'mx': hand,              # largest hand
         'uno': 0, 'den': 0,      # times down to one card; penalties taken on one card
-        'pk': [0] * 4, 'sm': 0,  # colors picked, by LOG_COLORS; picks of the color held most
+        'pk': [0] * len(LOG_COLORS), 'sm': 0,  # colors picked, by LOG_COLORS; picks of the color held most
         'au': 0,                 # colors the bot picked after a timeout (not for a Diablo)
         'bl': 0,                 # +4s played while holding the active color
         'ch': 0, 'cw': 0,        # challenges made, and won
@@ -617,9 +618,9 @@ def _player_summary(hand):
         'ahead': 0,              # plays and draws after which this rival held fewer cards
         'back': 0,               # most cards behind the other rival at any point
         'hd': [0] * len(CARD_TYPES),           # opening hand, by CARD_TYPES
-        'hc': [0] * 4,           # colored cards in the opening hand, by LOG_COLORS
+        'hc': [0] * len(LOG_COLORS),           # colored cards in the opening hand, by LOG_COLORS
         'dt': [0] * len(CARD_TYPES),           # cards drawn, by CARD_TYPES
-        'dc': [0] * 4,           # colored cards drawn, by LOG_COLORS
+        'dc': [0] * len(LOG_COLORS),           # colored cards drawn, by LOG_COLORS
     }
 
 
@@ -669,12 +670,12 @@ def summarize_log(log):
     # Diablo mode, per rival: Diablos dealt in the starting hand and played, the colors the
     # bot set for them (by LOG_COLORS), how often that was the color they went on, and how
     # often the color the player held most (the 'dia' color events)
-    diablo = {key: {'k': sum(1 for card in cards if card == 'diablo'), 'p': 0, 'col': [0] * 4, 'same': 0, 'lk': 0}
+    diablo = {key: {'k': sum(1 for card in cards if card == 'diablo'), 'p': 0, 'col': [0] * len(LOG_COLORS), 'same': 0, 'lk': 0}
               for key, cards in deal['h'].items()}
     # Xeno mode, per rival: Xenos dealt and played, the colors the bot set for them, how often
     # that was the color its player held most, Alphas and X-rule plays, and the draws made
     # to find a Xeno's color (hunts), their cards and the longest one
-    xeno = {key: {'k': sum(1 for card in cards if card == 'xeno'), 'p': 0, 'col': [0] * 4, 'lk': 0,
+    xeno = {key: {'k': sum(1 for card in cards if card == 'xeno'), 'p': 0, 'col': [0] * len(LOG_COLORS), 'lk': 0,
                   'al': 0, 'x5': 0, 'hu': 0, 'hc': 0, 'big': 0}
             for key, cards in deal['h'].items()}
     for e in events[1:]:

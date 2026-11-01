@@ -56,9 +56,10 @@ TORNADO = Mode('tornado', N_("🌪️ Tornado mode"), N_('Wind of Revolution �
 CRAZY = Mode('crazy', N_("👻 Crazy mode"), N_('Why so Serious? 👻️'), deck='crazy', hand_size=8, hide_counts=True)
 DIABLO = Mode('diablo', N_("💀 Diablo mode"), N_('Welcome to Hell 💀️'), deck='diablo', bluff=False, diablo=True)
 XENO = Mode('xeno', N_("👽 Xeno mode"), N_('Project Xeno 👽️'), deck='xeno', xeno=True)
+RAINBOW = Mode('rainbow', N_("🌈 Rainbow mode"), N_('Over the Rainbow 🌈'), deck='rainbow')
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO, RAINBOW)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode
