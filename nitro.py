@@ -5,7 +5,7 @@ from datetime import datetime
 from fairness import seat_label
 from internationalization import __
 import rivalry_log
-from utils import display_color_group, display_name, send_paced, TIMEOUT
+from utils import display_color_group, display_name, send_paced_sequence
 
 
 def prompt(game):
@@ -29,8 +29,6 @@ def roll(bot, player):
         return False
     pending = game.nitro_pending
     source = next((p for p in game.players if p.user.id == pending['source']), None)
-    # Send this before consuming the roll or scheduling its result.
-    bot.sendMessage(game.chat.id, text='🎲', timeout=TIMEOUT)
     value = game.rng.randbelow(6) + 1
     game.rng.note('nr', value, seat_label(player), pending['amount'])
     recipient = source if value == 1 else player
@@ -53,13 +51,15 @@ def roll(bot, player):
         rivalry_log.nitro_roll(game, player, source, value, pending['amount'], recipient, actual)
         text = __("🎲 {name} rolled 1. The opening Nitro penalty is avoided!", multi=game.translate).format(
             name=display_name(player.user))
-    send_paced(bot, game.chat.id, text=text)
     player.drew = False
     player.drew_card = False
     player.turn_started = datetime.now()
     rivalry_log.turn(game)
     player.anti_cheat += 1
     game.touch()
+    # Randomness and cards are settled before any network work. The ordered
+    # queue sends the die first and retries messages without rerolling.
+    send_paced_sequence(bot, game.chat.id, [{'text': '🎲'}, {'text': text}])
     if source and source.pending_win:
         source.pending_win = False
         if not source.cards:

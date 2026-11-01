@@ -130,6 +130,7 @@ class GameManager(object):
             'volcano_eruptions': getattr(game, 'volcano_eruptions', 0),
             'storm_cancel': getattr(game, 'storm_cancel', False),
             'nitro_pending': game.nitro_pending,
+            'nitro_cancelled': game.nitro_cancelled,
             'double_enabled': game.double_enabled,
             'double_card': game.double_card,
             'manual_uno': getattr(game, 'manual_uno', False),
@@ -169,6 +170,7 @@ class GameManager(object):
         game.volcano_eruptions = data.get('volcano_eruptions', 0)
         game.storm_cancel = data.get('storm_cancel', False)
         game.nitro_pending = data.get('nitro_pending')
+        game.nitro_cancelled = data.get('nitro_cancelled')
         game.double_enabled = data.get('double_enabled', False)
         game.double_card = data.get('double_card')
         game.manual_uno = data.get('manual_uno', False)
@@ -536,6 +538,7 @@ class GameManager(object):
             for g in games:
                 for p in g.players:
                     if p.user.id == user.id:
+                        g.cancel_nitro_for(p)
                         if p == g.current_player:
                             g.turn()
 
@@ -557,6 +560,7 @@ class GameManager(object):
         if len(game.players) < 3:
             raise NotEnoughPlayersError()
 
+        game.cancel_nitro_for(player)
         if player is game.current_player:
             game.turn()
 

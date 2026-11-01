@@ -16,6 +16,8 @@ import nitro
 import results
 import rivalry_log
 import rivalry_stats as rs
+import utils
+from config import TIME_REMOVAL_AFTER_SKIP
 from deck import Deck
 from game_manager import GameManager
 from test.test_crazy import game_of
@@ -39,7 +41,8 @@ class TestNitro(unittest.TestCase):
         self.enterContext(patch('bot.gm', self.gm))
         self.enterContext(patch('actions.send_async'))
         self.enterContext(patch('actions.send_paced'))
-        self.paced = self.enterContext(patch('nitro.send_paced'))
+        self.enterContext(patch('actions.game_is_running', return_value=True))
+        self.sequence = self.enterContext(patch('nitro.send_paced_sequence'))
         self.won = self.enterContext(patch('actions.player_won'))
 
     def play(self, player, name):
@@ -118,11 +121,10 @@ class TestNitro(unittest.TestCase):
                 self.assertEqual(list(map(str, self.b.playable_cards())), ['g_1'])
 
     def test_die_message_is_sent_before_result(self):
-        calls = []
-        self.bot.sendMessage.side_effect = lambda *a, **k: calls.append(k['text'])
-        self.paced.side_effect = lambda *a, **k: calls.append(k['text'])
         self.arm()
         self.roll(6)
+        self.bot.sendMessage.assert_not_called()
+        calls = [m['text'] for m in self.sequence.call_args.args[2]]
         self.assertEqual(calls[0], '🎲')
         self.assertIn('rolled 6', calls[1])
         self.assertIn('takes 3 cards', calls[1])
@@ -206,6 +208,39 @@ class TestNitro(unittest.TestCase):
             self.assertIs(game.current_player, ps[expected])
             self.assertFalse(game.reversed)
 
+    def test_single_and_double_action_turns_with_two_three_and_four_players(self):
+        for size in (2, 3, 4):
+            for value in ('skip', 'reverse'):
+                for double in (False, True):
+                    with self.subTest(size=size, value=value, double=double):
+                        game, ps = game_of('nitro', *list('ABCD')[:size])
+                        ps[0].cards = cards('r_' + value, 'r_' + value, 'b_1')
+                        game.double_enabled = double
+                        self.play(ps[0], 'r_' + value)
+                        if double:
+                            self.assertIs(game.current_player, ps[0])
+                            self.play(ps[0], 'r_' + value)
+                        if size == 2:
+                            expected = 0
+                        elif value == 'skip':
+                            expected = (3 if double else 2) % size
+                        else:
+                            expected = 1 if double else size - 1
+                        self.assertIs(game.current_player, ps[expected])
+
+    def test_double_duel_action_retains_turn_after_manual_uno(self):
+        for value in ('skip', 'reverse'):
+            with self.subTest(value=value):
+                game, (a, b) = game_of('nitro', 'A', 'B')
+                game.manual_uno = True
+                game.double_enabled = True
+                a.cards = cards('r_' + value, 'r_' + value, 'b_1')
+                self.play(a, 'r_' + value)
+                self.play(a, 'r_' + value)
+                self.assertIs(game.uno_holder, a)
+                game.release_uno()
+                self.assertIs(game.current_player, a)
+
     def test_double_final_pair_wins_without_intermediate_uno_wait(self):
         self.a.cards = cards('r_1', 'r_1')
         self.game.manual_uno = True
@@ -240,7 +275,7 @@ class TestNitro(unittest.TestCase):
             self.assertIs(self.game.current_player, self.b)
             prompt.assert_called_once()
 
-    def test_double_menu_order_and_toggle_without_chat_announcement(self):
+    def test_double_menu_order_and_toggle_sends_text_instead_of_sticker(self):
         self.a.cards = cards('r_1', 'r_1', 'b_2')
         self.gm.userid_players = {1: [self.a]}
         self.gm.userid_current = {1: self.a}
@@ -252,11 +287,19 @@ class TestNitro(unittest.TestCase):
         ids = [e.id.split(':')[0] for e in entries]
         self.assertEqual(ids[-2:], ['double', 'gameinfo'])
         self.assertLess(ids.index('r_1'), ids.index('double'))
+        self.assertIn('Double play enabled', entries[-2].input_message_content.message_text)
         with patch('bot.send_async') as sent, patch('bot.send_paced') as paced:
             for expected in (True, False):
                 token = 'double:%d' % self.a.anti_cheat
                 inspect.unwrap(bot.process_result)(chosen_result(self.a.user, token), context)
                 self.assertEqual(self.game.double_enabled, expected)
+                options = []
+                results.add_double(options, self.game)
+                self.assertIn('disabled' if expected else 'enabled', options[0].input_message_content.message_text)
+                if expected:
+                    self.assertEqual(list(map(str, self.a.playable_cards())), ['r_1', 'r_1'])
+                else:
+                    self.assertTrue(self.a._card_playable(c.from_str('r_2')))
             sent.assert_not_called()
             paced.assert_not_called()
 
@@ -291,7 +334,7 @@ class TestNitro(unittest.TestCase):
         before = len(self.b.cards)
         self.roll(2)
         self.assertEqual(len(self.b.cards), before + 1)
-        self.assertIn('takes 1 card.', self.paced.call_args.kwargs['text'])
+        self.assertIn('takes 1 card.', self.sequence.call_args.args[2][1]['text'])
         self.assertIsNone(self.game.nitro_pending)
 
     def test_leaving_roll_target_settles_a_deferred_winner(self):
@@ -322,7 +365,7 @@ class TestNitro(unittest.TestCase):
         self.arm()
         actions.do_skip(self.bot, self.b)
         self.assertIsNone(self.game.nitro_pending)
-        self.assertIs(self.game.current_player, self.b)
+        self.assertIs(self.game.current_player, self.a)
 
     def test_timeout_second_card_starts_manual_uno_wait(self):
         self.a.cards = cards('r_1', 'r_1', 'b_2')
@@ -341,6 +384,104 @@ class TestNitro(unittest.TestCase):
             game.current_player = b
             (a if leaving is self.a else b).leave()
             self.assertIsNone(game.nitro_pending)
+
+    def registered_manager(self, game):
+        manager = GameManager()
+        manager.chatid_games = {game.chat.id: [game]}
+        manager.userid_players = {p.user.id: [p] for p in game.players}
+        manager.userid_current = {p.user.id: p for p in game.players}
+        return manager
+
+    def test_real_leave_announces_sender_and_target_cancellations_once(self):
+        for leaving_source in (True, False):
+            with self.subTest(source=leaving_source):
+                game, (a, b, other) = game_of('nitro', 'A', 'B', 'C')
+                game.current_player = b
+                game.nitro_pending = {'source': a.user.id, 'amount': 4}
+                gm = self.registered_manager(game)
+                leaving = a if leaving_source else b
+                with patch.object(gm, '_persist_chat'), patch('actions.gm', gm), \
+                        patch('actions.send_async') as sent:
+                    gm.leave_game(leaving.user, game.chat)
+                    self.assertIsNone(game.nitro_pending)
+                    self.assertIs(game.current_player, b if leaving_source else other)
+                    actions.cancel_penalty_after_leave(self.bot, game, not leaving_source, False)
+                    self.assertIn('played the Nitro' if leaving_source else 'facing the Nitro', sent.call_args.kwargs['text'])
+                    self.assertIsNone(game.nitro_cancelled)
+                    actions.cancel_penalty_after_leave(self.bot, game, not leaving_source, False)
+                    sent.assert_called_once()
+
+    def test_unrelated_player_leaving_keeps_pending_roll(self):
+        game, (a, b, other) = game_of('nitro', 'A', 'B', 'C')
+        game.current_player = b
+        game.nitro_pending = {'source': a.user.id, 'amount': 4}
+        gm = self.registered_manager(game)
+        with patch.object(gm, '_persist_chat'), patch('actions.send_async') as sent:
+            gm.leave_game(other.user, game.chat)
+            actions.cancel_penalty_after_leave(self.bot, game, False, False)
+        sent.assert_not_called()
+        self.assertIsNotNone(game.nitro_pending)
+
+    def test_pending_roll_timeout_counts_once_and_consumes_turn(self):
+        self.arm(3)
+        before = len(self.b.cards)
+        waiting = self.b.waiting_time
+        with patch.object(self.game.rng, 'randbelow', side_effect=[5, 0, 0, 0]), \
+                patch('actions.rivalry_log.timed_out') as timed_out:
+            actions.do_skip(self.bot, self.b)
+        timed_out.assert_called_once_with(self.game, self.b)
+        self.assertEqual(self.b.waiting_time, max(0, waiting - TIME_REMOVAL_AFTER_SKIP))
+        self.assertEqual(len(self.b.cards), before + 3)
+        self.assertIs(self.game.current_player, self.a)
+        self.assertIsNone(self.game.nitro_pending)
+
+    def test_pending_roll_timeout_at_zero_removes_player_without_rolling(self):
+        game, (a, b, other) = game_of('nitro', 'A', 'B', 'C')
+        game.current_player = b
+        game.nitro_pending = {'source': a.user.id, 'amount': 4}
+        b.waiting_time = 0
+        gm = self.registered_manager(game)
+        with patch.object(gm, '_persist_chat'), patch.object(gm, 'persist_game'), patch('actions.gm', gm), \
+                patch('nitro.roll') as roll, patch('actions.rivalry_log.timed_out') as timed_out:
+            actions.do_skip(self.bot, b)
+        timed_out.assert_called_once_with(game, b)
+        roll.assert_not_called()
+        self.assertNotIn(b, game.players)
+        self.assertIs(game.current_player, other)
+        self.assertIsNone(game.nitro_pending)
+
+    def test_die_and_result_use_chat_queue_and_retry_without_reroll(self):
+        self.arm()
+        with patch('utils.game_thread_runner.submit') as submit:
+            self.sequence.side_effect = utils.send_paced_sequence
+            self.roll(6)
+        self.bot.sendMessage.assert_not_called()
+        args = submit.call_args.args
+        self.assertEqual(args[0], 'pacing:-1')
+        self.assertIs(args[1], utils._send_message_sequence)
+        self.bot.sendMessage.side_effect = [utils.RetryAfter(1), None, None]
+        with patch('utils.time.sleep'):
+            args[1](*args[2:])
+        self.assertEqual([call.kwargs['text'] for call in self.bot.sendMessage.call_args_list][:2], ['🎲', '🎲'])
+        self.assertIn('rolled 6', self.bot.sendMessage.call_args.kwargs['text'])
+        self.assertEqual(sum(op[0] == 'nr' for op in self.game.rng.ops), 1)
+        self.assertFalse(nitro.roll(self.bot, self.b))
+
+    def test_die_delivery_failure_does_not_reopen_roll(self):
+        self.arm()
+        self.roll(6)
+        messages = self.sequence.call_args.args[2]
+        self.bot.sendMessage.side_effect = [TimeoutError('Telegram unavailable'), None]
+        with self.assertLogs('utils', level='ERROR'):
+            utils._send_message_sequence(self.bot, -1, messages)
+        self.assertEqual(self.bot.sendMessage.call_count, 2)
+        self.assertIn('rolled 6', self.bot.sendMessage.call_args.kwargs['text'])
+        self.assertIsNone(self.game.nitro_pending)
+        self.assertFalse(nitro.roll(self.bot, self.b))
+
+    def test_roll_is_registered_in_command_menu(self):
+        commandlist = Path(__file__).resolve().parents[1] / 'commandlist.txt'
+        self.assertIn('roll', [line.partition(' - ')[0] for line in commandlist.read_text().splitlines()])
 
     def test_summary_counts_nitro_and_double_events(self):
         log = log_of(

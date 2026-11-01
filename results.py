@@ -127,8 +127,11 @@ def add_gameinfo(game, results):
 
 
 def add_double(results, game):
-    # Selecting a cached sticker sends only the button artwork, without a chat announcement.
-    results.append(Sticker('double', sticker_file_id=c.STICKERS['option_double']))
+    # Like game info: show the sticker in the chooser, but send text on selection.
+    text = (__("2️⃣ Double play disabled.", multi=game.translate) if game.double_enabled else
+            __("2️⃣ Double play enabled. Play two identical colored cards consecutively.", multi=game.translate))
+    results.append(Sticker('double', sticker_file_id=c.STICKERS['option_double'],
+                           input_message_content=InputTextMessageContent(text)))
 
 
 def add_pass(results, game):

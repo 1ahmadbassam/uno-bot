@@ -65,6 +65,7 @@ class Game(object):
         # Storm mode (storm.py): the current player used /cancel for their next card
         self.storm_cancel = False
         self.nitro_pending = None
+        self.nitro_cancelled = None
         self.double_enabled = False
         self.double_card = None
         # Manual UNO (chat_setting.py): whether this game has it, the player who played their
@@ -171,6 +172,7 @@ class Game(object):
         self.volcano_eruptions = 0
         self.storm_cancel = False
         self.nitro_pending = None
+        self.nitro_cancelled = None
         self.double_enabled = False
         self.double_card = None
         self.reversed = False
@@ -285,7 +287,11 @@ class Game(object):
         if self.double_card is not None:
             self.double_card = None
             self.double_enabled = False
-            self._apply_card(card, advance=False)
+            # In a duel, Skip/Reverse already give their player another turn.
+            # Applying another skip would instead hand that turn to the opponent.
+            duel_skip = len(self.players) == 2 and card.value in (c.SKIP, c.REVERSE)
+            if not duel_skip:
+                self._apply_card(card, advance=False)
         self._apply_card(card)
 
     def _apply_card(self, card, advance=True):
@@ -316,6 +322,14 @@ class Game(object):
         amount = self.rng.randbelow(5) + 1
         self.rng.note('np', amount)
         self.nitro_pending = {'source': source.user.id if source else None, 'amount': amount}
+
+    def cancel_nitro_for(self, player):
+        """Capture the cancellation before removing or advancing past a player."""
+        if self.nitro_pending:
+            source = self.nitro_pending['source'] == player.user.id
+            if source or self.current_player is player:
+                self.nitro_pending = None
+                self.nitro_cancelled = 'source' if source else 'target'
 
     def choose_color(self, color, auto=False, diablo=False, xeno=False, nitro=False):
         """Carries out the color choosing and turns the game; `auto`: the bot picked it

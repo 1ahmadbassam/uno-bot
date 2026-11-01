@@ -158,6 +158,27 @@ def _send_after_delay(bot, chat_id, delay, kwargs):
     send_async(bot, chat_id, **kwargs)
 
 
+def send_paced_sequence(bot, chat_id, messages):
+    """Send an ordered sequence on the chat queue, using the usual send retries.
+
+    Delivery failures must not interrupt game state changes or allow a reroll.
+    """
+    try:
+        game_thread_runner.submit(f"pacing:{chat_id}", _send_message_sequence, bot, chat_id, messages)
+    except Exception:
+        logger.exception("Failed to queue message sequence")
+
+
+def _send_message_sequence(bot, chat_id, messages):
+    for message in messages:
+        kwargs = dict(message)
+        kwargs.setdefault('timeout', TIMEOUT)
+        try:
+            _send_message_with_migration_handling(bot, chat_id, **kwargs)
+        except Exception:
+            logger.exception("Failed to send message in sequence (chat_id=%s)", chat_id)
+
+
 def answer_async(bot, *args, **kwargs):
     """Answer an inline query asynchronously"""
     if 'timeout' not in kwargs:

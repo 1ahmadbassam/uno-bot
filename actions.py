@@ -42,19 +42,15 @@ def do_skip(bot, player, job_queue=None):
     # Nobody's turn is running out while the game waits for UNO
     if game.uno_holder is not None:
         return
-    if game.rules.nitro and (game.nitro_pending or game.double_card):
+    if game.rules.nitro and game.double_card:
         if job_queue is not None and player is not game.current_player:
             return
-        if game.nitro_pending:
-            import nitro
-            nitro.roll(bot, game.current_player)
-        else:
-            do_play_card(bot, game.current_player, game.double_card)
-            if game.uno_holder is not None:
-                from bot import _start_uno_countdown
-                _start_uno_countdown(game, job_queue)
-                gm.persist_game(game)
-                return
+        do_play_card(bot, game.current_player, game.double_card)
+        if game.uno_holder is not None:
+            from bot import _start_uno_countdown
+            _start_uno_countdown(game, job_queue)
+            gm.persist_game(game)
+            return
         gm.persist_game(game)
         if game_is_running(game):
             send_paced(bot, chat.id, text=__("Next player: {name}", multi=game.translate).format(
@@ -103,21 +99,29 @@ def do_skip(bot, player, job_queue=None):
         if (skipped_player.waiting_time < 0):
             skipped_player.waiting_time = 0
 
-        draw_counter = game.draw_counter
-        if was_choosing:
-            game.draw_counter = 0
-        before = len(skipped_player.cards)
-        try:
-            skipped_player.draw()
-        except DeckEmptyError:
-            pass
-        rivalry_log.drew(game, skipped_player, before, 'time')
-        volcano.erupt(bot, game, skipped_player)
-        if was_choosing:
-            game.draw_counter = draw_counter
-        elif draw_counter and c.is_draw_wild(game.last_card):
-            # The +4 penalty was taken, so it can't be challenged any more
-            game.last_bluffer = None
+        if game.nitro_pending:
+            # Settle the Nitro once, without an additional timeout draw. Unlike a
+            # voluntary /roll, timing out also consumes the roller's turn.
+            import nitro
+            nitro.roll(bot, skipped_player)
+            if not game_is_running(game):
+                return
+        else:
+            draw_counter = game.draw_counter
+            if was_choosing:
+                game.draw_counter = 0
+            before = len(skipped_player.cards)
+            try:
+                skipped_player.draw()
+            except DeckEmptyError:
+                pass
+            rivalry_log.drew(game, skipped_player, before, 'time')
+            volcano.erupt(bot, game, skipped_player)
+            if was_choosing:
+                game.draw_counter = draw_counter
+            elif draw_counter and c.is_draw_wild(game.last_card):
+                # The +4 penalty was taken, so it can't be challenged any more
+                game.last_bluffer = None
 
         n = skipped_player.waiting_time
         game.turn()
@@ -274,6 +278,14 @@ def cancel_penalty_after_leave(bot, game, was_current, was_choosing):
     themselves: the penalty is then the next player's and stays.
     Call it after settle_draw_four_after_leave.
     """
+    if game.nitro_cancelled:
+        source_left = game.nitro_cancelled == 'source'
+        game.nitro_cancelled = None
+        text = (__("⚡ The player who played the Nitro left the game, so its penalty is cancelled.", multi=game.translate)
+                if source_left else
+                __("⚡ The player facing the Nitro left the game, so its penalty is cancelled.", multi=game.translate))
+        send_async(bot, game.chat.id, text=text)
+        gm.persist_game(game)
     if not was_current or was_choosing or game.draw_counter <= 0:
         return
     game.draw_counter = 0

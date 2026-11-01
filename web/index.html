@@ -2532,7 +2532,7 @@ function renderDiablo(R) {
   return true;
 }
 
-// Manual UNO (chat_setting.py), which a group turns on with /uno for any mode; true when its block shows
+// Nitro penalties, rolls and double plays; true when its block shows.
 function renderNitro(R) {
   var games = R.ms.filter(function (m) { return m.mode === 'nitro'; });
   $('sp-nitro').style.display = games.length ? '' : 'none';
@@ -2565,6 +2565,7 @@ function renderNitro(R) {
   return true;
 }
 
+// Manual UNO (chat_setting.py), which a group turns on with /uno for any mode; true when its block shows.
 function renderManualUno(R) {
   var logged = R.ms.filter(function (m) { return m.d && m.d.manual_uno; });
   $('sp-uno').style.display = logged.length ? '' : 'none';

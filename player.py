@@ -76,12 +76,10 @@ class Player(object):
     def leave(self):
         """Removes player from the game and closes the gap in the list"""
         self.pending_win = False
+        self.game.cancel_nitro_for(self)
         if self.game.current_player is self:
             self.game.double_enabled = False
             self.game.double_card = None
-            self.game.nitro_pending = None
-        elif self.game.nitro_pending and self.game.nitro_pending['source'] == self.user.id:
-            self.game.nitro_pending = None
         if self._next is None or self._prev is None:
             return
 
