@@ -372,7 +372,8 @@ def make_turn_keyboard(game, chat_id):
     keyboard = [[choice_btn]]
 
     current_player = getattr(game, 'current_player', None)
-    if current_player is not None:
+    # While the game waits for UNO, the player can only declare it
+    if current_player is not None and getattr(game, 'uno_holder', None) is not current_player:
         action_row = []
         if not getattr(current_player, 'drew', False):
             draw_count = getattr(game, 'draw_counter', 0) or 1

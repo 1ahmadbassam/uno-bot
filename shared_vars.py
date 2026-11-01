@@ -27,6 +27,7 @@ from game_manager import GameManager
 from database import bind_database
 import user_setting  # noqa: F401
 import persisted_state  # noqa: F401
+import chat_setting  # noqa: F401
 import rivalry_models  # noqa: F401
 
 UNO_DB_PATH = os.getenv('UNO_DB', 'uno.sqlite3')

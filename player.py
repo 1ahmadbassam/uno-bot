@@ -164,6 +164,8 @@ class Player(object):
             self.bluffing = False
 
         self.cards.remove(card)
+        if self.game.manual_uno and len(self.cards) == 1:
+            self.game.hold_for_uno(self)
         self.game.play_card(card)
 
     def playable_cards(self):

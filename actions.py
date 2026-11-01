@@ -12,6 +12,7 @@ from telegram.ext import CallbackContext
 from apscheduler.jobstores.base import JobLookupError
 
 from config import TIME_REMOVAL_AFTER_SKIP, MIN_FAST_TURN_TIME
+from fairness import seat_label
 from errors import DeckEmptyError, NotEnoughPlayersError
 from game_threads import game_thread_runner
 from internationalization import __, _, locales_for_game
@@ -20,6 +21,9 @@ from utils import send_async, send_paced, display_name, display_color_group, gam
     copy_button, fairness_keyboard
 
 logger = logging.getLogger(__name__)
+
+# The cards a player takes for not declaring UNO in time
+UNO_PENALTY = 2
 
 class Countdown(object):
     player = None
@@ -34,6 +38,10 @@ def do_skip(bot, player, job_queue=None):
     game = player.game
     chat = game.chat
     skipped_player = game.current_player
+
+    # Nobody's turn is running out while the game waits for UNO
+    if game.uno_holder is not None:
+        return
 
     # F-07: Guard against race condition: if an automated countdown timer fired for a
     # player who has already completed their turn, ignore the stale skip.
@@ -320,6 +328,9 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     rivalry_log.played(game, player, card, think, cancelled=cancelled, pile=pile, under=under,
                        under_color=under_color)
     swapped = storm.apply(game, player, card, cancelled)
+    # A Swap gave them another hand, so this is no second to last card any more
+    if game.uno_holder is player and (swapped is not None or len(player.cards) != 1):
+        game.release_uno()
 
     if c.is_draw_wild(card) and game.rules.bluff:
         game.last_bluffer = player
@@ -360,6 +371,23 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     if game in gm.chatid_games.get(chat.id, []):
         gm.persist_game(game)
     return swapped
+
+
+def take_uno_penalty(player):
+    """`player` didn't declare UNO in time: they draw the penalty and the turn goes on;
+    returns the cards they got, fewer when the deck runs out"""
+    game = player.game
+    before = len(player.cards)
+    try:
+        for _ in range(UNO_PENALTY):
+            player.cards.append(game.deck.draw(seat_label(player)))
+    except DeckEmptyError:
+        pass
+    number = len(player.cards) - before
+    if number:
+        rivalry_log.drew(game, player, before, 'uno')
+    game.release_uno()
+    return number
 
 
 def do_draw(bot, player):

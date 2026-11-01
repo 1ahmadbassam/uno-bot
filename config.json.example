@@ -17,6 +17,8 @@
     "fair_play": true,
     "fair_play_required": false,
     "turn_pacing_delay": 1.5,
+    "manual_uno": false,
+    "uno_declare_time": 8,
     "stale_game_unload_seconds": 1800,
     "stale_game_scan_every_seconds": 60,
     "rivalry": {

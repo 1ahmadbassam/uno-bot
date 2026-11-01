@@ -29,6 +29,7 @@ try:
     from telegram import ParseMode
 except ImportError:
     from telegram.constants import ParseMode
+from apscheduler.jobstores.base import JobLookupError
 from telegram.error import BadRequest
 from telegram.ext import InlineQueryHandler, ChosenInlineResultHandler, \
     CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext, TypeHandler
@@ -37,6 +38,7 @@ import card as c
 import fairness
 import modes
 import rivalry
+import chat_setting
 import rivalry_log
 import settings
 import simple_commands
@@ -44,22 +46,23 @@ import storm
 from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, bot_color_announcement, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
-    fairness_commitment, reveal_fairness
-from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED
+    fairness_commitment, reveal_fairness, take_uno_penalty, UNO_PENALTY
+from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED, \
+    UNO_DECLARE_TIME, ADMIN_LIST
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
                     RejoinNotAllowedError, GameStartingError)
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_pass,
-                     add_card, add_mode)
+                     add_card, add_mode, add_uno)
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
 from game_threads import game_thread_runner, expected_wait
 from utils import display_name, RetryAfter, _retry_after_delay, copy_button
 from utils import (send_async, send_paced, answer_async, error, TIMEOUT,
-                   user_is_creator_or_admin, user_is_creator, user_can_change_mode,
+                   user_is_creator_or_admin, user_is_creator, user_is_admin, user_can_change_mode,
                    game_is_running, display_color_group, make_color_keyboard,
                    make_turn_keyboard, make_mode_keyboard)
 
@@ -362,7 +365,7 @@ def leave_game(update: Update, context: CallbackContext):
                            name=display_name(game.current_player.user)),
                        reply_markup=make_turn_keyboard(game, chat.id),
                        reply_to_message_id=update.message.message_id)
-            if was_current:
+            if was_current or held:
                 # The countdown was for the player who left
                 start_player_countdown(context.bot, game, context.job_queue)
         else:
@@ -407,6 +410,7 @@ def kick_player(update: Update, context: CallbackContext):
         if update.message.reply_to_message:
             kicked = update.message.reply_to_message.from_user
             kicked_player = gm.player_for_user_in_chat(kicked, chat)
+            held = _release_leaving_player(game, kicked_player)
             was_current = (kicked_player is not None) and (kicked_player is game.current_player)
             was_choosing = was_current and (game.choosing_color or (game.last_card and not game.last_card.color))
 
@@ -460,7 +464,7 @@ def kick_player(update: Update, context: CallbackContext):
                        name=display_name(game.current_player.user)),
                    reply_markup=make_turn_keyboard(game, chat.id),
                    reply_to_message_id=update.message.message_id)
-        if was_current:
+        if was_current or held:
             # The countdown was for the kicked player
             start_player_countdown(context.bot, game, context.job_queue)
 
@@ -649,6 +653,10 @@ def _color_callback_for_game(bot, query, game, chat_id, color, context):
         _answer_callback(bot, query, _("It's not your turn!"), show_alert=True)
         return
 
+    if game.uno_holder is not None:
+        _answer_callback(bot, query, _("This button is no longer valid."))
+        return
+
     _answer_callback(bot, query)
 
     color_display = display_color_group(color, game)
@@ -725,6 +733,10 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
     player = game.current_player
     if query.from_user.id != player.user.id:
         _answer_callback(bot, query, _("It's not your turn!"), show_alert=True)
+        return
+
+    if game.uno_holder is not None:
+        _answer_callback(bot, query, _("This button is no longer valid."))
         return
 
     if action != "draw":
@@ -832,6 +844,7 @@ def status_update(update: Update, context: CallbackContext):
         if not player:
             return
         game = player.game
+        held = _release_leaving_player(game, player)
         was_current = player is game.current_player
         was_choosing = was_current and (game.choosing_color or (game.last_card and not game.last_card.color))
 
@@ -857,7 +870,7 @@ def status_update(update: Update, context: CallbackContext):
             if settle_draw_four_after_leave(context.bot, game, player, was_current):
                 return
             cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
-            if was_current and game.started:
+            if (was_current or held) and game.started:
                 send_async(context.bot, chat.id,
                            text=__("Next player: {name}", multi=game.translate)
                            .format(name=display_name(game.current_player.user)),
@@ -1011,6 +1024,7 @@ def seed_command(update: Update, context: CallbackContext):
 
 def _deal_and_announce(bot, game, chat, job_queue):
     """Start the game with its randomness chosen: seat, deal and post the first card"""
+    game.manual_uno = chat_setting.manual_uno_enabled(chat.id)
     game.start()
 
     try:
@@ -1200,6 +1214,30 @@ def open_game(update: Update, context: CallbackContext):
 
 
 @user_locale
+def toggle_manual_uno(update: Update, context: CallbackContext):
+    """Handler for the /uno command"""
+    chat = update.message.chat
+    user = update.message.from_user
+
+    if chat.type == 'private':
+        send_async(context.bot, chat.id, text=_("Send this command in a group."))
+        return
+
+    if not (user.id in (ADMIN_LIST or ()) or user_is_admin(user, context.bot, chat)):
+        send_async(context.bot, chat.id, text=_("Only the group admins can do that."),
+                   reply_to_message_id=update.message.message_id)
+        return
+
+    if chat_setting.toggle_manual_uno(chat.id):
+        text = _("Manual UNO is on for the games started in this group from now on. After playing your "
+                 "second to last card, pick UNO in the menu within {time} seconds, or you take {number} "
+                 "penalty cards. Turn it off with /uno").format(time=UNO_DECLARE_TIME, number=UNO_PENALTY)
+    else:
+        text = _("Manual UNO is off for the games started in this group from now on. Turn it on with /uno")
+    send_async(context.bot, chat.id, text=text)
+
+
+@user_locale
 def enable_translations(update: Update, context: CallbackContext):
     """Handler for the /enable_translations command"""
     chat = update.message.chat
@@ -1275,6 +1313,20 @@ def skip_player(update: Update, context: CallbackContext):
 
     game = player.game
     skipped_player = game.current_player
+
+    if game.uno_holder is not None:
+        # A restart loses the timer, so this also gets a game going again
+        n = int(UNO_DECLARE_TIME - (datetime.now() - game.uno_since).total_seconds()) + 1
+        if n > 0:
+            send_async(context.bot, chat.id,
+                       text=_("Please wait {time} second",
+                              "Please wait {time} seconds",
+                              n)
+                       .format(time=n),
+                       reply_to_message_id=update.message.message_id)
+        else:
+            _punish_missing_uno(context.bot, game.uno_holder, context.job_queue)
+        return
 
     started = skipped_player.turn_started
     now = datetime.now()
@@ -1416,7 +1468,11 @@ def reply_to_query(update: Update, context: CallbackContext):
 
 
         elif user_id == game.current_player.user.id:
-            if game.choosing_color:
+            if game.uno_holder is player:
+                add_uno(game, results)
+                for card in sorted(player.cards):
+                    add_card(game, card, results, can_play=False)
+            elif game.choosing_color:
                 # The color is picked with the buttons under the color prompt, so the
                 # menu only shows the hand, greyed out like when it's not your turn
                 for card in sorted(player.cards):
@@ -1518,7 +1574,7 @@ def process_result(update: Update, context: CallbackContext):
         return
     elif len(result_id) == 36:  # UUID result
         return
-    elif int(anti_cheat) != last_anti_cheat:
+    elif int(anti_cheat) != last_anti_cheat and result_id != 'uno':
         # A menu opened before the last action/timeout; usually lag, not cheating,
         # so don't accuse anyone in the group
         logger.info("Ignoring stale inline token %s (current %s) from %s",
@@ -1530,6 +1586,10 @@ def process_result(update: Update, context: CallbackContext):
         logger.info("Ignoring stale or invalid inline result %s from %s",
                     result_id, display_name(player.user))
         return
+    elif result_id == 'uno':
+        rivalry_log.declared_uno(game, player)
+        game.release_uno()
+        color_chosen_announcement = _held_color_announcement(game)
     elif result_id == 'call_bluff':
         if (player == game.current_player and
                 game.last_card and
@@ -1578,39 +1638,103 @@ def process_result(update: Update, context: CallbackContext):
 
     if game_is_running(game):
         gm.persist_game(game)
+        if game.uno_holder is player:
+            # Nothing is said about the card until UNO is settled
+            _start_uno_countdown(game, context.job_queue)
+            return
         # Only announce UNO right after the card that left the player with one card
         uno_prefix = "🔥 UNO!\n" if played_card and len(player.cards) == 1 else ""
         if swapped is not None and len(swapped.cards) == 1:
             # A Storm Swap left the other player with one card
             uno_prefix += __("🔥 UNO! {name} has one card left.\n", multi=game.translate).format(
                 name=display_name(swapped.user))
-        if game.choosing_color:
-            color_prompt = uno_prefix + __("{name}, please choose a color:", multi=game.translate).format(
-                name=display_name(game.current_player.user)
-            )
-            markup = make_color_keyboard(chat.id, game)
-            # Unpaced, but queued with the paced prompts so it can't overtake them
-            send_paced(context.bot, chat.id,
-                       text=color_prompt,
-                       reply_markup=markup,
-                       disable_notification=True)
-            start_player_countdown(context.bot, game, context.job_queue)
-        else:
-            nextplayer_message = color_chosen_announcement + uno_prefix + (
-                __("Next player: {name}", multi=game.translate)
-                .format(name=display_name(game.current_player.user)))
-            markup = make_turn_keyboard(game, chat.id)
-            send_paced(context.bot, chat.id, TURN_PACING_DELAY,
-                       text=nextplayer_message,
-                       reply_markup=markup,
-                       disable_notification=True)
-            start_player_countdown(context.bot, game, context.job_queue)
+        _prompt_next_player(context.bot, game, color_chosen_announcement + uno_prefix, context.job_queue)
+
+
+def _prompt_next_player(bot, game, prefix, job_queue):
+    """Ask the current player for a color or their card, after the text `prefix`"""
+    chat = game.chat
+    if game.choosing_color:
+        color_prompt = prefix + __("{name}, please choose a color:", multi=game.translate).format(
+            name=display_name(game.current_player.user)
+        )
+        markup = make_color_keyboard(chat.id, game)
+        # Unpaced, but queued with the paced prompts so it can't overtake them
+        send_paced(bot, chat.id,
+                   text=color_prompt,
+                   reply_markup=markup,
+                   disable_notification=True)
+    else:
+        nextplayer_message = prefix + (
+            __("Next player: {name}", multi=game.translate)
+            .format(name=display_name(game.current_player.user)))
+        markup = make_turn_keyboard(game, chat.id)
+        send_paced(bot, chat.id, TURN_PACING_DELAY,
+                   text=nextplayer_message,
+                   reply_markup=markup,
+                   disable_notification=True)
+    start_player_countdown(bot, game, job_queue)
+
+
+def _held_color_announcement(game):
+    """The color the bot gave a Diablo or Xeno while the game waited for UNO"""
+    if game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS and game.last_card.color:
+        return bot_color_announcement(game)
+    return ""
+
+
+def _start_uno_countdown(game, job_queue):
+    """The player waited for has UNO_DECLARE_TIME seconds; no turn timer runs meanwhile"""
+    if game.job:
+        try:
+            game.job.schedule_removal()
+        except JobLookupError:
+            pass
+        game.job = None
+    if job_queue:
+        job_queue.run_once(_uno_job, UNO_DECLARE_TIME, context=(game.uno_holder, game.uno_since, job_queue))
+
+
+def _uno_job(context):
+    player, since, job_queue = context.job.context
+    game_thread_runner.submit(f"chat:{player.game.chat.id}", _uno_time_up, context.bot, player, since, job_queue)
+
+
+def _uno_time_up(bot, player, since, job_queue):
+    """Run on the game worker: `since` tells this wait from a later one of the same player"""
+    game = player.game
+    if not game_is_running(game) or game.uno_holder is not player or game.uno_since != since:
+        return
+    with locales_for_game(game):
+        _punish_missing_uno(bot, player, job_queue)
+
+
+def _punish_missing_uno(bot, player, job_queue):
+    game = player.game
+    number = take_uno_penalty(player)
+    gm.persist_game(game)
+    text = __("⏰ {name} didn't declare UNO in time and takes a penalty of {number} card!\n",
+              "⏰ {name} didn't declare UNO in time and takes a penalty of {number} cards!\n",
+              number, multi=game.translate).format(name=display_name(player.user), number=number)
+    _prompt_next_player(bot, game, _held_color_announcement(game) + text, job_queue)
+
+
+def _release_leaving_player(game, player):
+    """A player leaving while the game waits for their UNO: their card's effect on the turn
+    still happens, so a penalty stays with the next player; whether the wait was theirs"""
+    if player is None or game.uno_holder is not player:
+        return False
+    game.release_uno()
+    return True
 
 
 def _inline_action_allowed(player, game, result_id):
     """Check a chosen inline result against the current game state"""
     if not game.started or player is not game.current_player:
         return False
+
+    if game.uno_holder is not None or result_id == 'uno':
+        return result_id == 'uno' and game.uno_holder is player
 
     if result_id == 'call_bluff':
         return bool(not game.choosing_color and game.last_card and game.rules.bluff and
@@ -1659,6 +1783,7 @@ threaded_status_update = _threaded_by(_chat_key, require_message=True)(status_up
 threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
 threaded_notify_me = _threaded_by(_chat_key, require_message=True)(notify_me)
+threaded_toggle_manual_uno = _threaded_by(_chat_key, require_message=True)(toggle_manual_uno)
 
 # Reveal each game's fairness seed when it ends (fairness.py)
 gm.on_game_end = lambda game: reveal_fairness(updater.bot, game)
@@ -1693,6 +1818,7 @@ dispatcher.add_handler(CommandHandler('disable_translations',
 dispatcher.add_handler(CommandHandler('skip', threaded_skip_player))
 dispatcher.add_handler(CommandHandler('cancel', threaded_cancel_effect))
 dispatcher.add_handler(CommandHandler('notify_me', threaded_notify_me))
+dispatcher.add_handler(CommandHandler('uno', threaded_toggle_manual_uno))
 simple_commands.register()
 settings.register()
 rivalry.register()

@@ -551,6 +551,11 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
         if any(xe[key]['hu'] for key in s):
             lines.append("Drawn to find a Xeno's color: " + pair({key: "%d time%s (+%d cards)" % (
                 xe[key]['hu'], "" if xe[key]['hu'] == 1 else "s", xe[key]['hc']) for key in s}))
+    if d.get('manual_uno'):
+        mu = d['manual_uno']
+        lines.append("1️⃣ UNOs declared · missed: " + pair({key: "%d · %d" % (mu[key]['dec'], mu[key]['pen']) for key in s}))
+        if any(mu[key]['pen'] for key in s):
+            lines.append("Cards from missed UNOs: " + pair({key: "+%d" % mu[key]['pc'] for key in s}))
     if d.get('vol') and (d['vol'][w][0] or d['vol'][l][0]):
         lines.append("🌋 Eruptions: " + pair({key: "%d (+%d cards)" % tuple(d['vol'][key][:2]) for key in s}))
     if any(s[key]['ch'] for key in s):
@@ -651,6 +656,8 @@ def summarize_log(log):
     storm = {key: {'sw': 0, 'dr': 0, 'p1': 0, 'cx': 0, 'gain': 0, 'back': 0, 'up': 0, 'uno': 0}
              for key in hands}
     storm_game = False
+    # Manual UNO, per rival: UNOs declared in time, missed ones and the cards they cost
+    manual = {key: {'dec': 0, 'pen': 0, 'pc': 0} for key in hands}
     # Tornado mode, per rival: +4s played on a +4, +2s played on a +4, Color Choosers played
     # on a Color Chooser (from the pile 'pi' and card 'on' each play logs), piles drawn and
     # the biggest one
@@ -750,6 +757,11 @@ def summarize_log(log):
             if e.get('r') == 'vol':
                 s['dv'] += 1
                 s['dk'] += e.get('ok', 0)
+            elif e.get('r') == 'uno':
+                # Not the pile of +2s and +4s, which may be waiting for the next player
+                s['fd'] += count
+                manual[p]['pen'] += 1
+                manual[p]['pc'] += count
             else:
                 s['fd'] += count
                 if hands[p] == 1:
@@ -806,6 +818,8 @@ def summarize_log(log):
             s['cw'] += e.get('ok', 0)
         elif kind == 'time':
             s['to'] += 1
+        elif kind == 'uno':
+            manual[p]['dec'] += 1
         if kind in ('play', 'draw') and len(hands) == 2:
             samples += 1
             if hands['a'] < hands['b']:
@@ -841,6 +855,8 @@ def summarize_log(log):
         summary['diablo'] = diablo
     if end.get('xe'):
         summary['xeno'] = xeno
+    if end.get('mu'):
+        summary['manual_uno'] = manual
     if 'vr' in end:
         rolls = end['vr']
         summary['vol'] = {

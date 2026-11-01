@@ -127,6 +127,10 @@ class GameManager(object):
             'volcano_rolls': getattr(game, 'volcano_rolls', 0),
             'volcano_eruptions': getattr(game, 'volcano_eruptions', 0),
             'storm_cancel': getattr(game, 'storm_cancel', False),
+            'manual_uno': getattr(game, 'manual_uno', False),
+            'uno_holder_id': game.uno_holder.user.id if getattr(game, 'uno_holder', None) else None,
+            'uno_since': game.uno_since.isoformat() if getattr(game, 'uno_since', None) else None,
+            'uno_turns': getattr(game, 'uno_turns', 0),
             'rivalry_log': getattr(game, 'rivalry_log', None),
             'last_activity': game.last_activity.isoformat() if getattr(game, 'last_activity', None) else datetime.now().isoformat()
         }
@@ -159,6 +163,9 @@ class GameManager(object):
         game.volcano_rolls = data.get('volcano_rolls', 0)
         game.volcano_eruptions = data.get('volcano_eruptions', 0)
         game.storm_cancel = data.get('storm_cancel', False)
+        game.manual_uno = data.get('manual_uno', False)
+        game.uno_since = datetime.fromisoformat(data['uno_since']) if data.get('uno_since') else None
+        game.uno_turns = data.get('uno_turns', 0)
         game.rivalry_log = data.get('rivalry_log')
         game.job = None
 
@@ -175,6 +182,8 @@ class GameManager(object):
             player.pending_win = player_data.get('pending_win', False)
             if player.pending_win or player.user.id == data.get('last_bluffer_id'):
                 game.last_bluffer = player
+            if player.user.id == data.get('uno_holder_id'):
+                game.uno_holder = player
 
         if game.players:
             idx = data.get('current_player_idx', 0)

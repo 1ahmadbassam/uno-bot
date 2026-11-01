@@ -712,6 +712,11 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
     </div>
+    <div id="sp-uno" class="mode-block">
+    <h3 class="mode-h">1️⃣ Manual UNO</h3>
+    <p class="lede" id="mu-lede"></p>
+    <div class="card"><div class="tiles" id="mu-tiles" style="margin-top:0"></div></div>
+    </div>
   </section>
 
   <section id="fair">
@@ -2190,7 +2195,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderManualUno(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2509,6 +2514,31 @@ function renderDiablo(R) {
       '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
   });
   $('db-win').innerHTML = rows.join('');
+  return true;
+}
+
+// Manual UNO (chat_setting.py), which a group turns on with /uno for any mode; true when its block shows
+function renderManualUno(R) {
+  var logged = R.ms.filter(function (m) { return m.d && m.d.manual_uno; });
+  $('sp-uno').style.display = logged.length ? '' : 'none';
+  if (!logged.length) return false;
+  $('mu-lede').innerHTML = 'After their second to last card, a player has to declare UNO in time or take penalty cards. ' +
+    plural(logged.length, 'logged game') + ' in the selection had it.';
+  var tot = {};
+  P.forEach(function (p) { tot[p] = { dec: 0, pen: 0, pc: 0 }; });
+  logged.forEach(function (m) {
+    P.forEach(function (p) {
+      var mine = m.d.manual_uno[p] || {};
+      ['dec', 'pen', 'pc'].forEach(function (k) { tot[p][k] += mine[k] || 0; });
+    });
+  });
+  function rate(p) { return pct(share(tot[p].dec, tot[p].dec + tot[p].pen), 0); }
+  var t = [];
+  t.push(pairTile('UNOs declared', tot.a.dec, tot.b.dec, 'Times a player declared UNO in time.'));
+  t.push(pairTile('UNOs missed', tot.a.pen, tot.b.pen, 'Times a player took the penalty for not declaring UNO in time.'));
+  t.push(pairTile('Penalty cards', tot.a.pc, tot.b.pc, 'The cards the missed UNOs cost, all logged games added up.'));
+  t.push(pairTile('Declared in time', rate('a'), rate('b'), 'The share of their UNOs a player declared in time.'));
+  $('mu-tiles').innerHTML = t.join('');
   return true;
 }
 

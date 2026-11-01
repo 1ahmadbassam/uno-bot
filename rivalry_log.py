@@ -169,11 +169,17 @@ def drew(game, player, before, reason, src=None):
         ok = 1
     # The Crazy mode's +8: a penalty drawn while it's the top card is its pile (a +8 can't be
     # stacked), and the log may leave out the play of a third player
-    eight = (reason not in ('vol', 'plus1') and (reason != 'time' or len(new) > 1) and game.last_card is not None
+    eight = (reason not in ('vol', 'plus1', 'uno') and (reason != 'time' or len(new) > 1) and game.last_card is not None
              and game.last_card.special == c.DRAW_EIGHT)
     _add(game, player, 'draw', reason in ('vol', 'pen'), cs=[str(card) for card in new],
          h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok, e8=1 if eight else None,
          hu=1 if hunt else None)
+
+
+@_never_breaks_the_game
+def declared_uno(game, player):
+    """`player` declared UNO in time (manual UNO: chat_setting.py); missing it logs a 'uno' draw"""
+    _add(game, player, 'uno', h=len(player.cards))
 
 
 @_never_breaks_the_game
@@ -270,5 +276,8 @@ def finish(game, winner_id, outcome):
     if game.rules.xeno:
         # A Xeno game, even when nobody played a Xeno
         end['xe'] = 1
+    if getattr(game, 'manual_uno', False):
+        # Players had to declare UNO, even when nobody got down to one card
+        end['mu'] = 1
     log['ev'].append(end)
     return {'v': log['v'], 'at': log['at'], 'ev': log['ev']}

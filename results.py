@@ -104,6 +104,16 @@ def add_draw(player, results):
     )
 
 
+def add_uno(game, results):
+    """Add option to declare UNO"""
+    results.append(
+        Sticker(
+            "uno", sticker_file_id=c.STICKERS['option_uno'],
+            input_message_content=InputTextMessageContent("🔥 UNO!")
+        )
+    )
+
+
 def add_gameinfo(game, results):
     """Add option to show game info"""
 

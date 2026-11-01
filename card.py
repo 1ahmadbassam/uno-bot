@@ -385,6 +385,7 @@ STICKERS_OPTIONS = {
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
     "option_bluff": "CAACAgQAAxUAAWrlFf_Gmte7cCdxL642RDa_LdDtAAIIBAACRjR0DX75Tald1LzePQQ",
     "option_info": "CAACAgQAAxUAAWrlFf-LnHziyR6Xd2OxtNSp0TgyAAIKBAACRjR0DU18JXPNcuo3PQQ",
+    "option_uno": "CAACAgQAAxUAAWrnGDHeiYfCfca_NUnUdd7e9XsJAALPHwAC-105UxdGk3TYKWX3PQQ",
 }
 
 from config import DEFAULT_CARDSET

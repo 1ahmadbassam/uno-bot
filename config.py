@@ -73,6 +73,12 @@ STALE_GAME_SCAN_EVERY_SECONDS = int(os.getenv("STALE_GAME_SCAN_EVERY_SECONDS", c
 DEFAULT_CARDSET = os.getenv("DEFAULT_CARDSET", config.get("default_cardset", "classic")).lower()
 SHUFFLE_PLAYERS = os.getenv("SHUFFLE_PLAYERS", config.get("shuffle_players", True))
 TURN_PACING_DELAY = float(os.getenv("TURN_PACING_DELAY", config.get("turn_pacing_delay", 1.5)))
+# Whether players have to declare UNO themselves in a group that hasn't used /uno, and
+# the seconds they have to do it
+MANUAL_UNO = os.getenv("MANUAL_UNO", config.get("manual_uno", False))
+if isinstance(MANUAL_UNO, str):
+    MANUAL_UNO = MANUAL_UNO.lower() in ("yes", "true", "t", "1")
+UNO_DECLARE_TIME = int(os.getenv("UNO_DECLARE_TIME", config.get("uno_declare_time", 8)))
 
 if isinstance(SHUFFLE_PLAYERS, str):
     SHUFFLE_PLAYERS = SHUFFLE_PLAYERS.lower() in ("yes", "true", "t", "1")

@@ -227,7 +227,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0 40px; }
 (function () {
 'use strict';
 var COLOR_NAMES = { r: 'red', b: 'blue', g: 'green', y: 'yellow' };
-var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time', plus1: '+1' };
+var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time', plus1: '+1', uno: 'missed UNO' };
 var G = null, STATES = [], STEP = 0, TIMER = null, LIST = [];
 
 function $(id) { return document.getElementById(id); }
@@ -351,6 +351,8 @@ function describe(e) {
       return who + ' challenged the ' + (e.c === 'draw_eight' ? '+8' : '+4') + ' of ' + nm(e.vs) + ' <span class="tag">' + (e.ok ? 'bluff caught' : 'no bluff') + '</span>';
     case 'time':
       return who + ' ran out of time';
+    case 'uno':
+      return who + ' declared UNO';
     case 'end':
       return '🏆 ' + who + (e.o === 'forfeit' ? ' won by forfeit' : ' won');
   }

@@ -67,6 +67,9 @@ def help_handler(update: Update, context: CallbackContext):
     help_text += "\n\n" + _("<b>Storm mode</b>\n"
                             "/cancel - On your turn: play your next Swap or Drop without its effect "
                             "(/cancel again turns it back on)")
+    help_text += "\n\n" + _("<b>Group admins</b>\n"
+                            "/uno - Turn manual UNO on or off for the games started in this group: after your "
+                            "second to last card, pick UNO in the menu in time or take penalty cards")
     rivalry_help = rivalry.help_text()
     if rivalry_help:
         help_text += "\n\n" + rivalry_help

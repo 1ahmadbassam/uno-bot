@@ -64,6 +64,13 @@ class Game(object):
         self.volcano_eruptions = 0
         # Storm mode (storm.py): the current player used /cancel for their next card
         self.storm_cancel = False
+        # Manual UNO (chat_setting.py): whether this game has it, the player who played their
+        # second to last card and hasn't declared UNO yet, since when, and the turns that
+        # card ended, which pass once it's settled
+        self.manual_uno = False
+        self.uno_holder = None
+        self.uno_since = None
+        self.uno_turns = 0
         self.rivalry_log = None  # See rivalry_log.py
         # Users who left (or were removed from) this game after it started;
         # they can't rejoin it for a fresh hand
@@ -178,6 +185,9 @@ class Game(object):
     def turn(self):
         """Marks the turn as over and change the current player"""
         self.touch()
+        if self.uno_holder is not None:
+            self.uno_turns += 1
+            return
         self.logger.debug("Next Player")
         self.turns += 1
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
@@ -191,6 +201,21 @@ class Game(object):
         rivalry_log.turn(self)
         self.choosing_color = False
         self.opening_color_choice = False
+
+    def hold_for_uno(self, player):
+        """The game waits for `player` to declare UNO: what their card does to the turn waits too"""
+        self.uno_holder = player
+        self.uno_since = datetime.now()
+        self.uno_turns = 0
+
+    def release_uno(self):
+        """The wait for UNO is over, so the turn goes on"""
+        turns = self.uno_turns
+        self.uno_holder = None
+        self.uno_since = None
+        self.uno_turns = 0
+        for _ in range(turns):
+            self.turn()
 
     def _first_card_(self):
         # In case that the player did not select a game mode
