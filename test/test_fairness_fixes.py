@@ -283,8 +283,8 @@ class TestFairnessFixes(unittest.TestCase):
         playable_df = self.p0.playable_cards()
         self.assertIn(df, playable_df, "Draw Four as last card should be playable!")
 
-    def test_2_3_wild_on_wild_allowed(self):
-        """2.3: Playing a Wild card on another Wild card is allowed after color is chosen"""
+    def test_2_3_draw_four_on_wild_allowed(self):
+        """2.3: A +4 can go on a Wild card after color is chosen, but another Wild can't"""
         self.game.last_card = c.Card(c.RED, None, special=c.CHOOSE)
         self.game.draw_counter = 0
 
@@ -293,7 +293,7 @@ class TestFairnessFixes(unittest.TestCase):
         df = c.Card(None, None, special=c.DRAW_FOUR)
         self.p0.cards = [wild, df]
 
-        self.assertTrue(self.p0._card_playable(wild))
+        self.assertFalse(self.p0._card_playable(wild))
         self.assertTrue(self.p0._card_playable(df))
 
     def test_2_4_first_card_turn_order(self):
@@ -382,6 +382,7 @@ class TestFairnessFixes(unittest.TestCase):
 
     def test_f04_win_with_draw_four_bluff_resolution(self):
         """F-04: Playing Wild Draw 4 as last card defers win; bluffer penalized on challenge without punishing bystanders"""
+        self.game.mode = 'classic'  # Plays on after the first win
         self.game.start()
         self.game.last_card = c.Card(c.BLUE, None, special=c.DRAW_FOUR)
         self.game.draw_counter = 4
@@ -419,6 +420,7 @@ class TestFairnessFixes(unittest.TestCase):
 
     def test_f04_win_with_draw_four_when_challenger_draws(self):
         """F-04: Winner with Wild Draw 4 is awarded win when challenger draws cards"""
+        self.game.mode = 'classic'  # Plays on after the first win
         self.game.start()
         self.game.last_card = c.Card(c.YELLOW, None, special=c.DRAW_FOUR)
         self.game.draw_counter = 4

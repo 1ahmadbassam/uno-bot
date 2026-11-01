@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 # Installs the module stubs needed to import the game modules
 import test.test_rate_limit_mitigations as stubs  # noqa: F401
 
+import actions
 import bot
 import card as c
 import deck
@@ -20,6 +21,7 @@ import rivalry_stats
 from bot import _add_mode_results
 from deck import Deck, DECKS
 from game import Game
+from game_manager import GameManager
 from player import Player
 from test.test_fairness_proof import DECKS_JS, FAIR_JS, check, play_a_game
 from utils import make_color_keyboard
@@ -74,6 +76,34 @@ class TestDecks(unittest.TestCase):
 
 
 class TestModes(unittest.TestCase):
+
+    def win_with_three_players(self, mode):
+        gm = GameManager()
+        chat = stubs.MockChat(-5)
+        game = gm.new_game(chat)
+        game.mode = mode
+        users = [stubs.MockUser(i, str(i)) for i in (1, 2, 3)]
+        for user in users:
+            gm.join_game(user, chat)
+        game.started = True
+        with patch.object(gm, '_persist_chat'), patch('actions.gm', gm), patch('actions.send_async') as sent, \
+                patch('actions.rivalry.record_first_place') as recorded:
+            actions.player_won(MagicMock(), gm.player_for_user_in_chat(users[0], chat))
+        recorded.assert_called_once()
+        texts = [call[1]['text'] for call in sent.call_args_list]
+        return game in gm.chatid_games.get(chat.id, ()), len(game.players), texts
+
+    def test_sonic_ends_at_the_first_winner(self):
+        running, _, texts = self.win_with_three_players('fast')
+        self.assertFalse(running)
+        self.assertEqual(texts, ["1 won!", "Game ended!"])
+
+    def test_the_other_modes_play_on_for_second_place(self):
+        for mode in modes.MODES:
+            if mode != 'fast':
+                running, players, texts = self.win_with_three_players(mode)
+                self.assertTrue(running, mode)
+                self.assertEqual((players, texts), (2, ["1 won!"]), mode)
 
     def test_unknown_or_missing_mode_plays_classic(self):
         for mode_id in (None, 'text', 'nonsense'):

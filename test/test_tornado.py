@@ -106,6 +106,20 @@ class TestTornadoStacking(unittest.TestCase):
         p2.cards.append(chooser)
         self.assertIn(chooser, p2.playable_cards())
 
+    def test_a_chooser_only_goes_on_a_chooser_in_tornado(self):
+        for mode in modes.MODES:
+            game, p1, p2 = tornado_game(mode)
+            game.last_card = c.Card(c.YELLOW, None, c.CHOOSE)
+            game.draw_counter = 0
+            self.assertEqual(p2._card_playable(c.Card(None, None, c.CHOOSE)), mode == 'tornado', mode)
+
+    def test_a_chooser_still_goes_on_everything_else(self):
+        for under in (c.Card(c.YELLOW, '7'), c.Card(c.YELLOW, c.SKIP), c.Card(c.YELLOW, None, c.DRAW_FOUR)):
+            game, p1, p2 = tornado_game('classic')
+            game.last_card = under
+            game.draw_counter = 0
+            self.assertTrue(p2._card_playable(c.Card(None, None, c.CHOOSE)), under)
+
 
 class TestNoBluffs(unittest.TestCase):
 

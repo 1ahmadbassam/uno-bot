@@ -154,13 +154,17 @@ def player_won(bot, player):
 
     game.players_won += 1
 
-    try:
-        gm.leave_game(user, chat)
-    except NotEnoughPlayersError:
-        send_async(bot, chat.id,
-                   text=__("Game ended!", multi=game.translate))
+    if not game.rules.first_win_ends:
+        try:
+            gm.leave_game(user, chat)
+            return
+        except NotEnoughPlayersError:
+            pass
 
-        gm.end_game(chat, user)
+    send_async(bot, chat.id,
+               text=__("Game ended!", multi=game.translate))
+
+    gm.end_game(chat, user)
 
 
 def forfeit_win(bot, game, leaving_user):

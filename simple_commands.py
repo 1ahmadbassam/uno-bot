@@ -83,9 +83,9 @@ def help_handler(update: Update, context: CallbackContext):
 @user_locale
 def modes(update: Update, context: CallbackContext):
     """Handler for the /help command"""
-    modes_explanation = _("This UNO bot has three game modes: Classic, Sanic and Wild.\n\n"
+    modes_explanation = _("This UNO bot has three game modes: Classic, Sonic and Wild.\n\n"
       " 🎻 The Classic mode uses the conventional UNO deck and there is no auto skip.\n"
-      " 🚀 The Sanic mode uses the conventional UNO deck and the bot automatically skips a player if he/she takes too long to play its turn\n"
+      " 🚀 The Sonic mode uses the conventional UNO deck, the bot automatically skips a player if he/she takes too long to play its turn, and the game ends as soon as someone wins\n"
       " 🐉 The Wild mode uses a deck with more special cards, less number variety and no auto skip.\n\n"
       "To change the game mode, the GAME CREATOR has to type the bot nickname and a space, "
       "just like when playing a card, and all gamemode options should appear.")
@@ -100,7 +100,8 @@ def modes(update: Update, context: CallbackContext):
                                     "play it without its effect.")
     modes_explanation += "\n\n" + _("🌪️ The Tornado mode uses the conventional UNO deck without bluff challenges: "
                                     "a +4 can be answered with another +4, or with a +2 of the color that was "
-                                    "chosen, and the pile goes on to the next player.")
+                                    "chosen, and the pile goes on to the next player. It's also the only mode where "
+                                    "a Color Chooser can go on a Color Chooser.")
     modes_explanation += "\n\n" + _("👻 The Crazy mode deals 8 starting cards from the conventional UNO deck "
                                     "with two Wild +8s added, and the game info doesn't show how many cards "
                                     "the other players hold.")

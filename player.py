@@ -210,6 +210,9 @@ class Player(object):
             # Only its color goes on a Xeno: no other wild, nor the X-rule
             self.logger.debug("Card doesn't have the Xeno's color")
             is_playable = False
+        elif last.special == c.CHOOSE and card.special == c.CHOOSE and not self.game.rules.tornado:
+            self.logger.debug("A Color Chooser only goes on a Color Chooser in Tornado")
+            is_playable = False
         elif (last.color and card.color != last.color and not card.special and
                 # An Alpha has no value to match, so only goes on its color
                 (card.value != last.value or card.value == c.ALPHA) and

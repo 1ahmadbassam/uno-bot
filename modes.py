@@ -17,7 +17,7 @@ class Mode(object):
     """The rules of one game mode"""
 
     def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False,
-                 bluff=True, tornado=False, hide_counts=False, diablo=False, xeno=False):
+                 bluff=True, tornado=False, hide_counts=False, diablo=False, xeno=False, first_win_ends=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -32,8 +32,8 @@ class Mode(object):
         self.storm = storm
         # Whether a +4 can be challenged as a bluff (actions.do_call_bluff)
         self.bluff = bluff
-        # Whether a pending +4 can be answered with another +4, or a +2 of its color
-        # (Player._card_playable)
+        # Whether a pending +4 can be answered with another +4, or a +2 of its color, and
+        # a Color Chooser can go on a Color Chooser (Player._card_playable)
         self.tornado = tornado
         # Whether the game info leaves out how many cards each player holds (results.game_info)
         self.hide_counts = hide_counts
@@ -43,10 +43,12 @@ class Mode(object):
         # other (Player._card_playable); a Xeno's color has to be played, or drawn until found
         # (Player.draw)
         self.xeno = xeno
+        # Whether the first player to win ends the game, however many are left (actions.player_won)
+        self.first_win_ends = first_win_ends
 
 
 CLASSIC = Mode('classic', N_("🎻 Classic mode"), N_('Classic 🎻'))
-FAST = Mode('fast', N_("🚀 Sanic mode"), N_('Gotta go fast! 🚀'), auto_skip=True)
+FAST = Mode('fast', N_("🚀 Sonic mode"), N_('Gotta go fast! 🚀'), auto_skip=True, first_win_ends=True)
 WILD = Mode('wild', N_("🐉 Wild mode"), N_('Into the Wild~ 🐉'), deck='wild')
 VOLCANO = Mode('volcano', N_("🌋 Volcano mode"), N_('Ka-Boom! 🌋'), volcano=True)
 STORM = Mode('storm', N_("🌧️ Storm mode"), N_('Dance in the Rain 🌧️'), deck='storm', storm=True)
