@@ -247,6 +247,8 @@ class FairRandom(object):
     # ["c", color] color picked by the bot, out of the colors of the last fresh deck;
     # ["m", [modes], mode] game mode picked out of [modes] for a random-mode lobby;
     # ["v", odds, erupted] a volcano roll (volcano.py): erupted when randbelow(odds) is 0.
+    # ["np", amount] Nitro's penalty (randbelow(5) + 1);
+    # ["nr", value, seat, amount] Nitro's die (randbelow(6) + 1), with its target and penalty.
     # Seats are seat_label()s.
 
     def note(self, kind, *values):

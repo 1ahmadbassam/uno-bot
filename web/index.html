@@ -712,6 +712,19 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
     </div>
+    <div id="sp-nitro" class="mode-block">
+    <h3 class="mode-h">⚡ Nitro</h3>
+    <p class="lede" id="ni-lede"></p>
+    <div id="ni-body">
+      <div class="card"><div class="tiles" id="ni-tiles" style="margin-top:0"></div></div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card"><div class="ch"><h3>Die rolls</h3></div><div class="chart" id="c-ni-rolls"></div></div>
+        <div class="card"><div class="ch"><h3>Colors the Nitros set</h3></div><div class="chart" id="c-ni-colors"></div></div>
+        <div class="card"><div class="ch"><h3>Double plays by card</h3></div><div class="chart" id="c-ni-pairs"></div></div>
+        <div class="card"><div class="ch"><h3>Nitro penalty sizes faced</h3></div><div class="chart" id="c-ni-penalties"></div></div>
+      </div>
+    </div>
+    </div>
     <div id="sp-uno" class="mode-block">
     <h3 class="mode-h">1️⃣ Manual UNO</h3>
     <p class="lede" id="mu-lede"></p>
@@ -808,8 +821,8 @@ var P = ['a', 'b'];
 
 var DATA = null, ALL = [], NAMES = { a: 'A', b: 'B' }, SEASONS = [], SIG = '', PACING = 0;
 // The Storm cards come last, so older summaries (6 types) keep their indexes
-var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp'];
-var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8', 'Diablo', 'Xeno', 'Alpha'];
+var CARD_TYPES = ['num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp', 'nit'];
+var CARD_LABELS = ['Number', 'Skip', 'Reverse', '+2', 'Wild', '+4', 'Swap', 'Drop', '+1', '+8', 'Diablo', 'Xeno', 'Alpha', 'Nitro'];
 var COLOR_KEYS = ['r', 'b', 'g', 'y', 'p', 'o'];
 var COLOR_LABELS = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'];
 var COL = {};
@@ -1553,6 +1566,7 @@ function analyze(ms) {
 
 // One of CARD_TYPES for a card such as 'r_5', 'g_draw' or 'draw_four'
 function cardType(card) {
+  if (card === 'nitro') return 'nit';
   if (card === 'draw_four') return 'd4';
   if (card === 'draw_eight') return 'd8';
   if (card === 'diablo') return 'dia';
@@ -2196,7 +2210,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderManualUno(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderNitro(R), renderManualUno(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2519,6 +2533,38 @@ function renderDiablo(R) {
 }
 
 // Manual UNO (chat_setting.py), which a group turns on with /uno for any mode; true when its block shows
+function renderNitro(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'nitro'; });
+  $('sp-nitro').style.display = games.length ? '' : 'none';
+  if (!games.length) return false;
+  var logged = games.filter(function (m) { return m.d && m.d.nitro; }), tot = {};
+  $('ni-lede').textContent = 'Nitro picks a color and 1–5 penalty cards. Roll 1 to send them back; the roller then takes their turn. ' + logged.length + ' of ' + games.length + ' selected games logged.';
+  $('ni-body').style.display = logged.length ? '' : 'none';
+  if (!logged.length) return true;
+  var fields = [['Nitros dealt', 'k'], ['Nitros played', 'p'], ['Rolls', 'rolls'], ['Rolled a 1', 'ones'],
+    ['Penalty cards faced', 'offered'], ['Penalty cards avoided', 'avoided'], ['Cards sent back', 'returned'],
+    ['Nitro cards received', 'received'], ['Nitro cards inflicted', 'sent'], ['Double plays completed', 'double'], ['Got their best color', 'lk']];
+  P.forEach(function (p) {
+    tot[p] = { faces: [0, 0, 0, 0, 0, 0], penalties: [0, 0, 0, 0, 0], col: COLOR_KEYS.map(function () { return 0; }), pairs: [0, 0, 0, 0] };
+    fields.forEach(function (f) { tot[p][f[1]] = 0; });
+  });
+  logged.forEach(function (m) { P.forEach(function (p) {
+    var x = m.d.nitro[p] || {};
+    fields.forEach(function (f) { tot[p][f[1]] += x[f[1]] || 0; });
+    ['faces', 'col', 'pairs', 'penalties'].forEach(function (k) { addInto(tot[p][k], x[k] || []); });
+  }); });
+  $('ni-tiles').innerHTML = fields.map(function (f) { return pairTile(f[0], tot.a[f[1]], tot.b[f[1]], 'Totals across logged Nitro games.'); }).join('') +
+    pairTile('Successful rolls', pct(share(tot.a.ones, tot.a.rolls), 0), pct(share(tot.b.ones, tot.b.rolls), 0), 'A roll of 1 succeeds, a 1 in 6 chance.');
+  [['c-ni-rolls', ['1', '2', '3', '4', '5', '6'], 'faces'], ['c-ni-colors', COLOR_LABELS.slice(0, 4), 'col'],
+   ['c-ni-pairs', ['Number', '+2', 'Reverse', 'Skip'], 'pairs'], ['c-ni-penalties', ['1', '2', '3', '4', '5'], 'penalties']].forEach(function (c) {
+    barChart($(c[0]), { cats: c[1], grouped: true, yFmt: function (v) { return Math.round(v); },
+      stacks: P.map(function (p) { return { color: COL[p], values: tot[p][c[2]] }; }),
+      tip: function (i) { return '<b>' + c[1][i] + '</b>' + P.map(function (p) { return row(sw(p) + nm(p), tot[p][c[2]][i]); }).join(''); }
+    });
+  });
+  return true;
+}
+
 function renderManualUno(R) {
   var logged = R.ms.filter(function (m) { return m.d && m.d.manual_uno; });
   $('sp-uno').style.display = logged.length ? '' : 'none';
@@ -2690,10 +2736,10 @@ function holm(ps) {
 }
 
 // Number, action (skip, reverse, +2) and wild (wild, +4) shares of a fresh deck
-var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
+var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11, 13]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow', nitro: 'nitro' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {
@@ -2777,6 +2823,21 @@ function fairTests(list) {
     seen: listText(shownColors.map(function (i) { return COLOR_LABELS[i]; }), shownColors.map(function (i) { return seenColors[i]; })),
     p: colorTotal ? chiTest(seenColors, expColors) : null
   });
+  var nitros = two.filter(function (m) { return m.d.nitro; });
+  if (nitros.length) {
+    var faces = [0, 0, 0, 0, 0, 0], colors = [0, 0, 0, 0], penalties = [0, 0, 0, 0, 0];
+    nitros.forEach(function (m) { P.forEach(function (p) {
+      addInto(faces, m.d.nitro[p].faces);
+      addInto(penalties, m.d.nitro[p].penalties || []);
+      m.d.nitro[p].col.slice(0, 4).forEach(function (n, i) { colors[i] += n; });
+    }); });
+    [[faces, ['1', '2', '3', '4', '5', '6'], 'Nitro die rolls'], [colors, COLOR_LABELS.slice(0, 4), 'Nitro random colors'],
+     [penalties, ['1', '2', '3', '4', '5'], 'Nitro penalty sizes']].forEach(function (x) {
+      var total = sum(x[0]), expected = x[0].map(function () { return total / x[0].length; });
+      tests.push({ name: x[2], games: nitros.length, tip: 'Each outcome is equally likely from the committed random stream.',
+        expect: listText(x[1], expected.map(f1)), seen: listText(x[1], x[0]), p: total ? chiTest(x[0], expected) : null });
+    });
+  }
   return tests;
 }
 

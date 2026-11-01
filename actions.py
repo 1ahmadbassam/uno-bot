@@ -42,6 +42,26 @@ def do_skip(bot, player, job_queue=None):
     # Nobody's turn is running out while the game waits for UNO
     if game.uno_holder is not None:
         return
+    if game.rules.nitro and (game.nitro_pending or game.double_card):
+        if job_queue is not None and player is not game.current_player:
+            return
+        if game.nitro_pending:
+            import nitro
+            nitro.roll(bot, game.current_player)
+        else:
+            do_play_card(bot, game.current_player, game.double_card)
+            if game.uno_holder is not None:
+                from bot import _start_uno_countdown
+                _start_uno_countdown(game, job_queue)
+                gm.persist_game(game)
+                return
+        gm.persist_game(game)
+        if game_is_running(game):
+            send_paced(bot, chat.id, text=__("Next player: {name}", multi=game.translate).format(
+                name=display_name(game.current_player.user)), reply_markup=make_turn_keyboard(game, chat.id))
+        if game_is_running(game) and job_queue:
+            start_player_countdown(bot, game, job_queue)
+        return
 
     # F-07: Guard against race condition: if an automated countdown timer fired for a
     # player who has already completed their turn, ignore the stale skip.
@@ -273,6 +293,12 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
       the win is awarded.
     Returns True if the game ended.
     """
+    if game.rules.nitro and was_current:
+        winner = next((p for p in game.players if p.pending_win and not p.cards), None)
+        if winner:
+            winner.pending_win = False
+            player_won(bot, winner)
+            return not game_is_running(game)
     bluffer = getattr(game, 'last_bluffer', None)
     if not bluffer:
         return False
@@ -303,6 +329,9 @@ def settle_draw_four_after_leave(bot, game, left_player, was_current):
 
 def bot_color_announcement(game):
     """The color the bot picked for the Diablo or Xeno on top, for the next-player message"""
+    if game.last_card.special == c.NITRO:
+        import nitro
+        return nitro.prompt(game) + '\n'
     if game.last_card.special == c.XENO:
         text = __("👽 Xeno set the color to {color}!\n", multi=game.translate)
     else:
@@ -322,11 +351,18 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
     pile, under = player.game.draw_counter, player.game.last_card
     # Taken now: playing the card dismisses the one under it, which clears a wild's color
     under_color = under.color if under is not None else None
+    double = 2 if player.game.double_card else (1 if player.game.double_enabled else None)
     player.play(card)
     game = player.game
     chat = game.chat
     rivalry_log.played(game, player, card, think, cancelled=cancelled, pile=pile, under=under,
                        under_color=under_color)
+    if double:
+        rivalry_log.double_play(game, player, double)
+    if double == 1:
+        if game in gm.chatid_games.get(chat.id, []):
+            gm.persist_game(game)
+        return None
     swapped = storm.apply(game, player, card, cancelled)
     # A Swap gave them another hand, so this is no second to last card any more
     if game.uno_holder is player and (swapped is not None or len(player.cards) != 1):
@@ -336,9 +372,11 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
         game.last_bluffer = player
 
     if card.special in c.BOT_COLOR_WILDS:
+        if card.special == c.NITRO:
+            game.prepare_nitro(player)
         # The bot picks a Diablo's or Xeno's color, at random, and the turn goes on
         game.choose_color(game.rng.choose_color(game.colors), diablo=card.special == c.DIABLO,
-                          xeno=card.special == c.XENO)
+                          xeno=card.special == c.XENO, nitro=card.special == c.NITRO)
         # A winning card may end the game, leaving no next-player message to say it
         if notify_color or not player.cards:
             send_async(bot, chat.id, text=bot_color_announcement(game).strip(), disable_notification=True)
@@ -358,7 +396,9 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
                        .format(color=display_color_group(auto_color, game)),
                        disable_notification=True)
 
-        if c.is_draw_wild(card) and game.draw_counter > 0 and game.rules.bluff:
+        if card.special == c.NITRO:
+            player.pending_win = True
+        elif c.is_draw_wild(card) and game.draw_counter > 0 and game.rules.bluff:
             # F-04: Win is deferred until challenge resolution or draw/skip by next player
             player.pending_win = True
             game.last_bluffer = player

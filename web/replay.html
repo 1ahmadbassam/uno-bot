@@ -231,7 +231,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0 40px; }
 (function () {
 'use strict';
 var COLOR_NAMES = { r: 'red', b: 'blue', g: 'green', y: 'yellow', p: 'purple', o: 'orange' };
-var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time', plus1: '+1', uno: 'missed UNO' };
+var REASONS = { pen: 'penalty', bluff: 'caught bluffing', chal: 'lost the challenge', time: 'ran out of time', plus1: '+1', uno: 'missed UNO', nitro: '⚡ Nitro penalty' };
 var G = null, STATES = [], STEP = 0, TIMER = null, LIST = [];
 
 function $(id) { return document.getElementById(id); }
@@ -260,6 +260,7 @@ function parts(card) {
   if (card === 'draw_eight') return { color: 'x', label: '+8' };
   if (card === 'diablo') return { color: 'x', label: '💀' };
   if (card === 'xeno') return { color: 'x', label: '👽' };
+  if (card === 'nitro') return { color: 'x', label: '⚡' };
   if (card === 'colorchooser') return { color: 'x', label: 'W' };
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return { color: card.slice(0, i), label: { skip: '⊘', reverse: '⇄', draw: '+2', swap: '⇅', drop: '⤓', plus1: '+1', alpha: 'α' }[v] || v };
@@ -275,6 +276,7 @@ function cardName(card) {
   if (card === 'draw_eight') return 'Wild +8';
   if (card === 'diablo') return 'Diablo';
   if (card === 'xeno') return 'Xeno';
+  if (card === 'nitro') return 'Nitro';
   if (card === 'colorchooser') return 'Wild';
   var i = card.indexOf('_'), v = card.slice(i + 1);
   return (COLOR_NAMES[card.slice(0, i)] || '') + ' ' + ({ skip: 'skip', reverse: 'reverse', draw: '+2', plus1: '+1', alpha: 'Alpha' }[v] || v);
@@ -325,7 +327,7 @@ function describe(e) {
   switch (e.k) {
     case 'deal':
       return 'Cards dealt. First card ' + (e.fc ? chip(e.fc) : '–') +
-        (e.fco ? ' <span class="tag">' + (e.fc === 'xeno' ? '👽 ' : '💀 ') + (COLOR_NAMES[e.fco] || e.fco) + '</span>' : '') + (e.first ? ', ' + nm(e.first) + ' starts.' : '.');
+        (e.fco ? ' <span class="tag">' + (e.fc === 'nitro' ? '⚡ ' : e.fc === 'xeno' ? '👽 ' : '💀 ') + (COLOR_NAMES[e.fco] || e.fco) + '</span>' : '') + (e.first ? ', ' + nm(e.first) + ' starts.' : '.');
     case 'play':
       return who + ' played ' + chip(e.c) + (e.bl ? '<span class="tag">bluff</span>' : '') + (e.cx ? '<span class="tag">cancelled</span>' : '') +
         (e._pile ? '<span class="tag">🌪️ stacked, now +' + e._pile + '</span>' : '') + (e._ww ? '<span class="tag">🌪️ on a Color Chooser</span>' : '') +
@@ -346,8 +348,13 @@ function describe(e) {
       return who + ' dropped ' + plural((e.out || []).length, 'card') + ' back into the deck and drew new ones';
     case 'pass':
       return who + ' passed';
+    case 'double':
+      return who + (e.part === 1 ? ' started a double play' : ' completed the matching double play');
+    case 'roll':
+      return '🎲 ' + who + ' rolled ' + e.roll + ' for a ' + e.amount + '-card Nitro penalty' +
+        (e.roll === 1 ? (e.opening ? ', opening penalty avoided' : ', sent back to ' + (e.to ? nm(e.to) : 'another player')) : ', takes the penalty');
     case 'color':
-      if (e.dia || e.xe) return (e.xe ? '👽 The Xeno of ' : '💀 The Diablo of ') + who + ' set the color to <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) +
+      if (e.dia || e.xe || e.ni) return (e.ni ? '⚡ The Nitro of ' : e.xe ? '👽 The Xeno of ' : '💀 The Diablo of ') + who + ' set the color to <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) +
         '<span class="tag">random</span>' + (e.lk ? '<span class="tag">their best color</span>' : '');
       return who + ' chose <i class="sw" style="background:var(--card-' + e.co + ')"></i>' + (COLOR_NAMES[e.co] || e.co) + (e.au ? '<span class="tag">picked by the bot</span>' : '');
     case 'chal':
@@ -432,7 +439,7 @@ function drawChart() {
 
 function renderStats() {
   var s = { a: {}, b: {} };
-  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0, p8: 0, t8: 0, dia: 0, lk: 0, xen: 0, alp: 0, x5: 0, hu: 0, hc: 0 }; });
+  ['a', 'b'].forEach(function (p) { s[p] = { played: 0, actions: 0, vol: 0, forced: 0, passes: 0, think: 0, n: 0, max: (G.events[0].h[p] || []).length, uno: 0, erupt: 0, swaps: 0, drops: 0, cancels: 0, stacks: 0, ww: 0, big: 0, p8: 0, t8: 0, dia: 0, lk: 0, xen: 0, alp: 0, x5: 0, hu: 0, hc: 0, nit: 0, rolls: 0, ones: 0, doubles: 0, received: 0, returned: 0 }; });
   var hands = { a: (G.events[0].h.a || []).length, b: (G.events[0].h.b || []).length };
   G.events.forEach(function (e) {
     if (e.k === 'swap') {
@@ -451,6 +458,7 @@ function renderStats() {
       if (e.c === 'draw_eight') x.p8++;
       if (e.c === 'diablo') x.dia++;
       if (e.c === 'xeno') x.xen++;
+      if (e.c === 'nitro') x.nit++;
       if (/_alpha$/.test(e.c)) x.alp++;
       if (e.x5) x.x5++;
       if (e._pile) x.stacks++;
@@ -462,6 +470,7 @@ function renderStats() {
       if (e.r === 'vol') x.vol++; else x.forced += (e.cs || []).length;
       if (e._took) x.big = Math.max(x.big, e._took);
       if (e.e8) x.t8 += (e.cs || []).length;
+      if (e.r === 'nitro') x.received += (e.cs || []).length;
       if (e.hu) { x.hu++; x.hc += (e.cs || []).length; }
       hands[e.p] = e.h;
       x.max = Math.max(x.max, e.h);
@@ -470,12 +479,16 @@ function renderStats() {
       hands[e.p] = e.h;
       x.max = Math.max(x.max, e.h);
     } else if (e.k === 'pass') x.passes++;
-    else if (e.k === 'color' && (e.dia || e.xe) && e.lk) x.lk++;
+    else if (e.k === 'color' && (e.dia || e.xe || e.ni) && e.lk) x.lk++;
+    else if (e.k === 'double' && e.part === 2) x.doubles++;
+    else if (e.k === 'roll') { x.rolls++; if (e.roll === 1) { x.ones++; if (!e.opening) x.returned += e.taken == null ? e.amount : e.taken; } }
   });
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
   if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
   if (G.mode === 'tornado') rows.splice(4, 0, ['🌪️ Stacked on a +4', 'stacks'], ['🌪️ Color Chooser on Color Chooser', 'ww'], ['🌪️ Biggest pile drawn', 'big']);
   if (G.mode === 'diablo') rows.splice(4, 0, ['💀 Diablos played', 'dia'], ['💀 Diablos on their best color', 'lk']);
+  if (G.mode === 'nitro') rows.splice(4, 0, ['⚡ Nitros played', 'nit'], ['Nitros on their best color', 'lk'], ['Die rolls', 'rolls'],
+    ['Rolled a 1', 'ones'], ['Nitro cards received', 'received'], ['Cards sent back', 'returned'], ['Double plays completed', 'doubles']);
   if (G.mode === 'xeno') rows.splice(4, 0, ['👽 Xenos played', 'xen'], ['👽 Xenos on their best color', 'lk'], ['👽 Alphas played', 'alp'],
     ['👽 X-rule plays', 'x5'], ['👽 Draws to find the color', 'hu'], ['👽 Cards drawn finding it', 'hc']);
   if (G.mode === 'crazy') rows.splice(4, 0, ['👻 +8s played', 'p8'], ['👻 Cards drawn from +8s', 't8']);
@@ -604,7 +617,7 @@ function hex64(v) { var h = v.toString(16); return '0000000000000000'.slice(h.le
 
 // The "Show the math" section: one row per random pick, built when it is opened
 function renderMath(proof, entropyLabel) {
-  var steps = (proof._steps || []).filter(function (s) { return s.kind === 'd' || s.kind === 'c' || s.kind === 's' || s.kind === 'm' || s.kind === 'v'; });
+  var steps = (proof._steps || []).filter(function (s) { return ['d', 'c', 's', 'm', 'v', 'np', 'nr'].indexOf(s.kind) >= 0; });
   var el = document.createElement('details');
   el.className = 'math';
   el.innerHTML = '<summary>Show the math behind every card (' + plural(steps.length, 'random pick') + ')</summary>' +
@@ -629,6 +642,10 @@ function renderMath(proof, entropyLabel) {
         what = esc(s.op[2]);
         who = '<span class="rej">game mode, out of ' + esc(s.op[1].join(', ')) + '</span>';
         pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.op[1].length;
+      } else if (s.kind === 'np' || s.kind === 'nr') {
+        what = '⚡ ' + (s.kind === 'np' ? 'Penalty +' : 'Die roll ') + s.op[1];
+        who = '<span class="rej">Nitro ' + (s.kind === 'np' ? 'penalty size' : 'die') + '</span>';
+        pick = s.op[1] + ' of ' + (s.kind === 'np' ? 5 : 6);
       } else if (s.kind === 'v') {
         what = s.op[2] ? '🌋 Eruption' : 'Volcano quiet';
         who = '<span class="rej">volcano roll ' + s.roll + ', erupts on 1 of ' + s.op[1] + '</span>';

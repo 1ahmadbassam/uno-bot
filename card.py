@@ -77,11 +77,12 @@ DRAW_EIGHT = 'draw_eight'
 DIABLO = 'diablo'
 # Only in the Xeno mode's deck: a Diablo whose color the next player has to play
 XENO = 'xeno'
+NITRO = 'nitro'
 
-SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT, DIABLO, XENO)
+SPECIALS = (CHOOSE, DRAW_FOUR, DRAW_EIGHT, DIABLO, XENO, NITRO)
 
 # The wilds whose color the bot picks at random (actions.do_play_card)
-BOT_COLOR_WILDS = (DIABLO, XENO)
+BOT_COLOR_WILDS = (DIABLO, XENO, NITRO)
 
 # Wild cards that make the next player draw, and how many cards they add;
 # the next player may challenge one as a bluff
@@ -447,6 +448,7 @@ STICKERS_RAINBOW_GREY = {
 }
 
 STICKERS_OPTIONS = {
+    "option_double": "CAACAgQAAxUAAWrnGDC9c9y_8S__UxHGZERtrjOBAAJNEAACxP8BUmvLy1oAAcRYLj0E",
     "option_draw": "CAACAgQAAxUAAWrlFf9h0bYOTGPFpUp1A4Kv4CBNAAICBAACRjR0DY2i3mgWBOLPPQQ",
     "option_pass": "CAACAgQAAxUAAWrlFf-OlZ-6xJyPMwgZq_P2gSrNAAIDBAACRjR0DccpKJfeExUdPQQ",
     "option_bluff": "CAACAgQAAxUAAWrlFf_Gmte7cCdxL642RDa_LdDtAAIIBAACRjR0DX75Tald1LzePQQ",
@@ -463,6 +465,7 @@ CARDSETS = {
 _selected_cardset = CARDSETS.get(DEFAULT_CARDSET, CARDS_CLASSIC)
 
 STICKERS = {
+    NITRO: "CAACAgQAAxUAAWrnGDCbH3E0Vk-_s0hVKDliF1UfAAJKEAACQIHRUrKL8qHoWQMcPQQ",
     **_selected_cardset["normal"],
     **STICKERS_STORM,
     **STICKERS_CRAZY,
@@ -473,6 +476,7 @@ STICKERS = {
 }
 
 STICKERS_GREY = {
+    NITRO: "CAACAgQAAxUAAWrnGDD46fwP8Px3kk3voXo8oj7VAALJDgACD-LRUsTcFFjwephqPQQ",
     **_selected_cardset["not_playable"],
     **STICKERS_STORM_GREY,
     **STICKERS_CRAZY_GREY,

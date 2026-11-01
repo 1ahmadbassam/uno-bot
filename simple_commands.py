@@ -67,6 +67,7 @@ def help_handler(update: Update, context: CallbackContext):
     help_text += "\n\n" + _("<b>Storm mode</b>\n"
                             "/cancel - On your turn: play your next Swap or Drop without its effect "
                             "(/cancel again turns it back on)")
+    help_text += "\n\n" + _("<b>Nitro mode</b>\n/roll - Roll against a pending Nitro penalty; a 1 sends it back")
     help_text += "\n\n" + _("<b>Group admins</b>\n"
                             "/uno - Turn manual UNO on or off for the games started in this group: after your "
                             "second to last card, pick UNO in the menu in time or take penalty cards")
@@ -119,6 +120,12 @@ def modes(update: Update, context: CallbackContext):
                                     "whatever their colors.")
     modes_explanation += "\n\n" + _("🌈 Rainbow follows Classic rules with six colors: red, blue, green, "
                                     "yellow, purple and orange. Number cards run from 1 to 6.")
+    modes_explanation += "\n\n" + _("⚡ Nitro uses four colors, numbers 1–9, +2, Reverse, Skip and eight Nitro cards. "
+                                    "Nitro picks a random color and a penalty of 1–5 cards. The next player uses "
+                                    "/roll: a 1 sends the cards back; afterwards the roller takes their turn. "
+                                    "An opening Nitro's penalty is avoided on a 1. Pick 2️⃣ before playing to "
+                                    "play two identical colored cards consecutively; pick it again before the first "
+                                    "card to cancel. Both action effects apply after the second card.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

@@ -380,6 +380,8 @@ def make_turn_keyboard(game, chat_id):
     keyboard = [[choice_btn]]
 
     current_player = getattr(game, 'current_player', None)
+    if getattr(game, 'nitro_pending', None) or getattr(game, 'double_card', None) or getattr(game, 'double_enabled', False):
+        return InlineKeyboardMarkup(keyboard)
     # While the game waits for UNO, the player can only declare it
     if current_player is not None and getattr(game, 'uno_holder', None) is not current_player:
         action_row = []

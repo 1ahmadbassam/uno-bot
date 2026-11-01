@@ -64,6 +64,9 @@ class Game(object):
         self.volcano_eruptions = 0
         # Storm mode (storm.py): the current player used /cancel for their next card
         self.storm_cancel = False
+        self.nitro_pending = None
+        self.double_enabled = False
+        self.double_card = None
         # Manual UNO (chat_setting.py): whether this game has it, the player who played their
         # second to last card and hasn't declared UNO yet, since when, and the turns that
         # card ended, which pass once it's settled
@@ -167,6 +170,9 @@ class Game(object):
         self.volcano_rolls = 0
         self.volcano_eruptions = 0
         self.storm_cancel = False
+        self.nitro_pending = None
+        self.double_enabled = False
+        self.double_card = None
         self.reversed = False
         self.choosing_color = False
         self.opening_color_choice = False
@@ -196,6 +202,8 @@ class Game(object):
             rivalry_log.color(self, self.current_player, self.last_card.color, auto=True)
         self.current_player = self.current_player.next
         self.current_player.drew = False
+        self.double_enabled = False
+        self.double_card = None
         self.storm_cancel = False
         self.current_player.turn_started = datetime.now()
         rivalry_log.turn(self)
@@ -247,6 +255,8 @@ class Game(object):
         elif card.special in c.BOT_COLOR_WILDS:
             # A Diablo's or Xeno's color comes from the bot (rivalry_log.start logs it with the deal)
             card.color = self.rng.choose_color(self.colors)
+            if card.special == c.NITRO:
+                self.prepare_nitro(None)
         elif card.value == c.SKIP:
             self.turn()
         elif card.value == c.DRAW_TWO:
@@ -269,6 +279,17 @@ class Game(object):
         self.deck.dismiss(self.last_card)
         self.last_card = card
 
+        if self.rules.nitro and self.double_enabled and self.double_card is None:
+            self.double_card = str(card)
+            return
+        if self.double_card is not None:
+            self.double_card = None
+            self.double_enabled = False
+            self._apply_card(card, advance=False)
+        self._apply_card(card)
+
+    def _apply_card(self, card, advance=True):
+        """Apply both double-play effects, ending only one ordinary turn."""
         if card.value == c.SKIP:
             self.turn()
         elif c.is_draw_wild(card):
@@ -285,17 +306,22 @@ class Game(object):
                 self.reverse()
 
         # Don't turn if the current player has to choose a color
-        if card.special not in c.SPECIALS:
+        if card.special not in c.SPECIALS and advance:
             self.turn()
-        else:
+        elif card.special in c.SPECIALS:
             self.logger.debug("Choosing Color...")
             self.choosing_color = True
 
-    def choose_color(self, color, auto=False, diablo=False, xeno=False):
+    def prepare_nitro(self, source):
+        amount = self.rng.randbelow(5) + 1
+        self.rng.note('np', amount)
+        self.nitro_pending = {'source': source.user.id if source else None, 'amount': amount}
+
+    def choose_color(self, color, auto=False, diablo=False, xeno=False, nitro=False):
         """Carries out the color choosing and turns the game; `auto`: the bot picked it
         for a player, `diablo`/`xeno`: the bot picked it for a Diablo/Xeno"""
         self.touch()
-        rivalry_log.color(self, self.current_player, color, auto, diablo, xeno)
+        rivalry_log.color(self, self.current_player, color, auto, diablo, xeno, nitro)
         self.last_card.color = color
         self.choosing_color = False
         if getattr(self, 'opening_color_choice', False):

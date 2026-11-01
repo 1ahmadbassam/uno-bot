@@ -220,17 +220,18 @@ def passed(game, player):
 
 
 @_never_breaks_the_game
-def color(game, player, chosen, auto=False, diablo=False, xeno=False):
+def color(game, player, chosen, auto=False, diablo=False, xeno=False, nitro=False):
     """`chosen` became the color of the wild on top; `auto`: the bot picked it for `player`
     (a timeout, a winning wild), `diablo`/`xeno`: the bot picked it at random for a Diablo/Xeno"""
     if _log(game) is None or player is None:
         return
     held = {col: sum(1 for card in player.cards if card.color == col) for col in game.colors}
     smart = 1 if max(held.values()) and held.get(chosen) == max(held.values()) else None
-    if diablo or xeno:
+    if diablo or xeno or nitro:
         # Nobody chose it, so it's not a player's action: 'lk', the luck of getting the
         # color the player holds most, instead of a smart pick
-        _add(game, player, 'color', co=chosen, dia=1 if diablo else None, xe=1 if xeno else None, lk=smart)
+        _add(game, player, 'color', co=chosen, dia=1 if diablo else None, xe=1 if xeno else None,
+             ni=1 if nitro else None, lk=smart)
         return
     _add(game, player, 'color', not auto, co=chosen, au=1 if auto else None, sm=smart)
 
@@ -245,6 +246,17 @@ def challenge(game, challenger, bluffer, caught):
 @_never_breaks_the_game
 def timed_out(game, player):
     _add(game, player, 'time')
+
+
+@_never_breaks_the_game
+def double_play(game, player, part):
+    _add(game, player, 'double', part=part)
+
+
+@_never_breaks_the_game
+def nitro_roll(game, player, source, value, amount, recipient, actual):
+    _add(game, player, 'roll', True, vs=key(source), roll=value, amount=amount, to=key(recipient),
+         taken=actual, opening=1 if source is None else None)
 
 
 @_never_breaks_the_game
@@ -276,6 +288,8 @@ def finish(game, winner_id, outcome):
     if game.rules.xeno:
         # A Xeno game, even when nobody played a Xeno
         end['xe'] = 1
+    if game.rules.nitro:
+        end['ni'] = 1
     if getattr(game, 'manual_uno', False):
         # Players had to declare UNO, even when nobody got down to one card
         end['mu'] = 1

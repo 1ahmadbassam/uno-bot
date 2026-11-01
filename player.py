@@ -75,6 +75,13 @@ class Player(object):
 
     def leave(self):
         """Removes player from the game and closes the gap in the list"""
+        self.pending_win = False
+        if self.game.current_player is self:
+            self.game.double_enabled = False
+            self.game.double_card = None
+            self.game.nitro_pending = None
+        elif self.game.nitro_pending and self.game.nitro_pending['source'] == self.user.id:
+            self.game.nitro_pending = None
         if self._next is None or self._prev is None:
             return
 
@@ -164,13 +171,18 @@ class Player(object):
             self.bluffing = False
 
         self.cards.remove(card)
-        if self.game.manual_uno and len(self.cards) == 1:
+        first_double = self.game.double_enabled and self.game.double_card is None
+        if self.game.manual_uno and len(self.cards) == 1 and not first_double:
             self.game.hold_for_uno(self)
         self.game.play_card(card)
 
     def playable_cards(self):
         """Returns a list of the cards this player can play right now"""
 
+        if self.game.nitro_pending:
+            return []
+        if self.game.double_card:
+            return [card for card in self.cards if str(card) == self.game.double_card]
         playable = list()
 
         cards = self.cards
@@ -185,7 +197,14 @@ class Player(object):
 
         # In standard UNO, players are permitted to play any card (including Wild cards)
         # as their final card to win.
+        if self.game.double_enabled:
+            return [card for card in playable if not card.special and self.cards.count(card) >= 2]
         return playable
+
+    def can_double(self):
+        return bool(self.game.rules.nitro and not self.drew and not self.game.nitro_pending and
+                    not self.game.double_card and not self.game.choosing_color and
+                    any(not card.special and self.cards.count(card) >= 2 for card in self.playable_cards()))
 
     def must_play(self):
         """Xeno: the card drawn to find a Xeno's color has to be played, so there's no passing"""
@@ -194,7 +213,7 @@ class Player(object):
                     self.playable_cards())
 
     def can_pass(self):
-        return self.drew and not self.must_play()
+        return self.drew and not self.game.nitro_pending and not self.game.double_card and not self.must_play()
 
     def _card_playable(self, card):
         """Check a single card if it can be played"""

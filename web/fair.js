@@ -104,6 +104,7 @@ var VOLCANO = { base: 10, max: 5 };
 async function replayOps(proof, stream) {
   var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], colors = FAIR_COLORS, rolls = 0, eruptions = 0, i, j;
   proof._steps = steps;
+  var nitroAmount = null, nitroRolls = {};
   for (i = 0; i < proof.ops.length; i++) {
     var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ', from = stream.trace ? stream.trace.length : 0;
     var step = { i: i, kind: kind, op: op };
@@ -142,6 +143,15 @@ async function replayOps(proof, stream) {
     } else if (kind === 'm') {
       var mode = op[1][await stream.randbelow(op[1].length)];
       if (mode !== op[2]) return where + 'the bot picked a different game mode than the seed gives';
+    } else if (kind === 'np' || kind === 'nr') {
+      var sides = kind === 'np' ? 5 : 6;
+      if (op[1] !== 1 + await stream.randbelow(sides)) return where + 'the Nitro ' + (kind === 'np' ? 'penalty' : 'roll') + ' differs from the seed';
+      if (kind === 'np') nitroAmount = op[1];
+      else {
+        if (op[3] !== nitroAmount) return where + 'the Nitro penalty differs from its random pick';
+        (nitroRolls[op[2]] || (nitroRolls[op[2]] = [])).push({ roll: op[1], amount: op[3] });
+        nitroAmount = null;
+      }
     } else if (kind === 'v') {
       // Volcano mode: roll k (from 0) erupts with a chance of 1 in 10 + k, at most 5 times a game
       if (eruptions >= VOLCANO.max) return where + 'the volcano rolled after its last eruption';
@@ -158,6 +168,7 @@ async function replayOps(proof, stream) {
   }
   proof._draws = draws;
   proof._bySeat = bySeat;
+  proof._nitroRolls = nitroRolls;
   return null;
 }
 
@@ -188,6 +199,14 @@ function replayMatchesProof(events, proof) {
     for (var j = 0; j < shown.length; j++) {
       if (shown[j] !== dealt[j]) return FairNames.seat(p) + '\'s card ' + (j + 1) + ' (' + FairNames.card(shown[j]) + ') is not the one the seed gave them';
     }
+  }
+  var rollsSeen = {};
+  for (var r = 0; r < events.length; r++) {
+    var e = events[r];
+    if (e.k !== 'roll') continue;
+    var index = rollsSeen[e.p] || 0, expected = (proof._nitroRolls[e.p] || [])[index];
+    if (!expected || expected.roll !== e.roll || expected.amount !== e.amount) return 'a Nitro roll or penalty in the replay differs from the seed';
+    rollsSeen[e.p] = index + 1;
   }
   return null;
 }

@@ -126,6 +126,11 @@ def add_gameinfo(game, results):
     )
 
 
+def add_double(results, game):
+    # Selecting a cached sticker sends only the button artwork, without a chat announcement.
+    results.append(Sticker('double', sticker_file_id=c.STICKERS['option_double']))
+
+
 def add_pass(results, game):
     """Add option to pass"""
     results.append(

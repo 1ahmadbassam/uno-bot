@@ -129,6 +129,9 @@ class GameManager(object):
             'volcano_rolls': getattr(game, 'volcano_rolls', 0),
             'volcano_eruptions': getattr(game, 'volcano_eruptions', 0),
             'storm_cancel': getattr(game, 'storm_cancel', False),
+            'nitro_pending': game.nitro_pending,
+            'double_enabled': game.double_enabled,
+            'double_card': game.double_card,
             'manual_uno': getattr(game, 'manual_uno', False),
             'uno_holder_id': game.uno_holder.user.id if getattr(game, 'uno_holder', None) else None,
             'uno_since': game.uno_since.isoformat() if getattr(game, 'uno_since', None) else None,
@@ -165,6 +168,9 @@ class GameManager(object):
         game.volcano_rolls = data.get('volcano_rolls', 0)
         game.volcano_eruptions = data.get('volcano_eruptions', 0)
         game.storm_cancel = data.get('storm_cancel', False)
+        game.nitro_pending = data.get('nitro_pending')
+        game.double_enabled = data.get('double_enabled', False)
+        game.double_card = data.get('double_card')
         game.manual_uno = data.get('manual_uno', False)
         game.uno_since = datetime.fromisoformat(data['uno_since']) if data.get('uno_since') else None
         game.uno_turns = data.get('uno_turns', 0)
@@ -182,7 +188,7 @@ class GameManager(object):
             player.turn_started = datetime.fromisoformat(player_data.get('turn_started', datetime.now().isoformat()))
             player.waiting_time = player_data.get('waiting_time', player.waiting_time)
             player.pending_win = player_data.get('pending_win', False)
-            if player.pending_win or player.user.id == data.get('last_bluffer_id'):
+            if (player.pending_win and not game.rules.nitro) or player.user.id == data.get('last_bluffer_id'):
                 game.last_bluffer = player
             if player.user.id == data.get('uno_holder_id'):
                 game.uno_holder = player

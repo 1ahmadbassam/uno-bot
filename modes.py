@@ -17,7 +17,7 @@ class Mode(object):
     """The rules of one game mode"""
 
     def __init__(self, id, title, message, deck='classic', hand_size=7, auto_skip=False, volcano=False, storm=False,
-                 bluff=True, tornado=False, hide_counts=False, diablo=False, xeno=False, first_win_ends=False):
+                 bluff=True, tornado=False, hide_counts=False, diablo=False, xeno=False, first_win_ends=False, nitro=False):
         self.id = id
         # Title of the inline result that picks this mode, and the message it sends
         self.title = title
@@ -43,6 +43,7 @@ class Mode(object):
         # other (Player._card_playable); a Xeno's color has to be played, or drawn until found
         # (Player.draw)
         self.xeno = xeno
+        self.nitro = nitro
         # Whether the first player to win ends the game, however many are left (actions.player_won)
         self.first_win_ends = first_win_ends
 
@@ -57,9 +58,10 @@ CRAZY = Mode('crazy', N_("👻 Crazy mode"), N_('Why so Serious? 👻️'), deck
 DIABLO = Mode('diablo', N_("💀 Diablo mode"), N_('Welcome to Hell 💀️'), deck='diablo', bluff=False, diablo=True)
 XENO = Mode('xeno', N_("👽 Xeno mode"), N_('Project Xeno 👽️'), deck='xeno', xeno=True)
 RAINBOW = Mode('rainbow', N_("🌈 Rainbow mode"), N_('Over the Rainbow 🌈'), deck='rainbow')
+NITRO = Mode('nitro', N_("⚡ Nitro mode"), N_('Unleash the Nitro ⚡'), deck='nitro', bluff=False, nitro=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO, RAINBOW)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO, RAINBOW, NITRO)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

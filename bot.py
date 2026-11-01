@@ -56,7 +56,7 @@ from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
 from internationalization import _, __, user_locale, game_locales, locales_for_game, locale_for_user
 from results import (add_call_bluff, add_draw, add_gameinfo,
                      add_no_game, add_not_started, add_pass,
-                     add_card, add_mode, add_uno)
+                     add_card, add_mode, add_uno, add_double)
 from shared_vars import gm, updater, dispatcher
 from simple_commands import help_handler
 from start_bot import start_bot
@@ -734,7 +734,8 @@ def _draws_for_xeno(game):
 
 
 def _action_callback_for_game(bot, query, game, chat_id, action, context):
-    if not game.started or game.choosing_color:
+    if (not game.started or game.choosing_color or game.nitro_pending or
+            game.double_card or game.double_enabled):
         _answer_callback(bot, query, _("This button is no longer valid."))
         return
 
@@ -1392,6 +1393,28 @@ def _add_mode_results(results):
         add_mode(results, mode)
 
 
+@game_locales
+@user_locale
+def roll_command(update: Update, context: CallbackContext):
+    """Only the targeted player may resolve a pending Nitro, in its group."""
+    import nitro
+    chat = update.message.chat
+    gm.ensure_chat_loaded(chat)
+    games = gm.chatid_games.get(chat.id)
+    game = games[-1] if games else None
+    if not game or not game.started or not game.rules.nitro or not game.nitro_pending:
+        send_async(context.bot, chat.id, text=_("There is no Nitro waiting for a roll."))
+        return
+    if game.current_player.user.id != update.message.from_user.id or game.uno_holder:
+        send_async(context.bot, chat.id, text=_("Not your turn!"))
+        return
+    reset_waiting_time(context.bot, game.current_player)
+    nitro.roll(context.bot, game.current_player)
+    if game_is_running(game):
+        gm.persist_game(game)
+        _prompt_next_player(context.bot, game, '', context.job_queue)
+
+
 def _lobby_for_mode(user, bot):
     """The open lobby whose mode `user` may change without playing in it: one they created,
     else one in a chat they administer; the most recently active first"""
@@ -1481,13 +1504,13 @@ def reply_to_query(update: Update, context: CallbackContext):
                 add_uno(game, results)
                 for card in sorted(player.cards):
                     add_card(game, card, results, can_play=False)
-            elif game.choosing_color:
+            elif game.choosing_color or game.nitro_pending:
                 # The color is picked with the buttons under the color prompt, so the
                 # menu only shows the hand, greyed out like when it's not your turn
                 for card in sorted(player.cards):
                     add_card(game, card, results, can_play=False)
             else:
-                if not player.drew:
+                if not player.drew and not game.double_enabled and not game.double_card:
                     add_draw(player, results)
 
                 elif player.can_pass():
@@ -1505,6 +1528,8 @@ def reply_to_query(update: Update, context: CallbackContext):
                                             str(card) not in added_ids))
                     added_ids.append(str(card))
 
+                if player.can_double():
+                    add_double(results, game)
                 add_gameinfo(game, results)
 
         elif user_id != game.current_player.user.id or not game.started:
@@ -1595,6 +1620,10 @@ def process_result(update: Update, context: CallbackContext):
         logger.info("Ignoring stale or invalid inline result %s from %s",
                     result_id, display_name(player.user))
         return
+    elif result_id == 'double':
+        game.double_enabled = not game.double_enabled
+        gm.persist_game(game)
+        return
     elif result_id == 'uno':
         if game.job:
             try:
@@ -1658,7 +1687,7 @@ def process_result(update: Update, context: CallbackContext):
             _start_uno_countdown(game, context.job_queue)
             return
         # Only announce UNO right after the card that left the player with one card
-        uno_prefix = "🔥 UNO!\n" if played_card and len(player.cards) == 1 else ""
+        uno_prefix = "🔥 UNO!\n" if played_card and len(player.cards) == 1 and not game.double_card else ""
         if swapped is not None and len(swapped.cards) == 1:
             # A Storm Swap left the other player with one card
             uno_prefix += __("🔥 UNO! {name} has one card left.\n", multi=game.translate).format(
@@ -1781,6 +1810,13 @@ def _inline_action_allowed(player, game, result_id):
     if game.uno_holder is not None or result_id == 'uno':
         return result_id == 'uno' and game.uno_holder is player
 
+    if game.nitro_pending:
+        return False
+    if result_id == 'double':
+        return player.can_double()
+    if (game.double_card or game.double_enabled) and result_id in ('draw', 'pass', 'call_bluff'):
+        return False
+
     if result_id == 'call_bluff':
         return bool(not game.choosing_color and game.last_card and game.rules.bluff and
                     c.is_draw_wild(game.last_card) and game.draw_counter > 0)
@@ -1824,6 +1860,7 @@ threaded_enable_translations = _threaded_by(_chat_key, require_message=True)(ena
 threaded_disable_translations = _threaded_by(_chat_key, require_message=True)(disable_translations)
 threaded_skip_player = _threaded_by(_chat_key, require_message=True)(skip_player)
 threaded_cancel_effect = _threaded_by(_chat_key, require_message=True)(cancel_effect)
+threaded_roll_command = _threaded_by(_chat_key, require_message=True)(roll_command)
 threaded_status_update = _threaded_by(_chat_key, require_message=True)(status_update)
 threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
@@ -1864,6 +1901,7 @@ dispatcher.add_handler(CommandHandler('disable_translations',
                                       threaded_disable_translations))
 dispatcher.add_handler(CommandHandler('skip', threaded_skip_player))
 dispatcher.add_handler(CommandHandler('cancel', threaded_cancel_effect))
+dispatcher.add_handler(CommandHandler('roll', threaded_roll_command))
 dispatcher.add_handler(CommandHandler('notify_me', threaded_notify_me))
 dispatcher.add_handler(CommandHandler('uno', threaded_toggle_manual_uno))
 simple_commands.register()

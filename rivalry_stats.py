@@ -450,7 +450,7 @@ def inline_data(page, data):
 # --- Game logs (rivalry_log.py) -------------------------------------------
 
 # New types come last, so older summaries (6 types) keep their indexes
-CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp')
+CARD_TYPES = ('num', 'skip', 'rev', 'd2', 'wild', 'd4', 'swap', 'drop', 'p1', 'd8', 'dia', 'xen', 'alp', 'nit')
 ACTION_TYPES = ('skip', 'rev', 'd2', 'swap', 'drop', 'p1')
 # Keep the original four indexes stable for previously exported summaries.
 LOG_COLORS = ('r', 'b', 'g', 'y', 'p', 'o')
@@ -552,6 +552,16 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
         if any(xe[key]['hu'] for key in s):
             lines.append("Drawn to find a Xeno's color: " + pair({key: "%d time%s (+%d cards)" % (
                 xe[key]['hu'], "" if xe[key]['hu'] == 1 else "s", xe[key]['hc']) for key in s}))
+    if d.get('nitro'):
+        ni = d['nitro']
+        for title, field in (("⚡ Nitros dealt", 'k'), ("⚡ Nitros played", 'p'),
+                             ("Nitro rolls", 'rolls'), ("Rolled a 1", 'ones'),
+                             ("Penalty cards faced", 'offered'), ("Penalty cards avoided", 'avoided'),
+                             ("Cards sent back", 'returned'), ("Nitro cards received", 'received'),
+                             ("Nitro cards inflicted", 'sent'), ("2️⃣ Double plays", 'double')):
+            lines.append(title + ": " + pair({key: ni[key][field] for key in s}))
+        lines.append("Nitro gave the color held most: " + pair({key: "%d of %d" % (ni[key]['lk'], ni[key]['p']) for key in s}))
+        lines.append("Die faces 1–6: " + pair({key: " / ".join(map(str, ni[key]['faces'])) for key in s}))
     if d.get('manual_uno'):
         mu = d['manual_uno']
         lines.append("1️⃣ UNOs declared · missed: " + pair({key: "%d · %d" % (mu[key]['dec'], mu[key]['pen']) for key in s}))
@@ -583,6 +593,8 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
 
 def card_type(card):
     """One of CARD_TYPES for a card string such as 'r_5', 'g_draw' or 'draw_four'"""
+    if card == 'nitro':
+        return 'nit'
     if card == 'draw_four':
         return 'd4'
     if card == 'draw_eight':
@@ -678,6 +690,10 @@ def summarize_log(log):
     xeno = {key: {'k': sum(1 for card in cards if card == 'xeno'), 'p': 0, 'col': [0] * len(LOG_COLORS), 'lk': 0,
                   'al': 0, 'x5': 0, 'hu': 0, 'hc': 0, 'big': 0}
             for key, cards in deal['h'].items()}
+    nitro = {key: {'k': cards.count('nitro'), 'p': 0, 'col': [0] * len(LOG_COLORS), 'lk': 0,
+                   'rolls': 0, 'ones': 0, 'faces': [0] * 6, 'penalties': [0] * 5, 'offered': 0, 'received': 0,
+                   'returned': 0, 'sent': 0, 'avoided': 0, 'double': 0, 'pairs': [0] * 4}
+             for key, cards in deal['h'].items()}
     for e in events[1:]:
         kind, s = e['k'], per.get(e.get('p'))
         if kind == 'swap':
@@ -708,6 +724,8 @@ def summarize_log(log):
             s['th'][2] = max(s['th'][2], e['th'])
         if kind == 'play':
             kind_of_card = card_type(e['c'])
+            if kind_of_card == 'nit':
+                nitro[p]['p'] += 1
             if kind_of_card in ('swap', 'drop', 'p1'):
                 storm_game = True
                 if e.get('cx'):
@@ -746,6 +764,10 @@ def summarize_log(log):
             finisher[p] = e['c']
         elif kind == 'draw':
             count = len(e.get('cs') or ())
+            if e.get('r') == 'nitro':
+                nitro[p]['received'] += count
+                if e.get('src') in nitro:
+                    nitro[e['src']]['sent'] += count
             before_draw[p] = hands[p]
             _count_cards(e.get('cs') or (), s['dt'], s['dc'])
             if e.get('e8'):
@@ -799,7 +821,11 @@ def summarize_log(log):
         elif kind == 'pass':
             s['ps'] += 1
         elif kind == 'color':
-            if e.get('dia'):
+            if e.get('ni'):
+                if e.get('co') in LOG_COLORS:
+                    nitro[p]['col'][LOG_COLORS.index(e['co'])] += 1
+                nitro[p]['lk'] += e.get('lk', 0)
+            elif e.get('dia'):
                 db = diablo[p]
                 if e.get('co') in LOG_COLORS:
                     db['col'][LOG_COLORS.index(e['co'])] += 1
@@ -817,6 +843,22 @@ def summarize_log(log):
         elif kind == 'chal':
             s['ch'] += 1
             s['cw'] += e.get('ok', 0)
+        elif kind == 'roll':
+            ni = nitro[p]
+            ni['rolls'] += 1
+            ni['faces'][e['roll'] - 1] += 1
+            ni['penalties'][e['amount'] - 1] += 1
+            ni['offered'] += e['amount']
+            if e['roll'] == 1:
+                ni['ones'] += 1
+                ni['avoided'] += e['amount']
+                if not e.get('opening'):
+                    ni['returned'] += e.get('taken', e['amount'])
+        elif kind == 'double' and e['part'] == 2:
+            nitro[p]['double'] += 1
+            card = finisher.get(p, '')
+            value = card.split('_', 1)[-1]
+            nitro[p]['pairs'][{'draw': 1, 'reverse': 2, 'skip': 3}.get(value, 0)] += 1
         elif kind == 'time':
             s['to'] += 1
         elif kind == 'uno':
@@ -837,7 +879,7 @@ def summarize_log(log):
         'fc': deal.get('fc'),
         # (action cards, wild cards) in each starting hand
         'deal': {key: [sum(1 for card in cards if card_type(card) in ACTION_TYPES),
-                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8', 'dia', 'xen'))]
+                       sum(1 for card in cards if card_type(card) in ('wild', 'd4', 'd8', 'dia', 'xen', 'nit'))]
                  for key, cards in deal['h'].items()},
         'fin': finisher.get(winner) if end.get('o') == 'win' else None,
         'stack': max_stack,
@@ -856,6 +898,8 @@ def summarize_log(log):
         summary['diablo'] = diablo
     if end.get('xe'):
         summary['xeno'] = xeno
+    if end.get('ni'):
+        summary['nitro'] = nitro
     if end.get('mu'):
         summary['manual_uno'] = manual
     if 'vr' in end:

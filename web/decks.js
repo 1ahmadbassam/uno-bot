@@ -4,6 +4,13 @@
 // colorless cards and how many of each. Everything after "var DECKS =" must
 // stay plain JSON (no comments, no trailing commas): the bot parses it as such.
 var DECKS = {
+ "nitro": {
+  "colors": ["r", "b", "g", "y"],
+  "values": [
+   {"values": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "draw", "reverse", "skip"], "copies": 2}
+  ],
+  "specials": {"nitro": 8}
+ },
  "classic": {
   "colors": ["r", "b", "g", "y"],
   "values": [
