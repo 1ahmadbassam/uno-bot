@@ -2161,8 +2161,8 @@ function renderInside(R) {
     });
   }
   groupedShares($('c-mix'), CARD_LABELS, 'ty', 'share of the cards played', 6);
-  groupedShares($('c-colors'), COLOR_LABELS, 'co', 'share of the colored cards played');
-  groupedShares($('c-picks'), COLOR_LABELS, 'pk', 'share of the colors chosen');
+  groupedShares($('c-colors'), COLOR_LABELS, 'co', 'share of the colored cards played', 4);
+  groupedShares($('c-picks'), COLOR_LABELS, 'pk', 'share of the colors chosen', 4);
   var fins = CARD_TYPES.filter(function (k) { return L.fin[k]; });
   stackBy($('c-fin'), fins.map(function (k) { return CARD_LABELS[CARD_TYPES.indexOf(k)]; }), fins.map(function (k) { return L.fin[k]; }),
     function (ci) { return 'Won with a ' + CARD_LABELS[CARD_TYPES.indexOf(fins[ci])].toLowerCase() + ' card'; });
@@ -2767,10 +2767,14 @@ function fairTests(list) {
     p: hands.length ? chiTest(seenTypes, expTypes) : null
   });
   var colorTotal = sum(seenColors);
+  var shownColors = COLOR_LABELS.map(function (_, i) { return i; }).filter(function (i) {
+    return i < 4 || seenColors[i] || expColors[i];
+  });
   tests.push({
     name: 'Colors dealt', games: hands.length,
     tip: 'The colors of the colored cards in both opening hands. Each deck holds equal numbers of its colors; Rainbow has six, the other modes four.',
-    expect: listText(COLOR_LABELS, expColors.map(f1)), seen: listText(COLOR_LABELS, seenColors),
+    expect: listText(shownColors.map(function (i) { return COLOR_LABELS[i]; }), shownColors.map(function (i) { return f1(expColors[i]); })),
+    seen: listText(shownColors.map(function (i) { return COLOR_LABELS[i]; }), shownColors.map(function (i) { return seenColors[i]; })),
     p: colorTotal ? chiTest(seenColors, expColors) : null
   });
   return tests;
