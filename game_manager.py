@@ -45,6 +45,8 @@ class GameManager(object):
         self._last_unload_scan = datetime.now()
         # Called with a game right before end_game() removes it (bot.py reveals the fairness seed)
         self.on_game_end = None
+        # Called with each game loaded into memory from storage (e.g. to reschedule timers)
+        self.on_game_loaded = None
 
         self.logger = logging.getLogger(__name__)
 
@@ -268,6 +270,11 @@ class GameManager(object):
                 self.userid_current[player.user.id] = player
             elif game.current_player and self.userid_current[player.user.id].game.chat.id == game.chat.id:
                 self.userid_current[player.user.id] = player
+        if self.on_game_loaded is not None:
+            try:
+                self.on_game_loaded(game)
+            except Exception:
+                self.logger.exception("on_game_loaded callback failed")
 
     def _deindex_game(self, game):
         for player in game.players:

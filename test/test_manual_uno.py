@@ -19,6 +19,7 @@ from game import Game
 from game_manager import GameManager
 from player import Player
 from test.test_crazy import game_of
+from test.test_fairness_audit import leave_like_game_manager
 from test.test_fairness_proof import check, drand_rng
 from test.test_inline_validation import chosen_result
 from test.test_rivalry_log import A as A_ID, I as I_ID, LoggedGame
@@ -342,6 +343,69 @@ class TestSkipAndLeave(Table):
         self.assertEqual(restored.uno_turns, 2)
         self.assertIs(restored.current_player, restored.uno_holder)
 
+    def test_non_current_player_leave_does_not_crash(self):
+        game, (alice, ivan, bob) = manual_game()
+        self.gm.player_for_user_in_chat.return_value = ivan
+        self.gm.leave_game.side_effect = leave_like_game_manager(game)
+        update = MagicMock()
+        update.message.chat = game.chat
+        update.message.from_user = ivan.user
+        inspect.unwrap(bot.leave_game)(update, MagicMock(job_queue=self.job_queue))
+
+    def test_uno_holder_leave_releases_and_advances_turn(self):
+        game, (alice, ivan, bob) = manual_game()
+        alice.cards = [card('r_draw'), card('b_1')]
+        self.tap(alice, 'r_draw')
+        self.assertIs(game.uno_holder, alice)
+        self.gm.player_for_user_in_chat.return_value = alice
+        self.gm.leave_game.side_effect = leave_like_game_manager(game)
+        update = MagicMock()
+        update.message.chat = game.chat
+        update.message.from_user = alice.user
+        inspect.unwrap(bot.leave_game)(update, MagicMock(job_queue=self.job_queue))
+        self.assertIsNone(game.uno_holder)
+        self.assertIs(game.current_player, ivan)
+        self.assertEqual(game.draw_counter, 2)
+
+    def test_skip_timeout_exact_boundary(self):
+        game, (alice, ivan, bob) = manual_game()
+        alice.cards = [card('r_7'), card('b_1')]
+        self.tap(alice, 'r_7')
+        game.uno_since = datetime.now() - timedelta(seconds=7.9)
+        self.skip(game, alice.next.user)
+        self.assertIs(game.uno_holder, alice)
+        self.assertIn("Please wait 1 second", self.sent.call_args[1]['text'])
+        game.uno_since = datetime.now() - timedelta(seconds=8.01)
+        with deck_of(game, 'g_1', 'g_2'):
+            self.skip(game, alice.next.user)
+        self.assertIsNone(game.uno_holder)
+        self.assertEqual(len(alice.cards), 3)
+
+    def test_held_diablo_color_announced_on_leave_or_kick(self):
+        game, (alice, ivan, bob) = manual_game(mode='diablo')
+        alice.cards = [card('diablo'), card('b_1')]
+        self.tap(alice, 'diablo')
+        self.assertIs(game.uno_holder, alice)
+        self.gm.player_for_user_in_chat.return_value = alice
+        self.gm.leave_game.side_effect = leave_like_game_manager(game)
+        update = MagicMock()
+        update.message.chat = game.chat
+        update.message.from_user = alice.user
+        inspect.unwrap(bot.leave_game)(update, MagicMock(job_queue=self.job_queue))
+        self.assertIn("Diablo set the color to", self.sent.call_args[1]['text'])
+
+    def test_restart_reschedules_uno_wait(self):
+        game, (alice, ivan, bob) = manual_game()
+        alice.cards = [card('r_skip'), card('b_1')]
+        alice.play(card('r_skip'))
+        gm = GameManager()
+        restored = gm._deserialize_game(gm._serialize_game(game))
+        job_queue = MagicMock()
+        bot.reschedule_pending_uno(restored, job_queue)
+        job_queue.run_once.assert_called_once()
+        self.assertEqual(job_queue.run_once.call_args[0][1], 8)
+        self.assertIsNotNone(restored.job)
+
 
 class TestToggle(unittest.TestCase):
 
@@ -476,3 +540,14 @@ class TestUnoLog(LoggedGame):
     def play_and_miss(self):
         self.game.hold_for_uno(self.alice)
         actions.take_uno_penalty(self.alice)
+
+    def test_missed_uno_logged_when_deck_empty(self):
+        self.alice.cards = [c.Card(c.BLUE, '3')]
+        self.game.hold_for_uno(self.alice)
+        self.game.deck.cards = []
+        actions.take_uno_penalty(self.alice)
+        drew = self.events('draw')[-1]
+        self.assertEqual((drew['r'], len(drew['cs']), drew['h']), ('uno', 0, 1))
+        log = rivalry_log.finish(self.game, A_ID, 'win')
+        d = rs.summarize_log(log)
+        self.assertEqual(d['manual_uno']['a'], {'dec': 0, 'pen': 1, 'pc': 0})

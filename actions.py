@@ -384,8 +384,7 @@ def take_uno_penalty(player):
     except DeckEmptyError:
         pass
     number = len(player.cards) - before
-    if number:
-        rivalry_log.drew(game, player, before, 'uno')
+    rivalry_log.drew(game, player, before, 'uno')
     game.release_uno()
     return number
 

@@ -19,6 +19,7 @@
 
 import calendar
 import logging
+import math
 import time
 from datetime import datetime
 from functools import wraps
@@ -327,6 +328,7 @@ def leave_game(update: Update, context: CallbackContext):
 
     game = player.game
     user = update.message.from_user
+    held = _release_leaving_player(game, player)
     was_current = player is game.current_player
     was_choosing = was_current and (game.choosing_color or (game.last_card and not game.last_card.color))
 
@@ -358,9 +360,10 @@ def leave_game(update: Update, context: CallbackContext):
             return
         cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
 
+        color_announced = _held_color_announcement(game) if held else ""
         if game.started:
             send_async(context.bot, chat.id,
-                       text=__("Okay. Next Player: {name}",
+                       text=color_announced + __("Okay. Next Player: {name}",
                                multi=game.translate).format(
                            name=display_name(game.current_player.user)),
                        reply_markup=make_turn_keyboard(game, chat.id),
@@ -458,8 +461,9 @@ def kick_player(update: Update, context: CallbackContext):
                 reply_to_message_id=update.message.message_id)
             return
 
+        color_announced = _held_color_announcement(game) if held else ""
         send_async(context.bot, chat.id,
-                   text=__("Okay. Next Player: {name}",
+                   text=color_announced + __("Okay. Next Player: {name}",
                            multi=game.translate).format(
                        name=display_name(game.current_player.user)),
                    reply_markup=make_turn_keyboard(game, chat.id),
@@ -870,9 +874,10 @@ def status_update(update: Update, context: CallbackContext):
             if settle_draw_four_after_leave(context.bot, game, player, was_current):
                 return
             cancel_penalty_after_leave(context.bot, game, was_current, was_choosing)
+            color_announced = _held_color_announcement(game) if held else ""
             if (was_current or held) and game.started:
                 send_async(context.bot, chat.id,
-                           text=__("Next player: {name}", multi=game.translate)
+                           text=color_announced + __("Next player: {name}", multi=game.translate)
                            .format(name=display_name(game.current_player.user)),
                            reply_markup=make_turn_keyboard(game, chat.id),
                            disable_notification=True)
@@ -1315,9 +1320,9 @@ def skip_player(update: Update, context: CallbackContext):
     skipped_player = game.current_player
 
     if game.uno_holder is not None:
-        # A restart loses the timer, so this also gets a game going again
-        n = int(UNO_DECLARE_TIME - (datetime.now() - game.uno_since).total_seconds()) + 1
-        if n > 0:
+        delta = (datetime.now() - game.uno_since).total_seconds()
+        if delta < UNO_DECLARE_TIME:
+            n = max(1, math.ceil(UNO_DECLARE_TIME - delta))
             send_async(context.bot, chat.id,
                        text=_("Please wait {time} second",
                               "Please wait {time} seconds",
@@ -1587,6 +1592,12 @@ def process_result(update: Update, context: CallbackContext):
                     result_id, display_name(player.user))
         return
     elif result_id == 'uno':
+        if game.job:
+            try:
+                game.job.schedule_removal()
+            except JobLookupError:
+                pass
+            game.job = None
         rivalry_log.declared_uno(game, player)
         game.release_uno()
         color_chosen_announcement = _held_color_announcement(game)
@@ -1692,7 +1703,7 @@ def _start_uno_countdown(game, job_queue):
             pass
         game.job = None
     if job_queue:
-        job_queue.run_once(_uno_job, UNO_DECLARE_TIME, context=(game.uno_holder, game.uno_since, job_queue))
+        game.job = job_queue.run_once(_uno_job, UNO_DECLARE_TIME, context=(game.uno_holder, game.uno_since, job_queue))
 
 
 def _uno_job(context):
@@ -1711,6 +1722,12 @@ def _uno_time_up(bot, player, since, job_queue):
 
 def _punish_missing_uno(bot, player, job_queue):
     game = player.game
+    if game.job:
+        try:
+            game.job.schedule_removal()
+        except JobLookupError:
+            pass
+        game.job = None
     number = take_uno_penalty(player)
     gm.persist_game(game)
     text = __("⏰ {name} didn't declare UNO in time and takes a penalty of {number} card!\n",
@@ -1724,8 +1741,32 @@ def _release_leaving_player(game, player):
     still happens, so a penalty stays with the next player; whether the wait was theirs"""
     if player is None or game.uno_holder is not player:
         return False
+    if game.job:
+        try:
+            game.job.schedule_removal()
+        except JobLookupError:
+            pass
+        game.job = None
     game.release_uno()
     return True
+
+
+def reschedule_pending_uno(game, job_queue):
+    """Reschedule the 8 second wait for a game waiting for UNO after restart"""
+    if not game or not getattr(game, 'started', False) or getattr(game, 'uno_holder', None) is None or not job_queue:
+        return
+    game.uno_since = datetime.now()
+    _start_uno_countdown(game, job_queue)
+    gm.persist_game(game)
+
+
+def reschedule_pending_unos(job_queue):
+    """When the bot starts up with games waiting for UNO, reschedule the wait for them"""
+    if not job_queue:
+        return
+    for games in list(gm.chatid_games.values()):
+        for game in games:
+            reschedule_pending_uno(game, job_queue)
 
 
 def _inline_action_allowed(player, game, result_id):
@@ -1787,6 +1828,8 @@ threaded_toggle_manual_uno = _threaded_by(_chat_key, require_message=True)(toggl
 
 # Reveal each game's fairness seed when it ends (fairness.py)
 gm.on_game_end = lambda game: reveal_fairness(updater.bot, game)
+# Reschedule wait for any game with a pending UNO when loaded from storage
+gm.on_game_loaded = lambda game: reschedule_pending_uno(game, getattr(updater, 'job_queue', None))
 
 # Enforce access restrictions before all other handlers
 dispatcher.add_handler(TypeHandler(Update, access_control), group=-1)

@@ -68,4 +68,6 @@ def set_bot_commands(updater):
 
 def start_bot(updater):
     set_bot_commands(updater)
+    from bot import reschedule_pending_unos
+    reschedule_pending_unos(getattr(updater, 'job_queue', None))
     updater.start_polling()
