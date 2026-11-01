@@ -324,7 +324,8 @@ def do_play_card(bot, player, result_id, notify_color=True, notify_uno=True):
         # The bot picks a Diablo's or Xeno's color, at random, and the turn goes on
         game.choose_color(game.rng.choose_color(game.colors), diablo=card.special == c.DIABLO,
                           xeno=card.special == c.XENO)
-        if notify_color:
+        # A winning card may end the game, leaving no next-player message to say it
+        if notify_color or not player.cards:
             send_async(bot, chat.id, text=bot_color_announcement(game).strip(), disable_notification=True)
 
     if len(player.cards) == 1 and notify_uno:

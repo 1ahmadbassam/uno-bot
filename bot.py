@@ -690,12 +690,17 @@ def _handle_action_callback(bot, query, chat_id, action, context):
         _action_callback_for_game(bot, query, game, chat_id, action, context)
 
 
-def _drawn_card_notice(player, erupted=()):
+def _drawn_card_notice(player, erupted=(), number=1):
     """Private popup text naming the card the player just drew, in their own language;
-    `erupted`: the cards a Volcano eruption added (the group only gets its sticker)"""
+    `erupted`: the cards a Volcano eruption added (the group only gets its sticker);
+    `number`: the cards drawn, more than one when drawing for a Xeno's color"""
     drawn = player.cards[-1]
     with locale_for_user(player.user.id):
-        notice = _("You drew {card}.").format(card=c.label(drawn))
+        if number > 1:
+            # Not every card: a popup holds 200 characters, and this can be a long search
+            notice = _("You drew {number} cards, the last one is {card}.").format(number=number, card=c.label(drawn))
+        else:
+            notice = _("You drew {card}.").format(card=c.label(drawn))
         if erupted:
             notice += "\n" + _("🌋 The volcano gave you {number} more cards.").format(number=len(erupted))
         if player.must_play():
@@ -705,6 +710,11 @@ def _drawn_card_notice(player, erupted=()):
         else:
             notice += "\n" + _("You can't play it, so pass.")
     return notice
+
+
+def _draws_for_xeno(game):
+    """Whether a draw now goes on until the color of the Xeno on top (Player.draw)"""
+    return game.last_card is not None and game.last_card.special == c.XENO and not game.draw_counter
 
 
 def _action_callback_for_game(bot, query, game, chat_id, action, context):
@@ -726,23 +736,24 @@ def _action_callback_for_game(bot, query, game, chat_id, action, context):
             _answer_callback(bot, query)
             return
         draw_counter_before = getattr(game, 'draw_counter', 0)
-        # Xeno: drawn until finding its color, so maybe more than one card
-        hunted = game.last_card is not None and game.last_card.special == c.XENO and not draw_counter_before
+        hunted = _draws_for_xeno(game)
         before = len(player.cards)
         reset_waiting_time(bot, player)
         erupted = do_draw(bot, player)
+        # Xeno: drawn until finding its color, so maybe more than one card
+        hunted_cards = max(1, len(player.cards) - before - len(erupted or ())) if hunted else 1
 
         # Tell only the drawing player which card they got (the callback answer
         # is private), so they can decide to play or pass without the inline menu
         if game_is_running(game) and game.current_player is player and player.drew_card:
-            _answer_callback(bot, query, _drawn_card_notice(player, erupted), show_alert=True)
+            _answer_callback(bot, query, _drawn_card_notice(player, erupted, hunted_cards), show_alert=True)
         else:
             _answer_callback(bot, query)
 
         if game_is_running(game):
             cards_drawn = draw_counter_before or 1
             if hunted:
-                cards_drawn = max(1, len(player.cards) - before - len(erupted or ()))
+                cards_drawn = hunted_cards
             if cards_drawn > 1:
                 draw_action_text = __("📥 {name} drew {number} cards.", multi=game.translate).format(
                     name=player_name, number=cards_drawn
@@ -1530,7 +1541,13 @@ def process_result(update: Update, context: CallbackContext):
             return
     elif result_id == 'draw':
         reset_waiting_time(context.bot, player)
+        hunted = _draws_for_xeno(game)
+        before = len(player.cards)
         do_draw(context.bot, player)
+        if hunted and len(player.cards) - before > 1:
+            # The menu has no popup to say it in
+            color_chosen_announcement = __("📥 {name} drew {number} cards.\n", multi=game.translate).format(
+                name=display_name(player.user), number=len(player.cards) - before)
     elif result_id == 'pass':
         reset_waiting_time(context.bot, player)
         rivalry_log.passed(game, player)
@@ -1554,7 +1571,9 @@ def process_result(update: Update, context: CallbackContext):
         reset_waiting_time(context.bot, player)
         swapped = do_play_card(context.bot, player, result_id, notify_color=False, notify_uno=False)
         played_card = True
-        if game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS and game.last_card.color:
+        # do_play_card already announced the color of a winning card
+        if player.cards and game.last_card is not None and game.last_card.special in c.BOT_COLOR_WILDS and \
+                game.last_card.color:
             color_chosen_announcement = bot_color_announcement(game)
 
     if game_is_running(game):

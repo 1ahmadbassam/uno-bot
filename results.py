@@ -89,15 +89,17 @@ def add_mode(results, mode):
 def add_draw(player, results):
     """Add option to draw"""
     n = player.game.draw_counter or 1
+    last = player.game.last_card
+    if last is not None and last.special == c.XENO and not player.game.draw_counter:
+        # As many as it takes (Player.draw)
+        text = __("Drawing until the Xeno's color", multi=player.game.translate)
+    else:
+        text = __('Drawing {number} card', 'Drawing {number} cards', n, multi=player.game.translate).format(number=n)
 
     results.append(
         Sticker(
             "draw", sticker_file_id=c.STICKERS['option_draw'],
-            input_message_content=
-            InputTextMessageContent(__('Drawing {number} card',
-                                       'Drawing {number} cards', n,
-                                       multi=player.game.translate)
-                                    .format(number=n))
+            input_message_content=InputTextMessageContent(text)
         )
     )
 

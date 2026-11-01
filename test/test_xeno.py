@@ -10,6 +10,7 @@ import actions
 import bot
 import card as c
 import modes
+import results
 import rivalry_log
 import rivalry_stats as rs
 import utils
@@ -227,8 +228,68 @@ class TestXenoMessages(unittest.TestCase):
                 patch('bot._answer_callback') as answer, patch('bot._edit_message_text') as edit:
             bot._action_callback_for_game(MagicMock(), query, game, -1, 'draw', MagicMock())
         self.assertIn("drew 3 cards.", edit.call_args[1]['text'])
-        self.assertIn("you have to play it", answer.call_args[0][2])
+        notice = answer.call_args[0][2]
+        self.assertIn("You drew 3 cards, the last one is " + c.label(card('g_7')), notice)
+        self.assertIn("you have to play it", notice)
         self.assertIs(game.current_player, alice)
+
+
+    def draw_from_the_menu(self, *names):
+        game, (alice, ivan) = game_of('xeno', 'Alice', 'Ivan')
+        game.current_player = alice
+        game.last_card = c.Card(c.GREEN, None, c.XENO)
+        gm = MagicMock()
+        gm.userid_current = {alice.user.id: alice}
+        with deck_of(game, *names), patch('bot.gm', gm), patch('actions.gm', gm), patch('bot.send_async'), \
+                patch('bot.send_paced') as paced, patch('bot.start_player_countdown'), \
+                patch('bot.game_is_running', return_value=True):
+            inspect.unwrap(bot.process_result)(chosen_result(alice.user, "draw:%s" % alice.anti_cheat), MagicMock())
+        return paced.call_args[1]['text']
+
+    def test_the_menu_draw_says_how_many_cards_it_took(self):
+        self.assertIn("drew 3 cards.", self.draw_from_the_menu('b_1', 'r_2', 'g_7'))
+        self.assertNotIn("drew", self.draw_from_the_menu('g_7'))
+
+    def test_the_draw_option_doesnt_promise_one_card(self):
+        game, (alice, ivan) = game_of('xeno', 'Alice', 'Ivan')
+        game.last_card = c.Card(c.GREEN, None, c.XENO)
+        options = []
+        results.add_draw(alice, options)
+        self.assertEqual(options[0].input_message_content.message_text, "Drawing until the Xeno's color")
+        game.last_card = card('g_7')
+        options = []
+        results.add_draw(alice, options)
+        self.assertEqual(options[0].input_message_content.message_text, "Drawing 1 card")
+
+    def win_from_the_menu(self, mode, name, *names, running=False):
+        game, seated = game_of(mode, 'Alice', 'Ivan', *names)
+        alice = seated[0]
+        game.current_player = alice
+        alice.cards = [card(name)]
+        gm = MagicMock()
+        gm.userid_current = {alice.user.id: alice}
+        with patch('bot.gm', gm), patch('actions.gm', gm), patch('bot.send_async'), patch('bot.send_paced') as paced, \
+                patch('bot.start_player_countdown'), patch('bot.game_is_running', return_value=running), \
+                patch('actions.send_async') as sent, patch('actions.player_won') as won, \
+                patch.object(game.rng, 'choose_color', return_value=c.BLUE):
+            order = MagicMock()
+            order.attach_mock(sent, 'sent')
+            order.attach_mock(won, 'won')
+            inspect.unwrap(bot.process_result)(chosen_result(alice.user, "%s:%s" % (name, alice.anti_cheat)), MagicMock())
+        self.assertEqual(game.last_card.color, c.BLUE)
+        return order.mock_calls, paced
+
+    def test_a_winning_card_that_ends_the_game_says_its_color(self):
+        for mode, name, text in (('xeno', 'xeno', "👽 Xeno set the color to "), ('diablo', 'diablo', "💀 Diablo set the color to ")):
+            calls, paced = self.win_from_the_menu(mode, name)
+            self.assertEqual([call[0] for call in calls], ['sent', 'won'])
+            self.assertTrue(calls[0][2]['text'].startswith(text), calls[0])
+            paced.assert_not_called()
+
+    def test_a_winning_card_says_its_color_once_when_the_game_goes_on(self):
+        calls, paced = self.win_from_the_menu('xeno', 'xeno', 'Bob', running=True)
+        self.assertEqual(len([call for call in calls if call[0] == 'sent']), 1)
+        self.assertNotIn("Xeno set the color", paced.call_args[1]['text'])
 
 
 class TestXenoLog(LoggedGame):
