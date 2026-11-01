@@ -51,8 +51,10 @@ class TestDiabloMode(unittest.TestCase):
     def test_games_play_through_and_pass_the_fairness_check(self):
         game = play_a_game('diablo', players=3)
         self.assertEqual(check(game.rng.proof())[0], None)
-        # Every Diablo played got its color from the seed
-        ops = game.rng.ops
+
+    def test_every_diablo_played_gets_its_color_from_the_seed(self):
+        # Two players: with more, one leaves, discarding any Diablo they hold without a color
+        ops = play_a_game('diablo', players=2).rng.ops
         diablos = [i for i, op in enumerate(ops) if op[0] == 'x' and op[1] == 'diablo']
         self.assertTrue(diablos)
         self.assertGreaterEqual(sum(1 for op in ops if op[0] == 'c'), len(diablos))

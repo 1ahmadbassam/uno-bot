@@ -449,7 +449,7 @@ function renderStats() {
       if (e.x5) x.x5++;
       if (e._pile) x.stacks++;
       if (e._ww) x.ww++;
-      if (!/_\d$/.test(e.c)) x.actions++;
+      if (!/_(\d|alpha)$/.test(e.c)) x.actions++;
       if (e.h === 1 && hands[e.p] > 1) x.uno++;
       hands[e.p] = e.h;
     } else if (e.k === 'draw') {

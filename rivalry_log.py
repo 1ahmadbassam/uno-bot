@@ -160,7 +160,9 @@ def drew(game, player, before, reason, src=None):
     if log is None:
         return
     new = player.cards[before:]
-    if reason == 'pen' or (reason == 'time' and len(new) > 1):
+    # Xeno: drawn until finding the color of the Xeno on top (Player.draw)
+    hunt = reason in ('vol', 'time') and game.last_card is not None and game.last_card.special == c.XENO
+    if reason == 'pen' or (reason == 'time' and len(new) > 1 and not hunt):
         src = log.get('by')
     ok = None
     if reason == 'vol' and new and game.current_player is player and new[-1] in player.playable_cards():
@@ -169,8 +171,6 @@ def drew(game, player, before, reason, src=None):
     # stacked), and the log may leave out the play of a third player
     eight = (reason not in ('vol', 'plus1') and (reason != 'time' or len(new) > 1) and game.last_card is not None
              and game.last_card.special == c.DRAW_EIGHT)
-    # Xeno: drawn until finding the color of the Xeno on top (Player.draw)
-    hunt = reason in ('vol', 'time') and game.last_card is not None and game.last_card.special == c.XENO
     _add(game, player, 'draw', reason in ('vol', 'pen'), cs=[str(card) for card in new],
          h=len(player.cards), r=reason, src=src if src != key(player) else None, ok=ok, e8=1 if eight else None,
          hu=1 if hunt else None)

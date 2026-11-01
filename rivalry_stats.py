@@ -504,7 +504,7 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     s = {key: d[key] for key in (w, l)}
     lines += ["", "<b>Play</b>",
               "Cards played: " + pair({key: s[key]['pl'] for key in s}),
-              "Action and wild cards: " + pair({key: sum(s[key]['ty'][1:]) for key in s}),
+              "Action and wild cards: " + pair({key: sum(s[key]['ty'][1:]) - s[key]['ty'][CARD_TYPES.index('alp')] for key in s}),
               "Chosen draws: " + pair({key: "%d (%d playable)" % (s[key]['dv'], s[key]['dk']) for key in s}),
               "Passes: " + pair({key: s[key]['ps'] for key in s}),
               "Penalty cards dealt: " + pair({key: s[key]['dealt'] for key in s}),
@@ -754,7 +754,8 @@ def summarize_log(log):
                 s['fd'] += count
                 if hands[p] == 1:
                     s['den'] += 1
-                if e.get('src') in per:
+                # A draw for a Xeno's color is nobody's penalty, though older logs name a rival
+                if e.get('src') in per and not e.get('hu'):
                     per[e['src']]['dealt'] += count
                 if stack:
                     # A failed challenge adds 2 to the pile, as do_call_bluff does

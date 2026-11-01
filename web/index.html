@@ -2715,7 +2715,8 @@ function fairTests(list) {
   share('Action and wild cards drawn', 'Of all the cards each of you drew during the games (penalties and chosen draws), how many were action or wild cards. Every draw is a random pick from the same pile, whoever draws it.',
     drew.map(function (m) {
       var a = m.d.a.dt, b = m.d.b.dt;
-      return { nA: sum(a), nB: sum(b), kA: sum(a) - a[0], kB: sum(b) - b[0] };
+      // Neither numbers nor Alphas, which do nothing either
+      return { nA: sum(a), nB: sum(b), kA: sum(a) - a[0] - (a[12] || 0), kB: sum(b) - b[0] - (b[12] || 0) };
     }).filter(function (g) { return g.nA && g.nB; }));
 
   var hands = two.filter(function (m) { return m.d.a.hd && m.d.b.hd && deckMix(m.mode); });

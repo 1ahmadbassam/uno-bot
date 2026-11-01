@@ -66,7 +66,10 @@ class TestXenoMode(unittest.TestCase):
     def test_games_play_through_and_pass_the_fairness_check(self):
         game = play_a_game('xeno', players=3)
         self.assertEqual(check(game.rng.proof())[0], None)
-        ops = game.rng.ops
+
+    def test_every_xeno_played_gets_its_color_from_the_seed(self):
+        # Two players: with more, one leaves, discarding any Xeno they hold without a color
+        ops = play_a_game('xeno', players=2).rng.ops
         xenos = [op for op in ops if op[0] == 'x' and op[1] == 'xeno']
         self.assertTrue(xenos)
         self.assertGreaterEqual(sum(1 for op in ops if op[0] == 'c'), len(xenos))
@@ -365,3 +368,39 @@ class TestXenoLog(LoggedGame):
         self.assertIn("👽 Xenos · Alphas · X-rule plays: Alice 1 · 0 · 0 · Ivan 0 · 0 · 0", lines)
         self.assertIn("Xeno gave the color held most: Alice 1 of 1 · Ivan 0 of 0", lines)
         self.assertIn("Drawn to find a Xeno's color: Alice 1 time (+2 cards) · Ivan 0 times (+0 cards)", lines)
+
+    def test_a_game_logged_with_a_rival_on_a_xeno_draw_doesnt_credit_them(self):
+        log = {'ev': [
+            {'k': 'deal', 't': 0, 'n': 0, 'h': {'a': ['r_1'], 'b': ['g_1']}, 'fc': 'r_5', 'first': 'a'},
+            {'k': 'draw', 'p': 'b', 'r': 'time', 'cs': ['b_2', 'g_3'], 'src': 'a', 'hu': 1, 'h': 3, 't': 1, 'n': 1},
+            {'k': 'draw', 'p': 'b', 'r': 'pen', 'cs': ['b_2', 'b_3'], 'src': 'a', 'h': 5, 't': 2, 'n': 2},
+        ]}
+        d = rs.summarize_log(log)
+        self.assertEqual((d['a']['dealt'], d['b']['fd']), (2, 4))
+
+    def test_an_alpha_is_not_an_action_card_in_the_stats(self):
+        self.play('r_alpha')
+        self.play('xeno', c.RED)
+        log = rivalry_log.finish(self.game, A_ID, 'win')
+        rivals = rs.Rivals([(A_ID, "Alice"), (I_ID, "Ivan")])
+        result = rs.Result(1, 1, rs.datetime(2026, 11, 1), A_ID, I_ID, 'win', None, 'xeno', 2, 3, 2)
+        lines = rs.game_stats_text(rivals, 1, result, log, rs.timezone.utc, str).split('\n')
+        self.assertIn("Action and wild cards: Alice 1 · Ivan 0", lines)
+
+    def test_timeout_hunt_does_not_credit_prior_penalty_dealer(self):
+        self.play('r_draw')
+        self.assertEqual(self.game.rivalry_log.get('by'), 'a')
+        self.game.draw_counter = 0
+        self.game.last_card = c.Card(c.GREEN, None, c.XENO)
+        self.game.current_player = self.ivan
+        before = len(self.ivan.cards)
+        self.ivan.cards.extend([card('b_2'), card('g_3')])
+        rivalry_log.drew(self.game, self.ivan, before, 'time')
+        draw_event = self.game.rivalry_log['ev'][-1]
+        self.assertEqual(draw_event['r'], 'time')
+        self.assertEqual(draw_event['hu'], 1)
+        self.assertIsNone(draw_event.get('src'))
+        end = rivalry_log.finish(self.game, A_ID, 'win')
+        d = rs.summarize_log(end)
+        self.assertEqual(d['a']['dealt'], 0)
+        self.assertEqual(d['b']['fd'], 2)
