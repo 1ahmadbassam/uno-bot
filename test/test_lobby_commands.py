@@ -103,6 +103,57 @@ class TestKill(LobbyTest):
         self.command(bot.kill_game, CREATOR)
         self.assertEqual(self.games(), [])
 
+    def test_either_playing_admin_killing_concedes_to_the_opponent(self):
+        for killer, opponent in ((ADMIN, PLAYER), (PLAYER, ADMIN)):
+            with self.subTest(killer=killer.id):
+                self.bot = admins_bot(ADMIN, PLAYER)
+                self.command(bot.new_game, CREATOR)
+                game = self.games()[0]
+                self.gm.join_game(killer, self.chat)
+                self.gm.join_game(opponent, self.chat)
+                game.started = True
+                with patch('actions.rivalry.record_first_place') as record, patch('actions.send_async'):
+                    self.command(bot.kill_game, killer)
+                record.assert_called_once_with(self.bot, game, opponent, forfeit=True)
+                self.assertEqual(game.players_won, 1)
+                self.assertEqual(self.games(), [])
+
+    def test_playing_creator_killing_concedes_to_the_opponent(self):
+        self.command(bot.new_game, CREATOR)
+        game = self.games()[0]
+        self.gm.join_game(CREATOR, self.chat)
+        self.gm.join_game(PLAYER, self.chat)
+        game.started = True
+        with patch('actions.rivalry.record_first_place') as record, patch('actions.send_async'):
+            self.command(bot.kill_game, CREATOR)
+        record.assert_called_once_with(self.bot, game, PLAYER, forfeit=True)
+        self.assertEqual(self.games(), [])
+
+    def test_kill_does_not_forfeit_outside_active_two_player_game(self):
+        for started, killer, extra_player in ((False, PLAYER, False),
+                                              (True, ADMIN, False),
+                                              (True, PLAYER, True)):
+            with self.subTest(started=started, killer=killer.id, extra_player=extra_player):
+                self.bot = admins_bot(ADMIN, PLAYER)
+                game = self.lobby_with_players()
+                if extra_player:
+                    self.gm.join_game(CREATOR, self.chat)
+                game.started = started
+                with patch('bot.forfeit_win') as forfeit:
+                    self.command(bot.kill_game, killer)
+                forfeit.assert_not_called()
+                self.assertEqual(self.games(), [])
+
+    def test_kill_does_not_record_a_second_first_place(self):
+        self.bot = admins_bot(PLAYER)
+        game = self.lobby_with_players()
+        game.started = True
+        game.players_won = 1
+        with patch('actions.rivalry.record_first_place') as record, patch('actions.send_async'):
+            self.command(bot.kill_game, PLAYER)
+        record.assert_not_called()
+        self.assertEqual(self.games(), [])
+
     def test_others_cannot_kill(self):
         self.lobby_with_players()
         self.command(bot.kill_game, PLAYER)

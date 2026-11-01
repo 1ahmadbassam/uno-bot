@@ -231,6 +231,10 @@ def kill_game(update: Update, context: CallbackContext):
 
         # The chat's game, whether or not the creator or admin plays in it
         try:
+            if (game.started and len(game.players) == 2
+                    and any(p.user.id == user.id for p in game.players)):
+                # Ending your own two-player game concedes to the opponent.
+                forfeit_win(context.bot, game, user)
             gm.end_game(chat, user, game=game)
         except NoGameInChatError:
             send_async(context.bot, chat.id, text=_("There is no running game in this chat."))
