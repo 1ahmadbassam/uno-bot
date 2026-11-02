@@ -192,7 +192,10 @@ function replayMatchesProof(events, proof) {
     var all = [].concat.apply(seen.first ? [seen.first] : [], Object.keys(seen.bySeat).map(function (p) { return seen.bySeat[p]; }));
     return all.every(function (c) { if (!(left[c] > 0)) return false; left[c]--; return true; }) ? null : 'this replay shows cards the proof never dealt';
   }
-  if (seen.first && (proof._bySeat[''] || [])[0] !== seen.first) return 'the first card turned up is not the one the seed gives';
+  // Opening draws have no seat. Draw wilds (+4, or Crazy's +8) are held aside
+  // and returned after an allowed opener is drawn, so the last such draw starts play.
+  var opening = proof._bySeat[''] || [];
+  if (seen.first && opening[opening.length - 1] !== seen.first) return 'the first card turned up is not the one the seed gives';
   var seats = Object.keys(seen.bySeat);
   for (var i = 0; i < seats.length; i++) {
     var p = seats[i], shown = seen.bySeat[p], dealt = proof._bySeat[p] || [];

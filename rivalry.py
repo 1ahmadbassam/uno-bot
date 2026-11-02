@@ -225,7 +225,7 @@ def _announce(bot, chat_id, match_id):
             result = next(r for r in results if r.id == match_id)
             season = next(s for s in seasons if s.id == result.season_id)
             season_results = [r for r in results if r.season_id == season.id]
-            text = rs.pin_text(_rivals(), season, season_results, result)
+            text = rs.pin_text(_rivals(), season, season_results, result, results.index(result) + 1)
             row = RivalryGameLog.get(match_id=match_id)
             proof = json.loads(row.events).get('proof') if row is not None else None
         with _pending_lock:
@@ -587,7 +587,7 @@ def score_undo(update: Update, context: CallbackContext):
     season_results = [r for r in results if r.season_id == season.id]
     text = "↩️ Removed %s's win from %s.\n\n%s" % (
         rivals.name(last.winner_id), rs.to_local(last.ended_at, tz).strftime('%a %d %b %H:%M'),
-        rs.standing_text(rivals, season, season_results))
+        rs.standing_text(rivals, season, season_results, overall_number=len(results)))
     dispatcher.run_async(_after_undo, context.bot, chat_id, text, pinned,
                          season_results[-1].id if season_results else None)
 

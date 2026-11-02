@@ -209,7 +209,7 @@ class Rivals:
                                   self.name(second), fmt.format(values[second]))
 
 
-def standing_text(rivals, season, season_results, tie_first=None):
+def standing_text(rivals, season, season_results, tie_first=None, overall_number=None):
     """The season score with whoever leads first"""
     first, second = rivals.ordered(season_results, tie_first=tie_first)
     lines = ["<b>%s</b>" % rivals.scoreline(season_results, first, second),
@@ -217,15 +217,18 @@ def standing_text(rivals, season, season_results, tie_first=None):
     current, _ = streaks(season_results)
     if current and current[1] >= 2:
         lines.append("🔥 %s: %d in a row" % (rivals.name(current[0]), current[1]))
-    lines.append("<i>Season %s · game %d</i>" % (escape(season.name), len(season_results)))
+    numbering = "Season %s · game %d" % (escape(season.name), len(season_results))
+    if overall_number is not None:
+        numbering += " · overall game %d" % overall_number
+    lines.append("<i>%s</i>" % numbering)
     return "\n".join(lines)
 
 
-def pin_text(rivals, season, season_results, result):
+def pin_text(rivals, season, season_results, result, overall_number=None):
     """The message posted (and pinned) after a recorded result"""
     note = OUTCOME_NOTES.get(result.outcome)
     return "🏆 <b>%s</b> wins%s!\n\n%s" % (rivals.name(result.winner_id), " (%s)" % note if note else "",
-                                         standing_text(rivals, season, season_results, result.winner_id))
+                                         standing_text(rivals, season, season_results, result.winner_id, overall_number))
 
 
 def score_text(rivals, title, results, tz, now, all_results=None, show_periods=False):

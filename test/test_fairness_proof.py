@@ -580,14 +580,16 @@ class TestScoreMessage(unittest.TestCase):
         proof = play_a_game(max_turns=30).rng.proof()
         row = SimpleNamespace(events=json.dumps({'ev': [], 'proof': proof}))
         result = SimpleNamespace(id=495, season_id=1)
+        earlier = SimpleNamespace(id=490, season_id=0)
         with patch('rivalry.time.sleep'), patch('rivalry.export'), \
-                patch('rivalry._load', return_value=([SimpleNamespace(id=1)], [result])), \
-                patch('rivalry.rs.pin_text', return_value="A 45 – 40 I"), patch('rivalry._rivals'), \
+                patch('rivalry._load', return_value=([SimpleNamespace(id=1)], [earlier, result])), \
+                patch('rivalry.rs.pin_text', return_value="A 45 – 40 I") as pin, patch('rivalry._rivals'), \
                 patch('rivalry.RivalryGameLog.get', return_value=row), \
                 patch('rivalry.RIVALRY_WEB_URL', 'https://example.org/uno-scores/'), \
                 patch('rivalry._post_score') as post:
             rivalry._pending_scores.add(495)
             rivalry._announce(SimpleNamespace(), -1, 495)
+        self.assertEqual(pin.call_args[0][2:], ([result], result, 2))
         text, markup = post.call_args[0][2], post.call_args[0][4]
         self.assertIn('🔓', text)
         self.assertIn('replay.html#495', text)
@@ -622,6 +624,40 @@ class TestExpectedWait(unittest.TestCase):
 @unittest.skipUnless(shutil.which('node'), "Node.js is not installed")
 class TestReplayPageChecker(unittest.TestCase):
     """Runs the website's checker (web/fair.js) on real proofs, so the page and the bot agree"""
+
+    def test_opening_card_after_rejected_draw_wilds(self):
+        cases = {}
+        # Fixed seeds exercise no rejection, one +4, repeated +4s, and Crazy's +8.
+        for mode, seed, rejected in (
+                ('classic', 0, []),
+                ('diablo', 56, [c.DRAW_FOUR]),
+                ('wild', 352, [c.DRAW_FOUR, c.DRAW_FOUR]),
+                ('crazy', 34, [c.DRAW_EIGHT])):
+            game = Game(SimpleNamespace(id=-1, title="Opening", type="group"))
+            game.rng = drand_rng()
+            game.rng.seed = seed.to_bytes(32, 'big')
+            game.rng.commitment = hashlib.sha256(game.rng.seed).hexdigest()
+            game.deck.rng = game.rng
+            game.mode = mode
+            players = [Player(game, user(i, name)) for i, name in ((1, 'a'), (2, 'b'))]
+            with patch('game.SHUFFLE_PLAYERS', False):
+                game.start()
+            for player in players:
+                player.draw_first_hand()
+            proof = game.rng.proof()
+            opening = [op[1] for op in proof['ops'] if op[0] == 'd' and op[2] is None]
+            self.assertEqual(opening, rejected + [str(game.last_card)])
+            events = [{'k': 'deal', 'fc': str(game.last_card),
+                       'h': {p.user.first_name: [str(card) for card in p.cards] for p in players}}]
+            cases[mode] = {'proof': proof, 'events': events}
+            tampered = copy.deepcopy(events)
+            tampered[0]['fc'] = rejected[0] if rejected else c.DRAW_FOUR
+            cases[mode + '_tampered'] = {'proof': proof, 'events': tampered}
+        out = self.run_page(cases)
+        for mode in ('classic', 'diablo', 'wild', 'crazy'):
+            self.assertIsNone(out[mode], mode)
+            self.assertEqual(out[mode + '_tampered'],
+                             'the first card turned up is not the one the seed gives')
 
     def run_page(self, cases):
         js = ''

@@ -106,11 +106,11 @@ class TestStats(unittest.TestCase):
 
     def test_pin_puts_the_leader_first(self):
         rows = results([I, I, A])
-        text = rs.pin_text(self.rivals, rs.Season(1, "2026", T0), rows, rows[-1])
+        text = rs.pin_text(self.rivals, rs.Season(1, "2026", T0), rows, rows[-1], overall_number=523)
         self.assertIn("<b>Alice</b> wins!", text)
         self.assertIn("<b>Ivan 2 – 1 Alice</b>", text)
         self.assertIn("Ivan leads by 1", text)
-        self.assertIn("Season 2026 · game 3", text)
+        self.assertIn("Season 2026 · game 3 · overall game 523", text)
 
     def test_pin_puts_the_winner_first_on_a_tie(self):
         rows = results([A, I])
