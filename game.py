@@ -20,7 +20,7 @@
 
 import logging
 import secrets
-from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS
+from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS, RANDOM_GAMEMODE_EXCLUSIONS
 from datetime import datetime, timezone
 
 from deck import Deck, DECKS
@@ -152,7 +152,9 @@ class Game(object):
 
     def pick_random_mode(self):
         """Play one of the modes, picked with the game's random source like the seats and cards"""
-        candidates = list(modes.MODES)
+        candidates = [mode for mode in modes.MODES if mode not in RANDOM_GAMEMODE_EXCLUSIONS]
+        if not candidates:
+            raise ValueError("random_gamemode_exclusions must leave at least one game mode available")
         self.mode = candidates[self.rng.randbelow(len(candidates))]
         self.rng.note('m', candidates, self.mode)
         self.random_mode = True

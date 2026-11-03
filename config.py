@@ -20,6 +20,7 @@
 
 import os
 import json
+import modes
 
 try:
     with open("config.json", "r") as f:
@@ -62,6 +63,17 @@ if isinstance(ENABLE_TRANSLATIONS, str):
     ENABLE_TRANSLATIONS = ENABLE_TRANSLATIONS.lower() in ("yes", "true", "t", "1")
 
 DEFAULT_GAMEMODE = os.getenv("DEFAULT_GAMEMODE", config.get("default_gamemode", "fast"))
+# Only affects the random roll; excluded modes remain available in the inline picker.
+RANDOM_GAMEMODE_EXCLUSIONS = config.get("random_gamemode_exclusions", [])
+if not isinstance(RANDOM_GAMEMODE_EXCLUSIONS, list) or any(
+        not isinstance(mode, str) for mode in RANDOM_GAMEMODE_EXCLUSIONS):
+    raise ValueError("random_gamemode_exclusions must be a JSON array of game mode IDs")
+RANDOM_GAMEMODE_EXCLUSIONS = frozenset(RANDOM_GAMEMODE_EXCLUSIONS)
+if RANDOM_GAMEMODE_EXCLUSIONS - modes.MODES.keys():
+    raise ValueError("Unknown mode IDs in random_gamemode_exclusions: " +
+                     ", ".join(sorted(RANDOM_GAMEMODE_EXCLUSIONS - modes.MODES.keys())))
+if not modes.MODES.keys() - RANDOM_GAMEMODE_EXCLUSIONS:
+    raise ValueError("random_gamemode_exclusions must leave at least one game mode available")
 WAITING_TIME = int(os.getenv("WAITING_TIME", config.get("waiting_time", 120)))
 TIME_REMOVAL_AFTER_SKIP = int(os.getenv("TIME_REMOVAL_AFTER_SKIP", config.get("time_removal_after_skip", 20)))
 MIN_FAST_TURN_TIME = int(os.getenv("MIN_FAST_TURN_TIME", config.get("min_fast_turn_time", 15)))
