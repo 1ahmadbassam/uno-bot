@@ -27,6 +27,7 @@ from deck import Deck, DECKS
 from fairness import FairRandom, seat_label
 import card as c
 import modes
+import r8p
 import rivalry_log
 from errors import DeckEmptyError
 
@@ -62,6 +63,8 @@ class Game(object):
         # Volcano mode (volcano.py): rolls made and eruptions so far
         self.volcano_rolls = 0
         self.volcano_eruptions = 0
+        self.r8p_pressure = r8p.BASE
+        self.r8p_expected = 0.0
         # Storm mode (storm.py): the current player used /cancel for their next card
         self.storm_cancel = False
         self.nitro_pending = None
@@ -170,6 +173,8 @@ class Game(object):
         self.draw_counter = 0
         self.volcano_rolls = 0
         self.volcano_eruptions = 0
+        self.r8p_pressure = r8p.BASE
+        self.r8p_expected = 0.0
         self.storm_cancel = False
         self.nitro_pending = None
         self.nitro_cancelled = None
@@ -198,6 +203,8 @@ class Game(object):
             return
         self.logger.debug("Next Player")
         self.turns += 1
+        if self.started and self.mode == modes.R8P.id:
+            r8p.advance(self)
         # Ensure that if turn ends while choosing a color, a color is chosen to prevent soft-lock
         if self.last_card and not self.last_card.color:
             self.last_card.color = self.rng.choose_color(self.colors)

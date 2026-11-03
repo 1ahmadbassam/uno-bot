@@ -12,6 +12,7 @@
 import logging
 
 import rivalry_log
+import r8p
 from errors import DeckEmptyError
 from fairness import seat_label
 
@@ -42,11 +43,15 @@ def roll(game, player, chosen=False):
     `chosen`: a draw by choice, whose one card stays the card they may play.
     Returns the cards the eruption gave (none when the volcano stays quiet).
     """
-    if not game.rules.volcano or game.volcano_eruptions >= MAX_ERUPTIONS:
+    combined = game.mode == 'r8p'
+    if not game.rules.volcano or (not combined and game.volcano_eruptions >= MAX_ERUPTIONS):
         return []
-    n = odds(game.volcano_rolls)
-    hit = game.rng.randbelow(n) == 0
-    game.rng.note('v', n, hit)
+    if combined:
+        hit = r8p.roll(game)
+    else:
+        n = odds(game.volcano_rolls)
+        hit = game.rng.randbelow(n) == 0
+        game.rng.note('v', n, hit)
     game.volcano_rolls += 1
     if not hit:
         return []
@@ -77,7 +82,7 @@ def send_sticker(bot, chat_id, eruption):
     from shared_vars import dispatcher
     from utils import TIMEOUT
     try:
-        dispatcher.run_async(bot.sendSticker, chat_id, sticker=STICKERS[eruption - 1],
+        dispatcher.run_async(bot.sendSticker, chat_id, sticker=STICKERS[min(eruption, len(STICKERS)) - 1],
                              timeout=TIMEOUT, disable_notification=True)
     except Exception:
         logger.exception("Failed to schedule the volcano sticker")

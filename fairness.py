@@ -247,6 +247,8 @@ class FairRandom(object):
     # ["c", color] color picked by the bot, out of the colors of the last fresh deck;
     # ["m", [modes], mode] game mode picked out of [modes] for a random-mode lobby;
     # ["v", odds, erupted] a volcano roll (volcano.py): erupted when randbelow(odds) is 0.
+    # ["rt", turn, rise, pressure] R8P: rise = 200 + randbelow(401), pressure capped at 10000.
+    # ["rv", pressure, erupted] R8P: randbelow(10000) < pressure, reset to 500 on eruption.
     # ["np", amount] Nitro's penalty (randbelow(5) + 1);
     # ["nr", value, seat, amount] Nitro's die (randbelow(6) + 1), with its target and penalty.
     # Seats are seat_label()s.

@@ -97,6 +97,7 @@ def check(proof):
     stream = Stream(proof['seed'], entropy)
     pile, grave, out, by_seat = [], [], {}, {}
     rolls = eruptions = 0
+    pressure, r8p_turn = 500, 0
     colors = c.COLORS
     for i, op in enumerate(proof['ops']):
         kind = op[0]
@@ -136,6 +137,18 @@ def check(proof):
         elif kind in ('np', 'nr'):
             if 1 + stream.randbelow(5 if kind == 'np' else 6) != op[1]:
                 return 'nitro at %d' % i, None
+        elif kind == 'rt':
+            r8p_turn += 1
+            rise = 200 + stream.randbelow(401)
+            pressure = min(10000, pressure + rise)
+            if op[1:] != [r8p_turn, rise, pressure]:
+                return 'r8p pressure at %d' % i, None
+        elif kind == 'rv':
+            hit = stream.randbelow(10000) < pressure
+            if op[1:] != [pressure, hit]:
+                return 'r8p eruption at %d' % i, None
+            if hit:
+                pressure = 500
         elif kind == 'v':
             if eruptions >= 5 or op[1] != 10 + rolls:
                 return 'volcano odds at %d' % i, None
@@ -749,7 +762,7 @@ class TestFairPlayStatistics(unittest.TestCase):
     def test_p_values(self):
         with open(INDEX_HTML, encoding='utf-8') as f:
             page = f.read()
-        start, end = page.index('function lgamma(x)'), page.index('// Number, action (skip')
+        start, end = page.index('var FAIR_MIN_GAMES ='), page.index('// Number, action (skip')
         script = page[start:end] + """
 console.log(JSON.stringify({
   binom: [binomTest(7, 9), binomTest(28, 47), binomTest(0, 0)],

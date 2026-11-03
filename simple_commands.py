@@ -104,7 +104,7 @@ def modes(update: Update, context: CallbackContext):
                                     "play it without its effect.")
     modes_explanation += "\n\n" + _("🌪️ The Tornado mode uses the conventional UNO deck without bluff challenges: "
                                     "a +4 can be answered with another +4, or with a +2 of the color that was "
-                                    "chosen, and the pile goes on to the next player. It's also the only mode where "
+                                    "chosen, and the pile goes on to the next player. In both Tornado and R8P, "
                                     "a Color Chooser can go on a Color Chooser.")
     modes_explanation += "\n\n" + _("👻 The Crazy mode deals 8 starting cards from the conventional UNO deck "
                                     "with two Wild +8s added, and the game info doesn't show how many cards "
@@ -126,6 +126,11 @@ def modes(update: Update, context: CallbackContext):
                                     "An opening Nitro's penalty is avoided on a 1. Pick 2️⃣ before playing to "
                                     "play two identical colored cards consecutively; pick it again before the first "
                                     "card to cancel. Both action effects apply after the second card.")
+    modes_explanation += "\n\n" + _("🍆 R8P combines Storm's deck and effects with Tornado stacking, without bluff challenges. "
+                                    "Its volcano starts at 5%, rises by a hidden random 2–6 percentage points each "
+                                    "completed turn up to 100%, and rolls whenever you draw on your turn. An eruption "
+                                    "adds 3 cards and resets the chance to 5%, with no eruption limit. "
+                                    "It has its own statistics; all random choices can be checked after the game.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

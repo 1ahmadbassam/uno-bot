@@ -150,7 +150,7 @@ class TestRainbow(unittest.TestCase):
             script += f.read() + '\n'
         script += page[page.index('var CARD_TYPES ='):page.index('var COL =')]
         script += page[page.index('function cardType(card)'):page.index('// Totals over the games')]
-        script += page[page.index('function lgamma(x)'):page.index('function fairBadge(m)')]
+        script += page[page.index('var FAIR_MIN_GAMES ='):page.index('function fairBadge(m)')]
         games = []
         for mode, colors in (('classic', c.COLORS), ('rainbow', c.ALL_COLORS)):
             log = log_of({'k': 'end', 'p': 'a', 'o': 'win', 't': 1, 'n': 1})
@@ -174,4 +174,5 @@ console.log(JSON.stringify(fairTests(%s).find(function (t) { return t.name === '
             color + ' ' + count for color, count in zip(
                 ('Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange'),
                 ('2.0', '2.0', '2.0', '2.0', '1.0', '1.0'))))
-        self.assertEqual(out['p'], 1)
+        self.assertIsNone(out['p'])
+        self.assertIn('20 contributing games', out['pending'])

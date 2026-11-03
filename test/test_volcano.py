@@ -46,7 +46,7 @@ class TestVolcanoMode(unittest.TestCase):
         self.assertTrue(mode.volcano)
         self.assertEqual((mode.deck, mode.hand_size, mode.auto_skip), ('classic', 7, False))
         self.assertEqual(mode.message, 'Ka-Boom! 🌋')
-        self.assertFalse(any(m.volcano for m in modes.MODES.values() if m is not mode))
+        self.assertFalse(any(m.volcano for m in modes.MODES.values() if m.id not in ('volcano', 'r8p')))
 
     def test_other_modes_never_roll(self):
         game, player = volcano_game()

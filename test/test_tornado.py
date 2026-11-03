@@ -111,7 +111,7 @@ class TestTornadoStacking(unittest.TestCase):
             game, p1, p2 = tornado_game(mode)
             game.last_card = c.Card(c.YELLOW, None, c.CHOOSE)
             game.draw_counter = 0
-            self.assertEqual(p2._card_playable(c.Card(None, None, c.CHOOSE)), mode == 'tornado', mode)
+            self.assertEqual(p2._card_playable(c.Card(None, None, c.CHOOSE)), mode in ('tornado', 'r8p'), mode)
 
     def test_a_chooser_still_goes_on_everything_else(self):
         for under in (c.Card(c.YELLOW, '7'), c.Card(c.YELLOW, c.SKIP), c.Card(c.YELLOW, None, c.DRAW_FOUR)):

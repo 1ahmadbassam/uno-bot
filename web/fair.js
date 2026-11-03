@@ -105,6 +105,7 @@ async function replayOps(proof, stream) {
   var pile = [], grave = [], out = {}, draws = [], bySeat = {}, steps = [], colors = FAIR_COLORS, rolls = 0, eruptions = 0, i, j;
   proof._steps = steps;
   var nitroAmount = null, nitroRolls = {};
+  var pressure = 500, r8pTurn = 0;
   for (i = 0; i < proof.ops.length; i++) {
     var op = proof.ops[i], kind = op[0], where = 'step ' + (i + 1) + ': ', from = stream.trace ? stream.trace.length : 0;
     var step = { i: i, kind: kind, op: op };
@@ -152,6 +153,15 @@ async function replayOps(proof, stream) {
         (nitroRolls[op[2]] || (nitroRolls[op[2]] = [])).push({ roll: op[1], amount: op[3] });
         nitroAmount = null;
       }
+    } else if (kind === 'rt') {
+      var rise = 200 + await stream.randbelow(401);
+      pressure = Math.min(10000, pressure + rise);
+      if (op[1] !== ++r8pTurn || op[2] !== rise || op[3] !== pressure) return where + 'the R8P pressure increase differs from the seed or turn sequence';
+    } else if (kind === 'rv') {
+      if (op[1] !== pressure) return where + 'the R8P eruption chance differs from its accumulated pressure';
+      var hit = await stream.randbelow(10000) < pressure;
+      if (op[2] !== hit) return where + 'the R8P eruption differs from the seed';
+      if (hit) pressure = 500;
     } else if (kind === 'v') {
       // Volcano mode: roll k (from 0) erupts with a chance of 1 in 10 + k, at most 5 times a game
       if (eruptions >= VOLCANO.max) return where + 'the volcano rolled after its last eruption';

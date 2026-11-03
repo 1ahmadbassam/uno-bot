@@ -466,6 +466,9 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     (score of the winner, score of the loser, season name) after this game.
     """
     d = summarize_log(log)
+    # The shared mechanics stay inside R8P's own statistics namespace.
+    if d.get('r8p'):
+        d = {**d, **d['r8p']}
     keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
     win, lose = result.winner_id, result.loser_id
     w, l = keys[win], keys[lose]
@@ -913,10 +916,12 @@ def summarize_log(log):
             'e': end.get('ve', eruptions.get('a', [0])[0] + eruptions.get('b', [0])[0]),
             # The eruptions the rolls made were expected to give: the chance of each roll
             # added up (the cap ends the rolls, not the sum, so this stays a fair expectation)
-            'x': round(sum(1 / volcano.odds(k) for k in range(rolls)), 4),
+            'x': end.get('vx', round(sum(1 / volcano.odds(k) for k in range(rolls)), 4)),
             'n1': first_eruption,
             **eruptions,
         }
+    if end.get('r8p'):
+        summary['r8p'] = {key: summary.pop(key) for key in ('vol', 'storm', 'tornado') if key in summary}
     summary.update(per)
     return summary
 

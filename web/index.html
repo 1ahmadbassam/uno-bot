@@ -617,6 +617,25 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
 
+    <div id="sp-r8p" class="mode-block">
+    <h3 class="mode-h">🍆 R8P</h3>
+    <p class="lede" id="r8-lede"></p>
+    <div id="r8-body">
+    <div class="card"><div class="tiles" id="r8-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Eruptions per R8P game</h3></div>
+        <div class="chart" id="c-r8-count"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span> won</span><span><i class="sw b"></i><span class="nb"></span> won</span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>R8P effects by player</h3><span class="hint" data-tip="Totals from logged R8P games only. Swaps and Drops cancelled with /cancel are excluded from their effect counts. These games do not enter Volcano, Storm or Tornado statistics.">?</span></div>
+        <div class="tbl"><table id="r8-stats"></table></div>
+      </div>
+    </div>
+    </div>
+    </div>
+
     <div id="sp-storm" class="mode-block">
     <h3 class="mode-h">🌧️ Storm</h3>
     <p class="lede" id="st-lede"></p>
@@ -2210,7 +2229,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderNitro(R), renderManualUno(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderR8P(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderNitro(R), renderManualUno(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2276,6 +2295,45 @@ function renderVolcano(R) {
       '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
   });
   $('vo-hit').innerHTML = rows.join('');
+  return true;
+}
+
+function renderR8P(R) {
+  var games = R.ms.filter(function (m) { return m.mode === 'r8p'; });
+  $('sp-r8p').style.display = games.length ? '' : 'none';
+  if (!games.length) return false;
+  var logged = games.filter(function (m) { return m.d && m.d.r8p; });
+  $('r8-lede').textContent = 'Storm cards and Tornado stacking, with a rising volcano: 5% initially, +2–6 random percentage points per completed turn up to 100%. Each eruption adds 3 cards and resets the chance to 5%; no eruption limit. ' + logged.length + ' of ' + games.length + ' selected R8P games logged. R8P counts only in its own mode statistics.';
+  $('r8-body').style.display = logged.length ? '' : 'none';
+  if (!logged.length) return true;
+  var wins = { a: 0, b: 0 }, rolls = 0, eruptions = 0, expected = 0;
+  var counts = [0, 1, 2, 3, 4, 5].map(function () { return { a: 0, b: 0 }; });
+  var fields = [
+    ['Eruptions taken', 'vol', 0], ['Volcano cards received', 'vol', 1], ['Erupted on while on UNO', 'vol', 2],
+    ['Swaps', 'storm', 'sw'], ['Drops', 'storm', 'dr'], ['+1s played', 'storm', 'p1'],
+    ['Cancelled with /cancel', 'storm', 'cx'], ['Cards returned by Drops', 'storm', 'back'],
+    ['+4 on +4', 'tornado', 's4'], ['+2 on +4', 'tornado', 's2'],
+    ['Color Chooser on Color Chooser', 'tornado', 'ww'], ['Penalty piles drawn', 'tornado', 'pen'],
+    ['Biggest penalty drawn', 'tornado', 'big']
+  ];
+  var totals = { a: fields.map(function () { return 0; }), b: fields.map(function () { return 0; }) };
+  games.forEach(function (m) { wins[m.w]++; });
+  logged.forEach(function (m) {
+    var d = m.d.r8p, v = d.vol;
+    rolls += v.r; eruptions += v.e; expected += v.x;
+    counts[Math.min(5, v.e)][m.w]++;
+    P.forEach(function (p) { fields.forEach(function (f, i) {
+      var value = d[f[1]][p][f[2]] || 0;
+      totals[p][i] = f[2] === 'big' ? Math.max(totals[p][i], value) : totals[p][i] + value;
+    }); });
+  });
+  $('r8-tiles').innerHTML = tile('Eruptions', eruptions, (eruptions / logged.length).toFixed(1) + ' per logged game') +
+    tile('Volcano rolls', rolls, 'Draws checked for an eruption') +
+    tile('Expected by the recorded chances', expected.toFixed(1), 'observed ' + eruptions, 'Sum of the actual hidden eruption probabilities at each draw, including resets. Descriptive, not a statistical test.') +
+    pairTile('Win rate in R8P', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'R8P games only.', wins.a + ' of ' + games.length, wins.b + ' of ' + games.length);
+  $('r8-stats').innerHTML = '<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>' +
+    fields.map(function (f, i) { return '<tr><td>' + f[0] + '</td><td class="num">' + totals.a[i] + '</td><td class="num">' + totals.b[i] + '</td></tr>'; }).join('');
+  stackBy($('c-r8-count'), ['0', '1', '2', '3', '4', '5+'], counts, function (i) { return (i === 5 ? '5 or more' : i) + ' eruptions'; });
   return true;
 }
 
@@ -2743,7 +2801,7 @@ function holm(ps) {
 var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11, 13]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow', nitro: 'nitro' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow', nitro: 'nitro', r8p: 'storm' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {

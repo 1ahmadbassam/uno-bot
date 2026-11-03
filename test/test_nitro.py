@@ -568,14 +568,16 @@ class TestNitro(unittest.TestCase):
         script += '\nvar P = ["a", "b"]; var COL = { a: "red", b: "blue" };\n'
         script += page[page.index('var CARD_TYPES ='):page.index('var COL =')]
         script += page[page.index('function cardType(card)'):page.index('// Totals over the games')]
-        script += page[page.index('function lgamma(x)'):page.index('function fairBadge(m)')]
+        script += page[page.index('var FAIR_MIN_GAMES ='):page.index('function fairBadge(m)')]
         script += page[page.index('function renderNitro(R)'):page.index('function renderManualUno(R)')]
         script += '''
 var els = {}, charts = [];
 function $(id) { return els[id] || (els[id] = { style: {} }); }
 function sum(a) { return a.reduce(function (s, n) { return s + n; }, 0); }
 function sw() { return ''; }
+function nm(p) { return p; }
 function f1(n) { return n.toFixed(1); }
+function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 function share(n, d) { return d ? n / d : 0; }
 function pct(n) { return n; }
 function pairTile(title, a, b) { return title + ':' + a + '/' + b; }

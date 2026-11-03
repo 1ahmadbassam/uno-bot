@@ -128,6 +128,8 @@ class GameManager(object):
             'turns': getattr(game, 'turns', 0),
             'volcano_rolls': getattr(game, 'volcano_rolls', 0),
             'volcano_eruptions': getattr(game, 'volcano_eruptions', 0),
+            'r8p_pressure': game.r8p_pressure,
+            'r8p_expected': game.r8p_expected,
             'storm_cancel': getattr(game, 'storm_cancel', False),
             'nitro_pending': game.nitro_pending,
             'nitro_cancelled': game.nitro_cancelled,
@@ -168,6 +170,8 @@ class GameManager(object):
         game.turns = data.get('turns', 0)
         game.volcano_rolls = data.get('volcano_rolls', 0)
         game.volcano_eruptions = data.get('volcano_eruptions', 0)
+        game.r8p_pressure = data.get('r8p_pressure', game.r8p_pressure)
+        game.r8p_expected = data.get('r8p_expected', 0.0)
         game.storm_cancel = data.get('storm_cancel', False)
         game.nitro_pending = data.get('nitro_pending')
         game.nitro_cancelled = data.get('nitro_cancelled')

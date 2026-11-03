@@ -484,15 +484,15 @@ function renderStats() {
     else if (e.k === 'roll') { x.rolls++; if (e.roll === 1) { x.ones++; if (!e.opening) x.returned += e.taken == null ? e.amount : e.taken; } }
   });
   var rows = [['Cards played', 'played'], ['Action and wild cards', 'actions'], ['Chosen draws', 'vol'], ['Penalty cards drawn', 'forced'], ['Passes', 'passes'], ['Largest hand', 'max'], ['Times on one card', 'uno']];
-  if (G.mode === 'volcano') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
-  if (G.mode === 'tornado') rows.splice(4, 0, ['🌪️ Stacked on a +4', 'stacks'], ['🌪️ Color Chooser on Color Chooser', 'ww'], ['🌪️ Biggest pile drawn', 'big']);
+  if (G.mode === 'volcano' || G.mode === 'r8p') rows.splice(4, 0, ['🌋 Volcano cards', 'erupt']);
+  if (G.mode === 'tornado' || G.mode === 'r8p') rows.splice(4, 0, ['🌪️ Stacked on a +4', 'stacks'], ['🌪️ Color Chooser on Color Chooser', 'ww'], ['🌪️ Biggest pile drawn', 'big']);
   if (G.mode === 'diablo') rows.splice(4, 0, ['💀 Diablos played', 'dia'], ['💀 Diablos on their best color', 'lk']);
   if (G.mode === 'nitro') rows.splice(4, 0, ['⚡ Nitros played', 'nit'], ['Nitros on their best color', 'lk'], ['Die rolls', 'rolls'],
     ['Rolled a 1', 'ones'], ['Nitro cards received', 'received'], ['Cards sent back', 'returned'], ['Double plays completed', 'doubles']);
   if (G.mode === 'xeno') rows.splice(4, 0, ['👽 Xenos played', 'xen'], ['👽 Xenos on their best color', 'lk'], ['👽 Alphas played', 'alp'],
     ['👽 X-rule plays', 'x5'], ['👽 Draws to find the color', 'hu'], ['👽 Cards drawn finding it', 'hc']);
   if (G.mode === 'crazy') rows.splice(4, 0, ['👻 +8s played', 'p8'], ['👻 Cards drawn from +8s', 't8']);
-  if (G.mode === 'storm') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
+  if (G.mode === 'storm' || G.mode === 'r8p') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
     rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + s.a[r[1]] + '</td><td class="num">' + s.b[r[1]] + '</td></tr>'; }).join('') +
     '<tr><td>Thinking time per move</td><td class="num">' + (s.a.n ? (s.a.think / s.a.n).toFixed(1) + 's' : '–') + '</td><td class="num">' + (s.b.n ? (s.b.think / s.b.n).toFixed(1) + 's' : '–') + '</td></tr>';
@@ -507,7 +507,7 @@ function renderGame(data, id, step) {
   var seen = 0;
   G.events.forEach(function (e) { if (e.k === 'erupt') { e._others = Math.max(0, e.i - seen - 1); seen = e.i; } });
   // Tornado: plays log the pile they went on (pi) and the card under them (on)
-  if (G.mode === 'tornado') {
+  if (G.mode === 'tornado' || G.mode === 'r8p') {
     G.events.forEach(function (e) {
       if (e.k === 'play') {
         var add = e.c === 'draw_four' ? 4 : /_draw$/.test(e.c) ? 2 : 0;
@@ -617,7 +617,7 @@ function hex64(v) { var h = v.toString(16); return '0000000000000000'.slice(h.le
 
 // The "Show the math" section: one row per random pick, built when it is opened
 function renderMath(proof, entropyLabel) {
-  var steps = (proof._steps || []).filter(function (s) { return ['d', 'c', 's', 'm', 'v', 'np', 'nr'].indexOf(s.kind) >= 0; });
+  var steps = (proof._steps || []).filter(function (s) { return ['d', 'c', 's', 'm', 'v', 'np', 'nr', 'rt', 'rv'].indexOf(s.kind) >= 0; });
   var el = document.createElement('details');
   el.className = 'math';
   el.innerHTML = '<summary>Show the math behind every card (' + plural(steps.length, 'random pick') + ')</summary>' +
@@ -646,6 +646,14 @@ function renderMath(proof, entropyLabel) {
         what = '⚡ ' + (s.kind === 'np' ? 'Penalty +' : 'Die roll ') + s.op[1];
         who = '<span class="rej">Nitro ' + (s.kind === 'np' ? 'penalty size' : 'die') + '</span>';
         pick = s.op[1] + ' of ' + (s.kind === 'np' ? 5 : 6);
+      } else if (s.kind === 'rt') {
+        what = '🍆 Pressure ' + (s.op[3] / 100).toFixed(2) + '%';
+        who = '<span class="rej">R8P turn ' + s.op[1] + ', rise +' + (s.op[2] / 100).toFixed(2) + ' percentage points</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of 401';
+      } else if (s.kind === 'rv') {
+        what = s.op[2] ? '🌋 Eruption · reset to 5%' : 'Volcano quiet';
+        who = '<span class="rej">R8P draw, eruption chance ' + (s.op[1] / 100).toFixed(2) + '%</span>';
+        pick = (picks[0] ? picks[0].result + 1 : 1) + ' of 10000';
       } else if (s.kind === 'v') {
         what = s.op[2] ? '🌋 Eruption' : 'Volcano quiet';
         who = '<span class="rej">volcano roll ' + s.roll + ', erupts on 1 of ' + s.op[1] + '</span>';
