@@ -279,6 +279,8 @@ def finish(game, winner_id, outcome):
     if game.rules.storm:
         # A Storm game, even when nobody played a Storm card (rivalry_stats.summarize_log)
         end['st'] = 1
+    if game.mode == 'thunderstorm':
+        end['ts'] = 1
     if game.rules.tornado:
         # A Tornado game: its stacks can only be told apart from the classic ones by the mode
         end['tn'] = 1

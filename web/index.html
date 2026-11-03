@@ -655,6 +655,25 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     </div>
 
+    <div id="sp-thunderstorm" class="mode-block">
+    <h3 class="mode-h">⛈ Thunderstorm</h3>
+    <p class="lede" id="ts-lede"></p>
+    <div id="ts-body">
+    <div class="card"><div class="tiles" id="thunderstorm-tiles" style="margin-top:0"></div></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="ch"><h3>Thunderstorm cards per game</h3><span class="hint" data-tip="Swaps, Drops and +1s played with their effect, per logged Thunderstorm game. Cancelled effects are excluded.">?</span></div>
+        <div class="chart" id="c-ts-cards"></div>
+        <div class="legend"><span><i class="sw a"></i><span class="na"></span></span><span><i class="sw b"></i><span class="nb"></span></span></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h3>Swapping and winning</h3><span class="hint" data-tip="Win rates in logged Thunderstorm games by how often each player swapped. Thunderstorm games count only toward their own mode statistics.">?</span></div>
+        <div class="tbl"><table id="ts-win"></table></div>
+      </div>
+    </div>
+    </div>
+    </div>
+
     <div id="sp-tornado" class="mode-block">
     <h3 class="mode-h">🌪️ Tornado</h3>
     <p class="lede" id="tn-lede"></p>
@@ -2229,7 +2248,7 @@ function renderInside(R) {
 // A block for each mode with rules of its own; each one shows only when the selection
 // has games of its mode, and the section (with its link) only when one of them shows
 function renderSpecial(R) {
-  var shown = [renderVolcano(R), renderR8P(R), renderStorm(R), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderNitro(R), renderManualUno(R)].filter(Boolean).length;
+  var shown = [renderVolcano(R), renderR8P(R), renderStorm(R), renderStorm(R, 'thunderstorm'), renderTornado(R), renderCrazy(R), renderDiablo(R), renderXeno(R), renderNitro(R), renderManualUno(R)].filter(Boolean).length;
   $('special').style.display = $('nav-special').style.display = shown ? '' : 'none';
 }
 
@@ -2339,27 +2358,31 @@ function renderR8P(R) {
 
 // The Storm mode (storm.py); true when its block shows. Swaps and Drops played after
 // /cancel had no effect, so they only count as cancels.
-function renderStorm(R) {
-  var games = R.ms.filter(function (m) { return m.mode === 'storm'; });
-  $('sp-storm').style.display = games.length ? '' : 'none';
+function renderStorm(R, mode) {
+  mode = mode || 'storm';
+  var name = mode === 'thunderstorm' ? 'Thunderstorm' : 'Storm';
+  function el(id) { return $(mode === 'storm' ? id : id.replace('storm', 'thunderstorm').replace('st-', 'ts-')); }
+  var games = R.ms.filter(function (m) { return m.mode === mode; });
+  el('sp-storm').style.display = games.length ? '' : 'none';
   if (!games.length) return false;
-  var logged = games.filter(function (m) { return m.d && m.d.storm; });
+  var logged = games.filter(function (m) { return m.d && m.d[mode]; });
   var wins = { a: 0, b: 0 };
   games.forEach(function (m) { wins[m.w]++; });
   if (!logged.length) {
-    $('st-lede').innerHTML = plural(games.length, 'Storm game') + ' in the selection, none of them logged turn by turn yet.';
-    $('st-body').style.display = 'none';
+    el('st-lede').innerHTML = plural(games.length, name + ' game') + ' in the selection, none of them logged turn by turn yet.';
+    el('st-body').style.display = 'none';
     return true;
   }
-  $('st-body').style.display = '';
-  $('st-lede').innerHTML = 'A deck without 0s, with three cards of its own: +1 gives the other player a card, Swap exchanges the two hands and Drop ' +
+  el('st-body').style.display = '';
+  el('st-lede').innerHTML = (mode === 'thunderstorm' ? 'Wild’s numbers 1–5, four copies of every colored card (including Swap, Drop and +1), and six each of Wild and +4. ' : 'A deck without 0s. ') +
+    '+1 gives each opponent a card, Swap exchanges hands with the next player and Drop ' +
     'deals a new hand of the same size. /cancel before a Swap or Drop plays it without its effect. ' +
-    plural(logged.length, 'of the ' + games.length + ' Storm game') + ' in the selection were logged.';
+    plural(logged.length, 'of the ' + games.length + ' ' + name + ' game') + ' in the selection were logged.';
   var keys = ['sw', 'dr', 'p1', 'cx', 'gain', 'back', 'up', 'uno'], tot = {};
   var swapped = { more: { a: [0, 0], b: [0, 0] }, less: { a: [0, 0], b: [0, 0] }, same: { a: [0, 0], b: [0, 0] } };
   P.forEach(function (p) { tot[p] = {}; keys.forEach(function (k) { tot[p][k] = 0; }); });
   logged.forEach(function (m) {
-    var st = m.d.storm;
+    var st = m.d[mode];
     P.forEach(function (p) {
       var o = p === 'a' ? 'b' : 'a', mine = st[p] || {}, theirs = st[o] || {};
       keys.forEach(function (k) { tot[p][k] += mine[k] || 0; });
@@ -2372,7 +2395,7 @@ function renderStorm(R) {
   function f(v) { return (+v).toFixed(1); }
   function signed(v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + plural(Math.abs(v), 'card'); }
   var t = [];
-  t.push(pairTile('Win rate in Storm', pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every Storm game in the selection, logged or not.',
+  t.push(pairTile('Win rate in ' + name, pct(share(wins.a, games.length), 0), pct(share(wins.b, games.length), 0), 'Every ' + name + ' game in the selection, logged or not.',
     wins.a + ' of ' + games.length, wins.b + ' of ' + games.length));
   t.push(pairTile('Swaps', tot.a.sw, tot.b.sw, 'Hands swapped, and the cards a player gained (+) or got rid of (−) by swapping, all games added up.',
     signed(tot.a.gain), signed(tot.b.gain)));
@@ -2382,16 +2405,16 @@ function renderStorm(R) {
     plural(tot.a.back, 'card'), plural(tot.b.back, 'card')));
   t.push(pairTile('+1s played', tot.a.p1, tot.b.p1, 'Each one made the other player draw a card at once.', f(tot.a.p1 / n) + ' per game', f(tot.b.p1 / n) + ' per game'));
   t.push(pairTile('Cancelled with /cancel', tot.a.cx, tot.b.cx, 'Swaps and Drops played after /cancel, so without their effect.'));
-  $('storm-tiles').innerHTML = t.join('');
+  el('storm-tiles').innerHTML = t.join('');
 
   var cats = ['Swaps', 'Drops', '+1s'], ks = ['sw', 'dr', 'p1'];
-  barChart($('c-st-cards'), {
+  barChart(el('c-st-cards'), {
     cats: cats, grouped: true, yFmt: function (v) { return f(v); },
     stacks: P.map(function (p) { return { color: COL[p], values: ks.map(function (k) { return tot[p][k] / n; }) }; }),
     tip: function (ci) {
       return '<b>' + cats[ci] + '</b>' + P.map(function (p) {
         return row(sw(p) + nm(p), f(tot[p][ks[ci]] / n) + ' <span class="m">' + tot[p][ks[ci]] + ' in all</span>');
-      }).join('') + '<div class="m">per logged Storm game</div>';
+      }).join('') + '<div class="m">per logged ' + name + ' game</div>';
     }
   });
 
@@ -2401,7 +2424,7 @@ function renderStorm(R) {
     rows.push('<tr><td>' + r[0] + '</td><td class="num' + (sa > sb ? ' win' : '') + '">' + pct(sa, 0) + '<span class="meta">won ' + x.a[0] + ' of ' + x.a[1] + '</span></td>' +
       '<td class="num' + (sb > sa ? ' win' : '') + '">' + pct(sb, 0) + '<span class="meta">won ' + x.b[0] + ' of ' + x.b[1] + '</span></td></tr>');
   });
-  $('st-win').innerHTML = rows.join('');
+  el('st-win').innerHTML = rows.join('');
   return true;
 }
 
@@ -2801,7 +2824,7 @@ function holm(ps) {
 var GROUPS = [[0, 12], [1, 2, 3, 6, 7, 8], [4, 5, 9, 10, 11, 13]], GROUP_LABELS = ['Number', 'Action', 'Wild'];
 function grouped(types) { return GROUPS.map(function (g) { return sum(g.map(function (i) { return types[i] || 0; })); }); }
 // The deck of each game mode, from scores.json; data written before it was there only knew these
-var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow', nitro: 'nitro', r8p: 'storm' }, DECK_MIX = {};
+var MODE_DECKS = { classic: 'classic', fast: 'classic', wild: 'wild', volcano: 'classic', storm: 'storm', tornado: 'classic', crazy: 'crazy', diablo: 'diablo', xeno: 'xeno', rainbow: 'rainbow', nitro: 'nitro', r8p: 'storm', thunderstorm: 'thunderstorm' }, DECK_MIX = {};
 function deckMix(mode) {
   var deck = MODE_DECKS[mode] || (mode ? null : 'classic');
   if (deck && !DECK_MIX[deck] && typeof fullDeck === 'function') {

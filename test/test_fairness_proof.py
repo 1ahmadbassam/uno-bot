@@ -36,6 +36,9 @@ INDEX_HTML = os.path.join(os.path.dirname(__file__), os.pardir, 'web', 'index.ht
 # --- A reference checker: the same algorithm as web/fair.js -------------
 
 def full_deck(mode):
+    if mode == 'thunderstorm':
+        values = ['1', '2', '3', '4', '5', 'draw', 'reverse', 'skip', 'swap', 'drop', 'plus1']
+        return ['%s_%s' % (color, value) for color in 'rbgy' for value in values for _ in range(4)] + ['colorchooser', 'draw_four'] * 6
     if mode == 'nitro':
         return ['%s_%s' % (color, value) for color in 'rbgy'
                 for value in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'draw', 'reverse', 'skip']

@@ -131,6 +131,9 @@ def modes(update: Update, context: CallbackContext):
                                     "completed turn up to 100%, and rolls whenever you draw on your turn. An eruption "
                                     "adds 3 cards and resets the chance to 5%, with no eruption limit. "
                                     "It has its own statistics; all random choices can be checked after the game.")
+    modes_explanation += "\n\n" + _("⛈ Thunderstorm mixes Wild and Storm: numbers 1–5, four of every colored card "
+                                    "including Swap, Drop and +1, and six each of Wild and +4. Storm effects and "
+                                    "/cancel apply, with separate Thunderstorm statistics.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,

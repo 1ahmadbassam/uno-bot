@@ -61,9 +61,11 @@ RAINBOW = Mode('rainbow', N_("🌈 Rainbow mode"), N_('Over the Rainbow 🌈'), 
 NITRO = Mode('nitro', N_("⚡ Nitro mode"), N_('Unleash the Nitro ⚡'), deck='nitro', bluff=False, nitro=True)
 R8P = Mode('r8p', N_("🍆 R8P mode"), N_('Prepare your holes 🍆'), deck='storm',
            volcano=True, storm=True, tornado=True, bluff=False)
+THUNDERSTORM = Mode('thunderstorm', N_("⛈ Thunderstorm mode"), N_('Riders on the storm ⛈'),
+                    deck='thunderstorm', storm=True)
 
 # In the order the inline menu offers them
-MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO, RAINBOW, NITRO, R8P)}
+MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO, CRAZY, DIABLO, XENO, RAINBOW, NITRO, R8P, THUNDERSTORM)}
 
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode

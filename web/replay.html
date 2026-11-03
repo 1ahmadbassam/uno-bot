@@ -492,7 +492,7 @@ function renderStats() {
   if (G.mode === 'xeno') rows.splice(4, 0, ['👽 Xenos played', 'xen'], ['👽 Xenos on their best color', 'lk'], ['👽 Alphas played', 'alp'],
     ['👽 X-rule plays', 'x5'], ['👽 Draws to find the color', 'hu'], ['👽 Cards drawn finding it', 'hc']);
   if (G.mode === 'crazy') rows.splice(4, 0, ['👻 +8s played', 'p8'], ['👻 Cards drawn from +8s', 't8']);
-  if (G.mode === 'storm' || G.mode === 'r8p') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
+  if (G.mode === 'storm' || G.mode === 'r8p' || G.mode === 'thunderstorm') rows.splice(4, 0, ['🌧️ Swaps', 'swaps'], ['🌧️ Drops', 'drops'], ['Cancelled with /cancel', 'cancels']);
   $('stats').innerHTML = '<tr><th></th><th class="num"><i class="sw a"></i>' + nm('a') + '</th><th class="num"><i class="sw b"></i>' + nm('b') + '</th></tr>' +
     rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + s.a[r[1]] + '</td><td class="num">' + s.b[r[1]] + '</td></tr>'; }).join('') +
     '<tr><td>Thinking time per move</td><td class="num">' + (s.a.n ? (s.a.think / s.a.n).toFixed(1) + 's' : '–') + '</td><td class="num">' + (s.b.n ? (s.b.think / s.b.n).toFixed(1) + 's' : '–') + '</td></tr>';

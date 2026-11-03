@@ -469,6 +469,8 @@ def game_stats_text(rivals, number, result, log, tz, label, score_after=None, pa
     # The shared mechanics stay inside R8P's own statistics namespace.
     if d.get('r8p'):
         d = {**d, **d['r8p']}
+    if d.get('thunderstorm'):
+        d = {**d, 'storm': d['thunderstorm']}
     keys = {rivals.a_id: 'a', rivals.b_id: 'b'}
     win, lose = result.winner_id, result.loser_id
     w, l = keys[win], keys[lose]
@@ -922,6 +924,8 @@ def summarize_log(log):
         }
     if end.get('r8p'):
         summary['r8p'] = {key: summary.pop(key) for key in ('vol', 'storm', 'tornado') if key in summary}
+    if end.get('ts'):
+        summary['thunderstorm'] = summary.pop('storm')
     summary.update(per)
     return summary
 
