@@ -742,7 +742,7 @@ footer { color: var(--muted); font-size: 12px; padding: 32px 0 40px; }
     </div>
     <div class="grid two" style="margin-top:14px">
       <div class="card span2">
-        <div class="ch"><h3>Randomness tests</h3><span class="ctl"><span class="seg" id="fp-scope"><button type="button" data-v="logged" class="on">Logged games</button><button type="button" data-v="fair">Provably fair</button></span><span class="hint" data-tip="Each row asks: if every card were dealt at random, how often would a result at least this lopsided happen by chance? That chance is the p-value. The bar grows as a result gets more surprising (full at 0.1%).">?</span></span></div>
+        <div class="ch"><h3>Randomness tests</h3><span class="ctl"><span class="seg" id="fp-scope"><button type="button" data-v="logged" class="on">Logged games</button><button type="button" data-v="fair">Provably fair</button></span><span class="hint" data-tip="Tests start at 20 contributing games; chi-square tests also need at least 5 expected observations per outcome. P-values and verdicts use the Holm correction across eligible tests. During-play totals and wins are observations because choices and skill affect them.">?</span></span></div>
         <div class="tbl"><table id="fp-tests"></table></div>
         <div class="note" id="fp-note"></div>
       </div>
@@ -2663,6 +2663,8 @@ function renderXeno(R) {
 // (fair.js checks those in the browser, the same way the replay page does)
 var FAIR_CHECKS = {};   // match id -> verifyProof result, for this visit
 var fairRunning = false;
+// Twenty games is a reporting policy; five expected per bin guards the chi-square approximation.
+var FAIR_MIN_GAMES = 20, FAIR_MIN_EXPECTED = 5;
 function provable(m) { return m.f === 'drand' || m.f === 'players'; }
 
 function lgamma(x) {
@@ -2723,6 +2725,7 @@ function gammaQ(a, x) {
 function chiTest(observed, expected) {
   var x = 0, df = -1;
   for (var i = 0; i < observed.length; i++) {
+    if (expected[i] > 0 && expected[i] < FAIR_MIN_EXPECTED) return null;
     if (expected[i] > 0) { x += Math.pow(observed[i] - expected[i], 2) / expected[i]; df++; }
   }
   return df > 0 ? gammaQ(df / 2, x / 2) : null;
@@ -2764,38 +2767,69 @@ var VERDICTS = { ok: 'As expected', watch: 'Worth watching', odd: 'Unusual' };
 function fairTests(list) {
   var two = list.filter(function (m) { return m.d && m.d.a && m.d.b; });
   var tests = [];
+  function add(test, calculate, expected) {
+    test.p = null;
+    if ((test.contributing == null ? test.games : test.contributing) < FAIR_MIN_GAMES) test.pending = 'Need ' + FAIR_MIN_GAMES + ' contributing games';
+    else if (expected && expected.some(function (n) { return n > 0 && n < FAIR_MIN_EXPECTED; })) test.pending = 'Need 5 expected per outcome';
+    else test.p = calculate();
+    tests.push(test);
+  }
   function handSize(s) { return s.hd ? sum(s.hd) : 7; }
-  function share(name, tip, games, unit) {
+  function share(name, tip, games, observation) {
     var obsA = sum(games.map(function (g) { return g.kA; })), obsB = sum(games.map(function (g) { return g.kB; }));
     var expA = sum(games.map(function (g) { return (g.kA + g.kB) * g.nA / (g.nA + g.nB || 1); }));
-    tests.push({
-      name: name, tip: tip, games: games.length,
-      expect: pairText(f1(expA), f1(obsA + obsB - expA)), seen: pairText(obsA, obsB) + (unit ? ' <span class="m">' + unit + '</span>' : ''),
-      p: shareTest(games.map(function (g) { return { nA: g.nA, nB: g.nB, K: g.kA + g.kB }; }), obsA)
+    var informative = games.filter(function (g) { return g.nA && g.nB && g.kA + g.kB > 0 && g.kA + g.kB < g.nA + g.nB; });
+    var test = { name: name, tip: tip, games: games.length, contributing: informative.length, section: observation ? 'During play · observations' : 'Between players · opening hands',
+      sample: (observation ? '' : informative.length + ' contributing · ') + pairText(sum(games.map(function (g) { return g.nA; })), sum(games.map(function (g) { return g.nB; }))) + ' cards sampled',
+      expect: pairText(f1(expA), f1(obsA + obsB - expA)), seen: pairText(obsA, obsB) };
+    if (observation) { test.games = games.length; test.p = null; test.pending = 'Observation'; tests.push(test); }
+    else add(test, function () {
+      return shareTest(informative.map(function (g) { return { nA: g.nA, nB: g.nB, K: g.kA + g.kB }; }),
+        sum(informative.map(function (g) { return g.kA; })));
     });
   }
 
   var firsts = two.filter(function (m) { return m.d.first === 'a' || m.d.first === 'b'; });
   var fa = firsts.filter(function (m) { return m.d.first === 'a'; }).length;
-  tests.push({
-    name: 'Who takes the first turn', games: firsts.length,
+  add({
+    name: 'Who takes the first turn', games: firsts.length, section: 'Between players · seating',
     tip: 'The bot shuffles the seats before every game, so each of you should go first about half the time.',
-    expect: pairText(f1(firsts.length / 2), f1(firsts.length / 2)), seen: pairText(fa, firsts.length - fa), p: binomTest(fa, firsts.length)
-  });
+    expect: pairText(f1(firsts.length / 2), f1(firsts.length / 2)), seen: pairText(fa, firsts.length - fa)
+  }, function () { return binomTest(fa, firsts.length); });
 
   var dealt = two.filter(function (m) { return m.d.deal && m.d.deal.a && m.d.deal.b; });
   share('Action cards in the opening hands', 'Skips, reverses and +2s (and Swaps, Drops and +1s in Storm games) in each starting hand. Both hands come from the same shuffled deck, so each of you should get them in proportion to your hand size.',
     dealt.map(function (m) { return { nA: handSize(m.d.a), nB: handSize(m.d.b), kA: m.d.deal.a[0], kB: m.d.deal.b[0] }; }));
-  share('Wild cards in the opening hands', 'Wilds and +4s in each starting hand, compared the same way.',
+  share('Wild cards in the opening hands', 'Colorless special cards in each starting hand: wilds, +4s, +8s, Diablos, Xenos and Nitros, as available in the mode. Compares the players within each game in proportion to their hand sizes.',
     dealt.map(function (m) { return { nA: handSize(m.d.a), nB: handSize(m.d.b), kA: m.d.deal.a[1], kB: m.d.deal.b[1] }; }));
 
+  var detailed = two.filter(function (m) { return m.d.a.hd && m.d.b.hd; });
+  [['Skips', [1]], ['Reverses', [2]], ['Draw penalties', [3, 5, 9]]].forEach(function (category) {
+    share(category[0] + ' in the opening hands', 'Compares the two players within each game, allowing for different hand sizes and modes. Draw penalties include +2, +4 and +8 cards. Only games where the combined hands contain both this kind of card and other cards contribute to the test.',
+      detailed.map(function (m) { return { nA: handSize(m.d.a), nB: handSize(m.d.b),
+        kA: sum(category[1].map(function (i) { return m.d.a.hd[i] || 0; })),
+        kB: sum(category[1].map(function (i) { return m.d.b.hd[i] || 0; })) }; }));
+  });
+  COLOR_KEYS.forEach(function (color, i) {
+    var colored = detailed.filter(function (m) { return m.d.a.hc && m.d.b.hc && (m.d.a.hc[i] || m.d.b.hc[i]); });
+    if (i >= 4 && !colored.length) return;
+    share(COLOR_LABELS[i] + ' cards in the opening hands', 'Compares each player\'s share of this color within the same game, relative to their full opening hand size, including wilds.',
+      colored.map(function (m) { return { nA: handSize(m.d.a), nB: handSize(m.d.b), kA: m.d.a.hc[i] || 0, kB: m.d.b.hc[i] || 0 }; }));
+  });
+
   var drew = two.filter(function (m) { return m.d.a.dt && m.d.b.dt; });
-  share('Action and wild cards drawn', 'Of all the cards each of you drew during the games (penalties and chosen draws), how many were action or wild cards. Every draw is a random pick from the same pile, whoever draws it.',
+  share('Action and wild cards drawn', 'Counts adjusted for how many cards each player drew. Observation only: decisions, penalties, the changing pile and when the game ends affect these totals, so they do not support an exact fairness p-value.',
     drew.map(function (m) {
       var a = m.d.a.dt, b = m.d.b.dt;
       // Neither numbers nor Alphas, which do nothing either
       return { nA: sum(a), nB: sum(b), kA: sum(a) - a[0] - (a[12] || 0), kB: sum(b) - b[0] - (b[12] || 0) };
-    }).filter(function (g) { return g.nA && g.nB; }));
+    }).filter(function (g) { return g.nA && g.nB; }), true);
+  [['Action cards drawn', GROUPS[1]], ['Wild cards drawn', GROUPS[2]]].forEach(function (category) {
+    share(category[0], 'Observed totals, adjusted for each player\'s number of draws. Decisions and the changing pile affect these counts; this row is descriptive.',
+      drew.map(function (m) { return { nA: sum(m.d.a.dt), nB: sum(m.d.b.dt),
+        kA: sum(category[1].map(function (i) { return m.d.a.dt[i] || 0; })),
+        kB: sum(category[1].map(function (i) { return m.d.b.dt[i] || 0; })) }; }).filter(function (g) { return g.nA && g.nB; }), true);
+  });
 
   var hands = two.filter(function (m) { return m.d.a.hd && m.d.b.hd && deckMix(m.mode); });
   var seenTypes = [0, 0, 0], expTypes = [0, 0, 0], seenColors = COLOR_KEYS.map(function () { return 0; }), expColors = COLOR_KEYS.map(function () { return 0; });
@@ -2807,36 +2841,41 @@ function fairTests(list) {
     var total = sum(m.d.a.hc || []) + sum(m.d.b.hc || []);
     spec.colors.forEach(function (color) { expColors[COLOR_KEYS.indexOf(color)] += total / spec.colors.length; });
   });
-  tests.push({
-    name: 'Kinds of card dealt', games: hands.length,
+  add({
+    name: 'Kinds of card dealt', games: hands.length, section: 'Overall · opening deck',
     tip: 'Number, action and wild cards across both opening hands, against their share of a fresh deck of the game mode.',
     expect: listText(GROUP_LABELS, expTypes.map(f1)), seen: listText(GROUP_LABELS, seenTypes),
-    p: hands.length ? chiTest(seenTypes, expTypes) : null
-  });
+  }, function () { return chiTest(seenTypes, expTypes); }, expTypes);
   var colorTotal = sum(seenColors);
   var shownColors = COLOR_LABELS.map(function (_, i) { return i; }).filter(function (i) {
     return i < 4 || seenColors[i] || expColors[i];
   });
-  tests.push({
-    name: 'Colors dealt', games: hands.length,
+  add({
+    name: 'Colors dealt', games: hands.length, section: 'Overall · opening deck',
     tip: 'The colors of the colored cards in both opening hands. Each deck holds equal numbers of its colors; Rainbow has six, the other modes four.',
     expect: listText(shownColors.map(function (i) { return COLOR_LABELS[i]; }), shownColors.map(function (i) { return f1(expColors[i]); })),
     seen: listText(shownColors.map(function (i) { return COLOR_LABELS[i]; }), shownColors.map(function (i) { return seenColors[i]; })),
-    p: colorTotal ? chiTest(seenColors, expColors) : null
-  });
+  }, function () { return colorTotal ? chiTest(seenColors, expColors) : null; }, expColors);
   var nitros = two.filter(function (m) { return m.d.nitro; });
   if (nitros.length) {
-    var faces = [0, 0, 0, 0, 0, 0], colors = [0, 0, 0, 0], penalties = [0, 0, 0, 0, 0];
-    nitros.forEach(function (m) { P.forEach(function (p) {
-      addInto(faces, m.d.nitro[p].faces);
-      addInto(penalties, m.d.nitro[p].penalties || []);
-      m.d.nitro[p].col.slice(0, 4).forEach(function (n, i) { colors[i] += n; });
-    }); });
-    [[faces, ['1', '2', '3', '4', '5', '6'], 'Nitro die rolls'], [colors, COLOR_LABELS.slice(0, 4), 'Nitro random colors'],
-     [penalties, ['1', '2', '3', '4', '5'], 'Nitro penalty sizes']].forEach(function (x) {
-      var total = sum(x[0]), expected = x[0].map(function () { return total / x[0].length; });
-      tests.push({ name: x[2], games: nitros.length, tip: 'Each outcome is equally likely from the committed random stream.',
-        expect: listText(x[1], expected.map(f1)), seen: listText(x[1], x[0]), p: total ? chiTest(x[0], expected) : null });
+    [[6, ['1', '2', '3', '4', '5', '6'], 'Nitro die rolls'], [4, COLOR_LABELS.slice(0, 4), 'Nitro random colors'],
+     [5, ['1', '2', '3', '4', '5'], 'Nitro penalty sizes']].forEach(function (x) {
+      var field = x[2] === 'Nitro die rolls' ? 'faces' : x[2] === 'Nitro random colors' ? 'col' : 'penalties';
+      function nitroTest(player) {
+        var eligible = nitros.filter(function (m) { return (player ? [player] : P).some(function (p) { return sum(m.d.nitro[p][field] || []) > 0; }); });
+        var observed = Array(x[0]).fill(0);
+        eligible.forEach(function (m) { (player ? [player] : P).forEach(function (p) {
+          (m.d.nitro[p][field] || []).slice(0, observed.length).forEach(function (n, i) { observed[i] += n; });
+        }); });
+        var count = sum(observed), exp = observed.map(function () { return count / observed.length; });
+        add({ name: x[2] + (player ? ' · ' + nm(player) : ''), games: eligible.length,
+          section: player ? 'By player · Nitro outcomes' : 'Overall · Nitro outcomes', sample: plural(count, field === 'col' ? 'color pick' : 'roll'),
+          tip: 'Each outcome has the same probability. Requires 20 games with recorded outcomes and at least 5 expected observations per outcome. Penalty sizes are grouped by the player rolling, who faces the penalty before a possible return.',
+          expect: listText(x[1], exp.map(f1)), seen: listText(x[1], observed)
+        }, function () { return count ? chiTest(observed, exp) : null; }, exp);
+      }
+      nitroTest(null);
+      P.forEach(nitroTest);
     });
   }
   return tests;
@@ -2892,28 +2931,35 @@ function renderFair(R) {
   // The tests
   var scope = S.fair === 'fair' ? proven : logged;
   var tests = fairTests(scope), adj = holm(tests.map(function (x) { return x.p; }));
-  var rows = ['<tr><th>Test</th><th>Fair dealing gives about</th><th>What happened</th><th class="num">p-value</th><th></th></tr>'];
+  tests.forEach(function (x, i) { x.adjusted = adj[i]; });
+  var rows = ['<tr><th>Test / observation</th><th>Reference counts</th><th>What happened</th><th class="num">Adjusted p-value</th><th></th></tr>'];
   function testRow(x) {
-    var v = verdict(x.p), fill = x.p == null ? 0 : Math.min(1, -Math.log(Math.max(x.p, 1e-9)) / Math.log(1000));
-    return '<tr><td>' + x.name + hint(x.tip) + '<span class="meta">' + plural(x.games, 'game') + '</span></td><td>' + x.expect + '</td><td>' + x.seen + '</td>' +
-      '<td class="num">' + fmtP(x.p) + '<span class="pm"><i class="' + (v || '') + '" style="width:' + (fill * 100).toFixed(0) + '%"></i></span></td>' +
-      '<td>' + (v ? '<span class="vd ' + v + '">' + VERDICTS[v] + '</span>' : '<span class="m">not enough games</span>') + '</td></tr>';
+    var p = x.adjusted, v = verdict(p), fill = p == null ? 0 : Math.min(1, -Math.log(Math.max(p, 1e-9)) / Math.log(1000));
+    return '<tr><td>' + x.name + hint(x.tip) + '<span class="meta">' + plural(x.games, 'game') +
+      (x.sample ? ' · ' + x.sample : '') + '</span></td><td>' + x.expect + '</td><td>' + x.seen + '</td>' +
+      '<td class="num"' + (x.p != null ? ' title="Unadjusted p-value: ' + esc(fmtP(x.p)) + '"' : '') + '>' + fmtP(p) +
+      (p != null ? '<span class="pm"><i class="' + (v || '') + '" style="width:' + (fill * 100).toFixed(0) + '%"></i></span>' : '') + '</td>' +
+      '<td>' + (v ? '<span class="vd ' + v + '">' + VERDICTS[v] + '</span>' : '<span class="m">' + (x.pending || 'Not enough variation') + '</span>') + '</td></tr>';
   }
-  tests.forEach(function (x) { rows.push(testRow(x)); });
+  ['Between players · seating', 'Between players · opening hands', 'Overall · opening deck', 'Overall · Nitro outcomes', 'By player · Nitro outcomes', 'During play · observations'].forEach(function (section) {
+    var group = tests.filter(function (x) { return x.section === section; });
+    if (!group.length) return;
+    rows.push('<tr><td class="sub" colspan="5">' + section + '</td></tr>');
+    group.forEach(function (x) { rows.push(testRow(x)); });
+  });
   var wa = scope.filter(function (m) { return m.w === 'a'; }).length;
   rows.push('<tr><td class="sub" colspan="5">Not about the cards</td></tr>');
   rows.push(testRow({
-    name: 'Wins', games: scope.length, expect: pairText(f1(scope.length / 2), f1(scope.length / 2)), seen: pairText(wa, scope.length - wa), p: binomTest(wa, scope.length),
-    tip: 'Skill decides games too, so a low p-value here means one of you wins more often than luck alone would explain, not that the cards favour anyone.'
+    name: 'Wins', games: scope.length, expect: pairText(f1(scope.length / 2), f1(scope.length / 2)), seen: pairText(wa, scope.length - wa), adjusted: null, pending: 'Observation',
+    tip: 'The reference is an even split, for context. Skill and decisions affect wins, so this is an observation rather than a test of card fairness.'
   }));
   $('fp-tests').innerHTML = scope.length ? rows.join('') : '<tr><td class="empty">No provably fair game in the selection yet.</td></tr>';
   var ran = adj.filter(function (p) { return p != null; }), low = ran.length ? Math.min.apply(null, ran) : null;
-  var raw = tests.filter(function (x) { return x.p != null && x.p < 0.05; }).length;
-  $('fp-note').innerHTML = !ran.length ? 'Not enough logged games to run the tests yet.' :
-    'A p-value is the chance of a result at least this lopsided if every card is dealt at random: below 5% is worth watching, below 1% is unusual. ' +
-    'With ' + ran.length + ' tests, one dipping below 5% now and then is expected by chance (' + raw + ' did), so the overall verdict uses the Holm correction for multiple tests: ' +
-    (low < 0.05 ? '<b class="down">the smallest corrected p-value is ' + fmtP(low) + ', which is worth a closer look.</b>' : '<b>the smallest corrected p-value is ' + fmtP(low) + ', so there is no sign of bias.</b>') +
-    ' With ' + plural(scope.length, 'game') + ', only a fairly large bias would show; the tests get sharper with every game logged.';
+  var rules = 'Tests start at ' + FAIR_MIN_GAMES + ' contributing games. Card-share tests count games with both relevant cards and other cards in the combined hands. Chi-square tests also require 5 expected observations per outcome. Counts stay visible below these thresholds. During-play totals and wins are observations: decisions and skill affect them. ';
+  $('fp-note').innerHTML = rules + (!ran.length ? 'No test has enough data yet.' :
+    'P-values and verdicts use the Holm correction across ' + ran.length + ' eligible tests; below 5% is worth watching, below 1% is unusual. ' +
+    (low < 0.05 ? '<b class="down">The smallest corrected p-value is ' + fmtP(low) + ', worth a closer look.</b>' : '<b>The smallest corrected p-value is ' + fmtP(low) + '; no departure from the reference models was detected.</b>') +
+    ' Small biases may go undetected; a low p-value alone does not establish player bias.');
 
   rows = ['<tr><th></th><th class="num">' + sw('a') + nm('a') + '</th><th class="num">' + sw('b') + nm('b') + '</th></tr>'];
   function winsRow(label, ms) {

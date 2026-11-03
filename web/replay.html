@@ -640,7 +640,7 @@ function renderMath(proof, entropyLabel) {
         pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + (picks[0] ? picks[0].n : 1);
       } else if (s.kind === 'm') {
         what = esc(s.op[2]);
-        who = '<span class="rej">game mode, out of ' + esc(s.op[1].join(', ')) + '</span>';
+        who = '<span class="rej">random game mode</span>';
         pick = (picks[0] ? picks[0].result + 1 : 1) + ' of ' + s.op[1].length;
       } else if (s.kind === 'np' || s.kind === 'nr') {
         what = '⚡ ' + (s.kind === 'np' ? 'Penalty +' : 'Die roll ') + s.op[1];
