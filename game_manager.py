@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import card as c
+import chat_setting
 from pony.orm import db_session
 
 from fairness import FairRandom
@@ -96,6 +97,9 @@ class GameManager(object):
             'draw_counter': game.draw_counter,
             'players_won': game.players_won,
             'mode': game.mode,
+            'selectrandom_modes': game.selectrandom_modes,
+            'random_mode': game.random_mode,
+            'random_lobby_mode': game.random_lobby_mode,
             'open': game.open,
             'translate': game.translate,
             'owner': list(game.owner or []),
@@ -154,6 +158,9 @@ class GameManager(object):
         game.players_won = data.get('players_won', 0)
         # Games saved in the removed text mode carry on in classic mode, which had the same deck
         game.mode = 'classic' if data.get('mode') == 'text' else data.get('mode')
+        game.selectrandom_modes = data.get('selectrandom_modes', game.selectrandom_modes)
+        game.random_mode = data.get('random_mode', False)
+        game.random_lobby_mode = data.get('random_lobby_mode', 'random')
         game.open = data.get('open', True)
         game.translate = data.get('translate', False)
         game.owner = set(data.get('owner') or [])
@@ -451,6 +458,11 @@ class GameManager(object):
 
         self.logger.debug("Creating new game in chat " + str(chat_id))
         game = Game(chat)
+
+        selected_modes = chat_setting.selective_random_modes(chat_id)
+        if selected_modes is not None:
+            game.selectrandom_modes = selected_modes
+            game.set_mode('selectrandom')
 
         if chat_id not in self.chatid_games:
             self.chatid_games[chat_id] = list()

@@ -30,6 +30,7 @@ STICKERS = (
 )
 
 logger = logging.getLogger(__name__)
+R8P_STICKER = 'CAACAgQAAxUAAWrsbN1g_jpuqA2TZk-bW3ig8BHFAAJnIQACLBdgU9vwqLsF5TpdPQQ'
 
 
 def odds(rolls):
@@ -74,15 +75,16 @@ def roll(game, player, chosen=False):
     return cards
 
 
-def send_sticker(bot, chat_id, eruption):
-    """The sticker of the game's `eruption`-th eruption"""
+def send_sticker(bot, chat_id, eruption, mode='volcano'):
+    """R8P's unnumbered sticker, or Volcano's numbered eruption sticker."""
     if not eruption:
         return
     # Here, so the statistics can use odds() without the bot's modules
     from shared_vars import dispatcher
     from utils import TIMEOUT
     try:
-        dispatcher.run_async(bot.sendSticker, chat_id, sticker=STICKERS[min(eruption, len(STICKERS)) - 1],
+        sticker = R8P_STICKER if mode == 'r8p' else STICKERS[min(eruption, len(STICKERS)) - 1]
+        dispatcher.run_async(bot.sendSticker, chat_id, sticker=sticker,
                              timeout=TIMEOUT, disable_notification=True)
     except Exception:
         logger.exception("Failed to schedule the volcano sticker")
@@ -92,5 +94,5 @@ def erupt(bot, game, player, chosen=False):
     """roll() and, on an eruption that gave cards, its sticker"""
     cards = roll(game, player, chosen)
     if cards:
-        send_sticker(bot, game.chat.id, game.volcano_eruptions)
+        send_sticker(bot, game.chat.id, game.volcano_eruptions, mode=game.mode)
     return cards

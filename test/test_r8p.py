@@ -105,9 +105,12 @@ class TestR8P(unittest.TestCase):
         self.assertEqual((restored.r8p_pressure, restored.r8p_expected), (500, 0))
 
     def test_eruption_sticker_is_available_after_the_fifth(self):
-        with patch('shared_vars.dispatcher.run_async') as send:
-            volcano.send_sticker(MagicMock(), -1, 12)
-        self.assertEqual(send.call_args.kwargs['sticker'], volcano.STICKERS[-1])
+        game, players = game_with_pressure()
+        with patch('shared_vars.dispatcher.run_async') as send, patch('r8p.roll', return_value=True):
+            for _ in range(12):
+                volcano.erupt(MagicMock(), game, players[0])
+        self.assertEqual(game.volcano_eruptions, 12)
+        self.assertEqual([call.kwargs['sticker'] for call in send.call_args_list], [volcano.R8P_STICKER] * 12)
 
     def test_help_can_be_sent_within_telegram_message_limit(self):
         with patch('simple_commands.send_async') as send:

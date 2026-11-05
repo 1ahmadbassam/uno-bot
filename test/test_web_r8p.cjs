@@ -90,3 +90,14 @@ test('replay rebuild preserves hands across Storm effects and eruptions', () => 
 test('replay JavaScript parses', () => {
   for (const match of replay.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new Function(match[1]);
 });
+
+test('R8P eruption labels have no cap while Volcano keeps its limit', () => {
+  const c = vm.createContext({});
+  vm.runInContext(replay.slice(replay.indexOf('var COLOR_NAMES ='), replay.indexOf('function show(step)')), c);
+  c.G = { mode: 'r8p', players: { a: 'Alice' } };
+  const event = { k: 'erupt', p: 'a', i: 15, cs: ['r_1', 'b_2', 'g_3'] };
+  assert.match(c.describe(event), /eruption 15<\/span>/);
+  assert.doesNotMatch(c.describe(event), /of 5/);
+  c.G.mode = 'volcano';
+  assert.match(c.describe({ ...event, i: 5 }), /eruption 5 of 5/);
+});

@@ -56,6 +56,7 @@ def help_handler(update: Update, context: CallbackContext):
         "Game mode: before the game starts, type the bot's username and a space "
         "and pick a mode (/modes explains them)\n\n"
         "<b>Game creator or group admins</b>\n"
+        "/selectrandom classic storm r8p - Choose modes for selective random\n"
         "/kick - Reply to a player's message with /kick to remove them\n"
         "/kill - End the game\n\n"
         "<b>Other</b>\n"
@@ -136,6 +137,8 @@ def modes(update: Update, context: CallbackContext):
                                     "/cancel apply, with separate Thunderstorm statistics.")
     modes_explanation += "\n\n" + _("🎲 The Random mode plays one of the modes, picked by the game's "
                                     "fair random source when it starts and revealed then.")
+    modes_explanation += "\n\n" + _("Selective random uses the pool chosen with /selectrandom classic storm r8p. "
+                                    "It defaults to the normal Random pool.")
     send_async(context.bot, update.message.chat_id, text=modes_explanation,
                parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 

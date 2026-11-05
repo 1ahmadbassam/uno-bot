@@ -340,7 +340,7 @@ function describe(e) {
       return who + ' drew ' + plural(n, 'card') + ' <span class="tag">' + (REASONS[e.r] || e.r) + '</span>' + (e.e8 ? '<span class="tag">👻 +8</span>' : '');
     case 'erupt':
       return '🌋 Ka-Boom! The volcano gave ' + who + ' ' + plural((e.cs || []).length, 'card') +
-        ' <span class="tag">eruption ' + e.i + ' of 5</span>' +
+        ' <span class="tag">eruption ' + e.i + (G.mode === 'volcano' ? ' of 5' : '') + '</span>' +
         (e._others ? '<span class="tag">' + plural(e._others, 'earlier eruption') + ' hit other players</span>' : '');
     case 'swap':
       return (e.p ? who : 'Someone') + ' swapped hands with ' + nm(e.vs) + ' <span class="tag">now ' + e.h + ' and ' + e.h2 + ' cards</span>';

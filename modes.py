@@ -70,9 +70,10 @@ MODES = {mode.id: mode for mode in (CLASSIC, FAST, WILD, VOLCANO, STORM, TORNADO
 # Not a mode of its own: a lobby set to it plays one of MODES, picked at /start
 # with the game's random source (Game.start), so results only ever name a real mode
 RANDOM = Mode('random', N_("🎲 Random mode"), N_('Leave it to chance 🎲'))
+SELECTRANDOM = Mode('selectrandom', N_("🎲 Selective random mode"), N_('Roll from selected modes 🎲'))
 
 # What the creator can pick in the inline menu, and the config's default_gamemode
-CHOICES = {**MODES, RANDOM.id: RANDOM}
+CHOICES = {**MODES, SELECTRANDOM.id: SELECTRANDOM, RANDOM.id: RANDOM}
 
 
 def get(mode_id):

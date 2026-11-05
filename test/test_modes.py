@@ -115,7 +115,7 @@ class TestModes(unittest.TestCase):
     def test_inline_menu_offers_every_mode(self):
         results = []
         _add_mode_results(results)
-        self.assertEqual([r.id for r in results], ['mode_' + m for m in modes.MODES] + ['mode_random'])
+        self.assertEqual([r.id for r in results], ['mode_' + m for m in modes.CHOICES])
 
     def test_game_colors_come_from_the_deck(self):
         game = Game(SimpleNamespace(id=-1, title="Test", type="group"))

@@ -74,6 +74,15 @@ if RANDOM_GAMEMODE_EXCLUSIONS - modes.MODES.keys():
                      ", ".join(sorted(RANDOM_GAMEMODE_EXCLUSIONS - modes.MODES.keys())))
 if not modes.MODES.keys() - RANDOM_GAMEMODE_EXCLUSIONS:
     raise ValueError("random_gamemode_exclusions must leave at least one game mode available")
+# An empty selective pool uses the same eligible modes as ordinary Random.
+SELECTRANDOM_GAMEMODES = config.get("selectrandom_gamemodes", [])
+if not isinstance(SELECTRANDOM_GAMEMODES, list) or any(
+        not isinstance(mode, str) for mode in SELECTRANDOM_GAMEMODES):
+    raise ValueError("selectrandom_gamemodes must be a JSON array of game mode IDs")
+if set(SELECTRANDOM_GAMEMODES) - modes.MODES.keys():
+    raise ValueError("Unknown mode IDs in selectrandom_gamemodes: " +
+                     ", ".join(sorted(set(SELECTRANDOM_GAMEMODES) - modes.MODES.keys())))
+SELECTRANDOM_GAMEMODES = tuple(mode for mode in modes.MODES if mode in SELECTRANDOM_GAMEMODES)
 WAITING_TIME = int(os.getenv("WAITING_TIME", config.get("waiting_time", 120)))
 TIME_REMOVAL_AFTER_SKIP = int(os.getenv("TIME_REMOVAL_AFTER_SKIP", config.get("time_removal_after_skip", 20)))
 MIN_FAST_TURN_TIME = int(os.getenv("MIN_FAST_TURN_TIME", config.get("min_fast_turn_time", 15)))

@@ -48,7 +48,7 @@ from access_control import access_control
 from actions import do_skip, do_play_card, do_draw, do_call_bluff, start_player_countdown, bot_color_announcement, \
     settle_draw_four_after_leave, cancel_penalty_after_leave, forfeit_win, end_game_without_winner, \
     fairness_commitment, reveal_fairness, take_uno_penalty, UNO_PENALTY
-from config import WAITING_TIME, DEFAULT_GAMEMODE, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED, \
+from config import WAITING_TIME, MIN_PLAYERS, TURN_PACING_DELAY, FAIR_PLAY_REQUIRED, \
     UNO_DECLARE_TIME, ADMIN_LIST
 from errors import (NoGameInChatError, LobbyClosedError, AlreadyJoinedError,
                     NotEnoughPlayersError, DeckEmptyError, LobbyFullError,
@@ -194,7 +194,6 @@ def new_game(update: Update, context: CallbackContext):
         game = gm.new_game(update.message.chat)
         game.starter = update.message.from_user
         game.owner.add(update.message.from_user.id)
-        game.mode = DEFAULT_GAMEMODE
         gm.persist_game(game)
         text = _("Created a new game! Join the game with /join "
                  "and start the game with /start")
@@ -1441,6 +1440,47 @@ def _lobby_mode_result(result_id):
         return None
 
 
+@user_locale
+def selectrandom_command(update: Update, context: CallbackContext):
+    """Set the selective random pool for this lobby and select that mode."""
+    chat = update.message.chat
+    if chat.type == 'private':
+        send_async(context.bot, chat.id, text=_("Send this command in a group."))
+        return
+    gm.ensure_chat_loaded(chat)
+    games = gm.chatid_games.get(chat.id)
+    if not games:
+        send_async(context.bot, chat.id, text=_("There is no running game in this chat."))
+        return
+    game = games[-1]
+    if game.started or game.rng.awaiting_seeds:
+        send_async(context.bot, chat.id, text=_("Choose the random modes before starting the game."))
+        return
+    if not user_can_change_mode(update.message.from_user, game, context.bot):
+        send_async(context.bot, chat.id, text=_("Only the game creator or a group admin can choose the random modes."))
+        return
+    requested = ' '.join(context.args).lower().replace(',', ' ').split()
+    if not requested:
+        send_async(context.bot, chat.id,
+                   text=_("Usage: /selectrandom classic storm r8p\n"
+                          "Use /selectrandom all for the normal Random pool.\nAvailable modes: ") +
+                   ', '.join(modes.MODES))
+        return
+    if requested == ['all']:
+        requested = []
+    unknown = set(requested) - modes.MODES.keys()
+    if unknown:
+        send_async(context.bot, chat.id, text=_("Unknown game modes: ") + ', '.join(sorted(unknown)) +
+                   '\n' + _("Available modes: ") + ', '.join(modes.MODES))
+        return
+    game.selectrandom_modes = [mode for mode in modes.MODES if mode in requested]
+    chat_setting.save_selective_random_modes(chat.id, game.selectrandom_modes)
+    game.set_mode(modes.SELECTRANDOM.id)
+    gm.persist_game(game)
+    send_async(context.bot, chat.id, text=_("Saved selective random modes for this group: ") +
+               (', '.join(game.selectrandom_modes) if game.selectrandom_modes else _("normal Random pool")))
+
+
 def _change_mode(bot, user, game, mode):
     """Set the mode of a game that hasn't started, if `user` may"""
     if not user_can_change_mode(user, game, bot) or mode not in modes.CHOICES:
@@ -1861,6 +1901,7 @@ threaded_disable_translations = _threaded_by(_chat_key, require_message=True)(di
 threaded_skip_player = _threaded_by(_chat_key, require_message=True)(skip_player)
 threaded_cancel_effect = _threaded_by(_chat_key, require_message=True)(cancel_effect)
 threaded_roll_command = _threaded_by(_chat_key, require_message=True)(roll_command)
+threaded_selectrandom_command = _threaded_by(_chat_key, require_message=True)(selectrandom_command)
 threaded_status_update = _threaded_by(_chat_key, require_message=True)(status_update)
 threaded_process_result = _threaded_by(_inline_result_key)(process_result)
 threaded_reply_to_query = _threaded_by(_inline_query_key)(reply_to_query)
@@ -1888,6 +1929,7 @@ try:
 except TypeError:
     dispatcher.add_handler(CommandHandler('start', threaded_start_game))
 dispatcher.add_handler(CommandHandler('new', threaded_new_game))
+dispatcher.add_handler(CommandHandler('selectrandom', threaded_selectrandom_command))
 dispatcher.add_handler(CommandHandler('seed', threaded_seed_command))
 dispatcher.add_handler(CommandHandler('kill', threaded_kill_game))
 dispatcher.add_handler(CommandHandler('join', threaded_join_game))

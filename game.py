@@ -20,7 +20,8 @@
 
 import logging
 import secrets
-from config import ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS, SHUFFLE_PLAYERS, RANDOM_GAMEMODE_EXCLUSIONS
+from config import (ADMIN_LIST, OPEN_LOBBY, DEFAULT_GAMEMODE, ENABLE_TRANSLATIONS,
+                    SHUFFLE_PLAYERS, RANDOM_GAMEMODE_EXCLUSIONS, SELECTRANDOM_GAMEMODES)
 from datetime import datetime, timezone
 
 from deck import Deck, DECKS
@@ -52,6 +53,8 @@ class Game(object):
         self.mode = DEFAULT_GAMEMODE
         # Whether start() picked the mode because the lobby was set to random
         self.random_mode = False
+        self.random_lobby_mode = modes.RANDOM.id
+        self.selectrandom_modes = list(SELECTRANDOM_GAMEMODES)
         self.job = None
         self.owner = set(ADMIN_LIST or [])
         self.open = OPEN_LOBBY
@@ -140,7 +143,7 @@ class Game(object):
             self.rng.use_system()
         if SHUFFLE_PLAYERS:
             self.shuffle_players()
-        if self.mode == modes.RANDOM.id:
+        if self.mode in (modes.RANDOM.id, modes.SELECTRANDOM.id):
             self.pick_random_mode()
 
         self.deck.fill(self.rules.deck)
@@ -153,8 +156,11 @@ class Game(object):
     def pick_random_mode(self):
         """Play one of the modes, picked with the game's random source like the seats and cards"""
         candidates = [mode for mode in modes.MODES if mode not in RANDOM_GAMEMODE_EXCLUSIONS]
+        if self.mode == modes.SELECTRANDOM.id and self.selectrandom_modes:
+            candidates = [mode for mode in modes.MODES if mode in self.selectrandom_modes]
         if not candidates:
             raise ValueError("random_gamemode_exclusions must leave at least one game mode available")
+        self.random_lobby_mode = self.mode
         self.mode = candidates[self.rng.randbelow(len(candidates))]
         self.rng.note('m', candidates, self.mode)
         self.random_mode = True
@@ -164,7 +170,7 @@ class Game(object):
         self.touch()
         if self.random_mode:
             # The next attempt picks again, with the new seed
-            self.mode = modes.RANDOM.id
+            self.mode = self.random_lobby_mode
             self.random_mode = False
         for player in self.players:
             player.cards = list()

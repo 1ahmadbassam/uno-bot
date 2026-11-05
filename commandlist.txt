@@ -20,3 +20,4 @@ score - Show the head-to-head score
 stats - Statistics of the last game
 source - Source code and credits
 seed - Add randomness to a starting game when drand is down
+selectrandom - Choose the modes for selective random (e.g. classic storm r8p)
